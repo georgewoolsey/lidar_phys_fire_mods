@@ -1,0 +1,61 @@
+--- 
+title: "Aerial LiDAR for Fire Model Inputs"
+author: "George Woolsey"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+site: bookdown::bookdown_site
+output: 
+  bookdown::gitbook:
+    includes:
+      in_header: header.html
+documentclass: book
+book_filename: "lidar_phys_fire_mods"
+output_dir: "../docs"
+language:
+  ui:
+    chapter_name: "Section "
+delete_merged_file: true
+bibliography: [packages.bib]
+biblio-style: apalike
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/research-institute-for-nature-and-forest.csl
+suppress-bibliography: true
+lang: en-US
+zotero: true
+link-citations: true
+description: "Using the bookdown package to write a book of data exploration. The output format for this example is bookdown::gitbook."
+---
+
+# Introduction
+
+Code in support of "Using aerial LiDAR data for object-based physical fire modeling in conifer forests of the southwestern US"
+
+## Objective
+
+The objective of this study is to demonstrate the use of aerial LiDAR data to create inputs for physics-based fire models in frequent-fire forests of the southwestern United States. We review the methods used to extract tree location, species, and physical form from aerial LiDAR data. We evaluate this canopy crown detection methodology using a benchmark data set created to standardize evaluation metrics (Weinstein et al. 2021). We explain how to format this data for seamless integration with two commonly used object-based physical fire modeling tools. We demonstrate the end-to-end process using a case study from the southwestern United States.
+
+## Data
+
+LiDAR data from the southwest US
+
+```{r, include=FALSE, echo=FALSE}
+knitr::write_bib(c(
+  .packages(),
+  "bookdown"
+  , "knitr"
+  , "rmarkdown"
+  , "tidyverse"
+  , "viridis"
+  , "RColorBrewer"
+  , "scales"
+  , "latex2exp"
+  , "mapview"
+  , "kableExtra"
+  , "patchwork"
+  , "ggnewscale"
+  , "terra"
+  , "stars"
+  , "sf"
+  , "brms"
+  , "tidybayes"
+  , "parallel"
+), 'packages.bib')
+```

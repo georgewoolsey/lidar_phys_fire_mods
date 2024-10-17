@@ -1,0 +1,830 @@
+# Data Load and Explore
+
+Load the standard libraries
+
+```{r, warning=FALSE, message=FALSE}
+# bread-and-butter
+library(tidyverse) # the tidyverse
+library(viridis) # viridis colors
+library(harrypotter) # hp colors
+library(scales) # work with number and plot scales
+library(latex2exp)
+
+# visualization
+library(mapview) # interactive html maps
+library(kableExtra) # tables
+library(patchwork) # combine plots
+library(ggnewscale) # ggnewscale
+library(plot3D) # 3d plotting
+library(rgl) # rgl plotting
+
+# spatial analysis
+library(terra) # raster
+library(sf) # simple features
+library(lidR) # lidar data
+
+# models
+library(brms) # bayesian modelling
+```
+
+```{r pkg-ld, include=F, warning=F, message=F}
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  # , results = 'hide'
+  , fig.width = 10.5
+  , fig.height = 7
+)
+# option to put satellite imagery as base layer of mapview maps
+  mapview::mapviewOptions(
+    homebutton = FALSE
+    , basemaps = c("Esri.WorldImagery","OpenStreetMap")
+  )
+# clean session
+remove(list = ls())
+gc()
+```
+
+Load the libraries from GitHub. Here we'll load:
+
+* [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package): benchmark data set to evaluate lidar-based tree detection ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6))
+* [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees): routines for processing point cloud data collected by airborne lidar to detect forest trees (Woolsey and Tinkham, 2024)
+* [`LadderFuelsR`](https://github.com/olgaviedma/LadderFuelsR): vertical fuel continuity quantification and crown base height (CBH) calculation ([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427))
+* [`lasR`](https://github.com/r-lidar/lasR): complex processing pipelines on lidar data ([Roussel 2024](https://r-lidar.github.io/lasR/index.html))
+
+```{r, results=F}
+library(pak)
+# load them
+c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR") %>% 
+# install and load
+  purrr::map(function(x){
+    # locations
+    df <- dplyr::tibble(
+      p = c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR")
+      , l = c(
+        "weecology/NeonTreeEvaluation_package"
+        , "georgewoolsey/cloud2trees"
+        , "olgaviedma/LadderFuelsR"
+        , "r-lidar/lasR"
+      )
+    )
+    # install if needed
+    if(!require(x, character.only = T)){
+      pak::pkg_install(
+        pkg = df %>% dplyr::filter(tolower(p)==tolower(x)) %>% dplyr::pull(l)
+        , upgrade = T
+      )
+    }
+    # load
+    library(x, character.only = T)
+  })
+
+```
+
+## `NeonTreeEvaluation`
+
+Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) developed: 
+
+>a benchmark dataset of individual canopy crowns derived from multi-sensor imagery in the National Ecological Observatory Network (Table 1) that provides: 1) co-registered remote sensing data from multiple sensors (LiDAR, RGB imagery, and hyperspectral imagery) to allow comparisons of methods based on any single sensor (e.g., for LiDAR based methods), or any combination of sensors (e.g., combining RGB and hyperspectral), and 2) three types of evaluation data to allow assessing both 'tree detection', defined as the identifying the location of individual trees using evaluation data with a point at the crown center , and 'crown delineation' defined as identifying the boundary edge of crowns across a broad range of forest types. The benchmark is designed to allow flexibility in both workflow and sensor selection. (p. 2)
+
+**Table 1.** Summary of datasets included in the benchmark dataset. All sensor data has been cropped to the extent of NEON field sampling plots.
+
+```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold',results='asis'}
+# https://journals.plos.org/ploscompbiol/article/figure?id=10.1371/journal.pcbi.1009180.t001
+knitr::include_graphics("../data/journal.pcbi.1009180.t001.PNG")
+```
+
+The objective of the present analysis is to evaluate the use of this benchmark data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) for a scientific publication describing a workflow to ingest raw LiDAR data and export a tabular tree list for use as an input to the QUIC-Fire physics-based fire spread model ([Linn et al. 2020](https://scholar.google.com/scholar?cluster=5135309566348498660&hl=en&as_sdt=0,6)).
+
+Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) describe the LiDAR data in the benchmark data set: 
+
+>The LiDAR data are 3D coordinates (~5 points/m2) that provide high resolution information about canopy crown shape and height. LiDAR data are stored as 1000m x 1000m.laz files (Fig 2). These files contain the x,y,z coordinates for each return, as well as metadata on return intensity and point classification. Boundaries of individual canopy crowns are often apparent due to gaps among neighboring trees or differences in height among overlapping canopy crowns. For more information on NEON LiDAR data processing see NEON technical document NEON.DOC.001292. Due to the large spatial coverage of the collection effort, the point density of the NEON LiDAR clouds is much lower than the point density used for most studies of crown detection models ([20, 21]; point densities of 8–1000 pt/m2). (p. 4)
+
+what's in this package?
+
+```{r}
+lsf.str("package:NeonTreeEvaluation")
+```
+
+we first have to download evaluation data from the Zenodo archive (1GB), use the download() function to place the data in the correct package location. Download the much larger training data, set `training=TRUE`.
+
+```{r}
+NeonTreeEvaluation::download(training = T, force = F)
+```
+
+what data is in this package?
+
+```{r}
+# what/where is this data
+paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/") %>% 
+  list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = F) %>% 
+  sample() %>% 
+  .[1:10]
+```
+
+For a list of NEON site abbreviations [https://www.neonscience.org/field-sites/field-sites-map](https://www.neonscience.org/field-sites/field-sites-map)
+
+`NeonTreeEvaluation::list_annotations` looks into package contents for ground truth annotations for the image-annotated crowns.
+
+```{r}
+# list_annotations
+NeonTreeEvaluation::list_annotations() %>% 
+  sample() %>% 
+  .[1:10]
+```
+
+The field collected stems are individual points for each tree. They overlap with a subset of the sensor data. Use the `NeonTreeEvaluation::list_field_stems` function to determine which plots have stem data.
+
+```{r}
+# list_field_stems
+NeonTreeEvaluation::list_field_stems() %>% 
+  sample() %>% 
+  .[1:10]
+```
+
+The `NeonTreeEvaluation::crown_polygons` function lists "field-annotated crowns" in which an observer annotates a polygon on the remote-sensing image on a tablet while standing in the field. From Ordway Swisher Biological Station, Florida and Mountain Lake Biological Station.
+
+```{r}
+# crown_polygons
+NeonTreeEvaluation::crown_polygons %>% 
+  dplyr::glimpse()
+```
+
+Sites with field annotated crowns
+
+```{r}
+# crown_polygons
+NeonTreeEvaluation::crown_polygons %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(siteID)
+```
+
+hmmm this data only exists for two NEON sites
+
+The woody vegetation structure data contains information on field estimated height and maximum crown diameter for the majority of field collected stems. We annotated all trees in the 40x40 m plot, regardless of health status, provided they were visible in the image.
+
+```{r}
+NeonTreeEvaluation::field %>% 
+  dplyr::glimpse()
+```
+
+Nice, there appears to be some useful data in here: `uid`, `siteID`, `plotID`, `stemDiameter`, `height`, `maxCrownDiameter`, `ninetyCrownDiameter`, `baseCrownHeight`, `plantStatus`, `taxonID`
+
+Also, I just found that there is a hidden function in the package to filter the field tree data
+
+...except for I'm going to change the minimum diameter from 15 cm to 10 cm
+
+```{r}
+clean_field_data<-function(field){
+  field$area<-field$maxCrownDiameter*field$ninetyCrownDiameter
+  field<-field %>%  filter(!is.na(itcEasting),!stringr::str_detect(eventID,"2014"),growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling"),stemDiameter>10) %>%
+    droplevels() %>%
+    filter(height>3|is.na(height))
+
+  #Limit difference in heights
+  to_remove<-field %>% group_by(individualID) %>%
+    summarize(mean=mean(height),sum_difference = abs(sum(diff(height)))) %>%
+    filter(sum_difference > 8)
+  field<-field %>%
+    filter(!individualID %in% to_remove$individualID)
+}
+```
+
+clean this data and filter it
+
+```{r}
+# filter it
+field_trees <- NeonTreeEvaluation::field %>% 
+  clean_field_data() %>% 
+  dplyr::select(
+    uid, siteID, plotID, stemDiameter
+    , height, maxCrownDiameter, ninetyCrownDiameter
+    , baseCrownHeight, plantStatus, taxonID
+  ) %>% 
+  dplyr::filter(!is.na(maxCrownDiameter) & !is.na(height)) %>% 
+  dplyr::mutate(CrownRadius = maxCrownDiameter/2)
+# see it
+field_trees %>% dplyr::glimpse()
+```
+
+what are these data?
+
+```{r}
+field_trees %>% 
+  dplyr::select(dplyr::where(is.numeric)) %>% 
+  summary()
+```
+
+status?
+
+```{r}
+field_trees %>% 
+  dplyr::count(plantStatus)
+```
+
+keep only live
+
+```{r}
+field_trees <- field_trees %>% 
+  dplyr::filter(plantStatus %>% tolower() %>% stringr::str_starts("live"))
+```
+
+taxonID?
+
+```{r}
+field_trees %>% 
+  dplyr::count(taxonID) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::slice_head(n = 20)
+```
+
+let's see the height versus diameter relationship
+
+```{r}
+field_trees %>% 
+  ggplot(mapping = aes(x = height, y = stemDiameter)) +
+  geom_point() +
+  scale_x_continuous(limits = c(0,NA)) +
+  scale_y_continuous(limits = c(0,NA)) +
+  theme_light()
+```
+
+let's get conifer trees only???
+
+....sure, i found a NEON plant list with the codes: [https://data.neonscience.org/taxonomic-lists?taxonTypeCode=PLANT](https://data.neonscience.org/taxonomic-lists?taxonTypeCode=PLANT)
+
+```{r}
+conifer_spp <-
+  readr::read_csv(
+    "../data/OS_TAXON_PLANT-20220330T142149.csv"
+    , show_col_types = F
+    , progress = F
+  ) %>% 
+  dplyr::filter(
+    tolower(family) %in% c(
+      "pinaceae", "podocarpaceae", "araucariaceae"
+      , "taxaceae", "cephalotaxaceae", "taxodiaceae", "cupressaceae"
+    )
+  ) %>% 
+  dplyr::mutate(
+    taxonID = toupper(taxonID)
+    , vernacularName = tolower(vernacularName)
+    , genus = stringr::str_to_title(genus)
+  ) %>% 
+  dplyr::distinct(taxonID, vernacularName, genus)
+# huh?
+conifer_spp %>% dplyr::slice_sample(n = 10)
+```
+
+filter that field tree list for conifers
+
+```{r}
+conifer_trees <- field_trees %>% 
+  dplyr::inner_join(conifer_spp, by = "taxonID")
+```
+
+check those conifers height and diameter
+
+```{r}
+conifer_trees %>% 
+  ggplot(mapping = aes(x = height, y = stemDiameter, color = genus)) +
+  geom_point() +
+  scale_x_continuous(limits = c(0,NA)) +
+  scale_y_continuous(limits = c(0,NA)) +
+  facet_wrap(facets = dplyr::vars(genus)) +
+  scale_color_viridis_d(option = "turbo") +
+  theme_light() + 
+  theme(legend.position = "none")
+```
+
+what about this crown area data?
+
+```{r}
+conifer_trees %>% 
+  ggplot(mapping = aes(x = CrownRadius, y = genus, fill = genus)) +
+  geom_boxplot(width = 0.7, outliers = F) +
+  scale_fill_viridis_d(option = "turbo") +
+  theme_light() + 
+  theme(legend.position = "none")
+```
+
+radius data
+
+```{r}
+# height
+conifer_trees$height %>% 
+  quantile(probs = c(0.01,0.05,0.5,0.95,0.99))
+# radius
+conifer_trees$CrownRadius %>% 
+  quantile(probs = c(0.01,0.05,0.5,0.95,0.99))
+```
+
+let's model crown radius based on height
+
+```{r}
+lm(formula = CrownRadius ~ height, data = conifer_trees) %>% 
+  broom::tidy() %>% 
+  kableExtra::kbl(digits = 4) %>% 
+  kableExtra::kable_styling()
+```
+
+plot this
+
+```{r}
+conifer_trees %>% 
+  ggplot(mapping = aes(x = height, y = CrownRadius)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  scale_x_continuous(limits = c(0,NA)) +
+  scale_y_continuous(limits = c(0,NA)) +
+  theme_light() + 
+  theme(legend.position = "none")
+```
+
+what about a non-linear model?
+
+```{r}
+crown_height_model <- brms::brm(
+  formula = brms::bf(
+    formula = CrownRadius ~ (b1 * height) + height^b2
+    , b1 + b2 ~ 1
+    , nl = TRUE # !! specify non-linear
+  )
+  , data = conifer_trees
+  , family = brms::brmsfamily("Gamma")
+  , iter = 6000, warmup = 3000, chains = 4
+  , cores = lasR::half_cores()
+  , file = "../data/crown_height_model"
+)
+# plot(crown_height_model)
+summary(crown_height_model)
+    
+## write out model estimates to tabular file
+#### extract posterior draws to a df
+brms::as_draws_df(
+  crown_height_model
+  , variable = c("^b_", "shape")
+  , regex = TRUE
+) %>% 
+  # quick way to get a table of summary statistics and diagnostics
+  posterior::summarize_draws(
+    "mean", "median", "sd"
+    ,  ~quantile(.x, probs = c(
+      0.05, 0.95
+      , 0.025, 0.975
+    ))
+    , "rhat"
+  ) %>% 
+  dplyr::mutate(
+    variable = stringr::str_remove_all(variable, "_Intercept")
+    , formula = summary(crown_height_model)$formula %>% 
+      as.character() %>% 
+      .[1]
+  ) %>% 
+  write.csv(
+    "../data/crown_height_model.csv"
+    , row.names = F
+  )
+```
+
+plot this
+
+```{r}
+plot(brms::conditional_effects(crown_height_model), points = T)
+```
+
+what if we try to plot it with a function using the regression coefficients?
+
+```{r}
+ws_fn <- function(x) {
+  y = dplyr::case_when(
+    is.na(x) ~ 1e-3 # requires non-null
+    , x < 0 ~ 1e-3 # requires positive
+    , x < 2.5 ~ 1 # set lower bound
+    , x > 40 ~ 6.7  # set upper bound
+    # , TRUE ~ 0.75 + (x * 0.14)
+    , TRUE ~ exp( (0.0446*x) + (x^-0.555) ) # used gamma regression so exp the result
+  )
+  return(y)
+}
+```
+
+plot it
+
+```{r}
+ggplot2::ggplot() + ggplot2::xlim(0,60) + ggplot2::ylim(0,NA) +
+  ggplot2::geom_point(data = conifer_trees, mapping = aes(y = CrownRadius, x = height)) +
+  ggplot2::geom_function(fun = ws_fn, lwd = 1.5, color = "blue")
+  
+```
+
+`NeonTreeEvaluation::get_data` is a set of utility functions for finding the path of benchmark data on disk
+
+```{r}
+NeonTreeEvaluation::get_data(plot_name = "RMNP_047", type = "lidar")
+```
+
+let's pull out all sites with `.laz` data and create a data frame for tracking purposes
+
+```{r}
+las_df <-
+  paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/") %>% 
+    list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% 
+    unique() %>% 
+    dplyr::as_tibble() %>% 
+    dplyr::rename(f_path = 1) %>% 
+    # create some other variables
+    dplyr::mutate(
+      f_nm = f_path %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")
+      , plot_nm = f_nm %>% # this matches the file name with the plot name 
+        toupper() %>% 
+        stringr::str_extract(
+          pattern = NeonTreeEvaluation::list_field_stems() %>% 
+            toupper() %>% 
+            paste(collapse = "|")
+        )
+      , neon_site = plot_nm %>% stringr::word(start = 1, sep = fixed("_"))
+    ) %>% 
+    dplyr::filter(!is.na(plot_nm)) %>% # keep only las files with field stems
+    dplyr::select(neon_site, plot_nm, f_nm, f_path)
+# what?
+las_df %>% dplyr::glimpse()
+```
+
+### Explore LiDAR data from package
+
+which NEON sites have data?
+
+```{r}
+las_df %>% 
+  dplyr::count(neon_site) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::mutate(neon_site = forcats::fct_reorder(neon_site, n)) %>% 
+  # plot
+  ggplot(aes(y = neon_site, x = n, fill = n)) +
+    geom_col(width = 0.7) +
+    labs(y = "NEON site", x = "lidar data plots") +
+    ggthemes::scale_fill_continuous_tableau("Gray") +
+    # paletteer::scale_fill_paletteer_c("harrypotter::gryffindor", direction = -1) +
+    ggthemes::theme_clean() +
+    theme(legend.position = "none")
+```
+
+where is this data?
+
+```{r}
+get_site_bbox <- function(site, dta = las_df) {
+# read the las files for a site  
+  las_ctg = dta %>% 
+    dplyr::filter(neon_site == site) %>% 
+    dplyr::pull(f_path) %>% 
+    lidR::readLAScatalog()
+# bbox that site
+  if( is.na( sf::st_crs(las_ctg@data) ) ){
+    return(NULL)
+  }else{
+    las_ctg@data %>% 
+      sf::st_bbox() %>% 
+      sf::st_as_sfc() %>% 
+      sf::st_as_sf() %>% 
+      dplyr::mutate(neon_site = site)  %>% 
+      sf::st_set_crs(sf::st_crs(las_ctg@data)) %>% 
+      sf::st_transform(crs = paste0("EPSG:", 5070))
+  }
+}
+# take this for a spin
+las_df %>%
+  dplyr::pull(neon_site) %>%
+  unique() %>%
+  purrr::map(get_site_bbox) %>% 
+  dplyr::bind_rows() %>% 
+  dplyr::left_join(
+    las_df %>% 
+      dplyr::group_by(neon_site) %>% 
+      dplyr::summarise(n = dplyr::n())
+    , by = "neon_site"
+  ) %>% 
+  st_centroid() %>% 
+  mapview::mapview(
+    zcol = "n"
+    , layer.name = "LiDAR plots"
+    , label = c("neon_site")
+    , col.regions = viridis::mako(10, direction = -1)
+  )
+```
+
+load one las data
+
+```{r}
+f_temp = las_df %>% dplyr::slice_sample(n = 1) %>% dplyr::pull(f_path)
+las_temp = lidR::readLAS(f_temp)
+# quick summary
+las_temp
+# data str
+las_temp@data %>% 
+  dplyr::glimpse()
+```
+
+summarize x, y, z
+
+```{r}
+las_temp@data %>% 
+  dplyr::select(X,Y,Z) %>% 
+  summary()
+```
+
+plot this las
+
+```{r}
+plot3D::scatter3D(
+  x = las_temp@data$X
+  , y = las_temp@data$Y
+  , z = las_temp@data$Z
+  , colvar = las_temp@data$Z
+  , pch = 19, cex = 0.3
+  , colkey = F
+  , phi = 0.5
+)
+```
+
+let's look at the classification (see [table 5 here](https://www.usgs.gov/ngp-standards-and-specifications/lidar-base-specification-tables))
+
+```{r}
+las_temp@data %>% 
+  dplyr::count(Classification)
+```
+
+plot color by classification
+
+```{r}
+plot3D::scatter3D(
+  x = las_temp@data$X
+  , y = las_temp@data$Y
+  , z = las_temp@data$Z
+  , colvar = las_temp@data$Classification
+  , pch = 19, cex = 0.3
+  , colkey = F
+  , phi = 0.5
+)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+## `cloud2trees`
+
+The [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package provides routines for processing point cloud data (.las|.laz format) to detect forest trees. 
+
+let's use it for one of the data sets from a conifer forest in the `NeonTreeEvaluation` benchmark
+
+```{r}
+# get one file
+(f_temp <- las_df %>% 
+    dplyr::filter(neon_site=="RMNP") %>%  # rocky mtn national park
+    dplyr::slice_sample(n = 1) %>% 
+    dplyr::pull(f_path))
+# read in the data
+las_temp <- lidR::readLAS(f_temp)
+```
+
+what is this data?
+
+```{r}
+las_temp@data %>% dplyr::glimpse()
+```
+
+We can plot the point cloud with and color by the point height
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+# ## if want to get current rgl parameters
+# par3d()$zoom
+# par3d()$FOV
+# par3d()$userMatrix %>% c()
+# par3d()$windowRect
+## set up for printing rgl graphics
+r3dDefaults <- rgl::r3dDefaults
+m  <- structure(c(
+  0.65544856,0.11915895,-0.74578017,0.00000000,-0.75504953,0.08122563,-0.65061742,0.00000000,-0.01695041
+  ,0.98954701,0.14321014,0.00000000,0.00000000,0.00000000,0.00000000,1.00000000
+), .Dim = c(4L, 4L))
+r3dDefaults$FOV <- 30
+r3dDefaults$userMatrix <- m
+r3dDefaults$zoom <- 0.90
+r3dDefaults$windowRect <- c(0,23,1536,864)
+rgl::setupKnitr(autoprint = TRUE)
+```
+
+```{r, rgl = TRUE}
+lidR::plot(
+  las_temp
+ , color = "Z", breaks = "quantile", bg = "white", legend = T
+ , pal = harrypotter::hp(n=50, house = "gryffindor")
+)
+```
+
+notice the Z values are in meters above sea level
+
+### Get tree list and normalized cloud
+
+We'll use the `cloud2trees::cloud2trees()` function to get a tree list from the lidar data with a regional estimate of the DBH because we enabled the `estimate_tree_dbh` parameter.  Also returned is a canopy height model (CHM) raster and because we enabled the `keep_intrmdt` parameter we'll get the normalized point cloud data as well.
+
+```{r, results=F}
+cloud2trees_ans <- cloud2trees::cloud2trees(
+  input_las_dir = f_temp
+  , output_dir = "../data"
+  , estimate_tree_dbh = T
+  , keep_intrmdt = T
+)
+```
+
+let's see what we got
+
+```{r}
+names(cloud2trees_ans)
+```
+
+we got a CHM
+
+```{r}
+# could make an easy plot with...
+# terra::plot(cloud2trees_ans$chm_rast)
+# ...but we'll customize and save it as our base plot
+plt_chm <- 
+  ggplot() +
+    geom_tile(
+      data = cloud2trees_ans$chm_rast %>% 
+        as.data.frame(xy=T) %>% 
+        dplyr::rename(f=3)
+      , mapping = aes(x=x,y=y,fill=f)
+    ) +
+    harrypotter::scale_fill_hp("gryffindor", name = "height (m)") +
+    theme_light() +
+    theme(
+      axis.text = element_blank()
+    )
+# view
+plt_chm
+```
+
+we also got tree top points
+
+```{r}
+plt_chm +
+  geom_sf(data = cloud2trees_ans$treetops_sf, shape = "x", color = "blue")
+```
+
+and we got tree crowns
+
+```{r}
+plt_chm +
+  geom_sf(data = cloud2trees_ans$treetops_sf, shape = "x", color = "blue") +
+  geom_sf(data = cloud2trees_ans$crowns_sf, fill = NA, color = "steelblue")
+```
+
+there is data on the individual trees in the crowns and tree tops data (which are the same data but one spaltial polygons and the other is spatial points).
+
+```{r}
+cloud2trees_ans$crowns_sf %>% 
+  dplyr::glimpse()
+```
+
+let's check the height to DBH relationship
+
+```{r}
+cloud2trees_ans$crowns_sf %>% 
+  ggplot(mapping = aes(x = tree_height_m, y = dbh_cm)) +
+    geom_point(color = "navy") +
+    labs(x = "height (m)", y = "DBH (cm)") +
+    theme_light()
+```
+
+this all looks great. 
+
+let's check the normalized point cloud. for that we'll dig in the output directory from the `cloud2trees::cloud2trees()` function (see that `output_dir` parameter).
+
+```{r}
+(n_f_temp <- list.files(
+  "../data/point_cloud_processing_temp/02_normalize/"
+  , pattern = ".las"
+  , full.names = T
+))
+# read in the data
+nlas_temp <- lidR::readLAS(n_f_temp)
+```
+
+plot it to check that it is height normalized
+
+```{r, rgl = TRUE}
+lidR::plot(
+  nlas_temp
+ , color = "Z", bg = "white", legend = T
+ , pal = harrypotter::hp(n=50, house = "gryffindor")
+)
+```
+
+nice! let's remove the ground points to check out potential vegetation
+
+```{r, rgl = TRUE}
+nlas_temp %>% 
+  lidR::filter_poi(Classification!=2) %>% 
+  lidR::plot(
+    color = "Z", breaks = "quantile", bg = "white", legend = T
+    , pal = harrypotter::hp(n=50, house = "gryffindor")
+  )
+```
+
+that's a great workflow, guy.
+
+i'm not your guy, buddy.
+
+## `LadderFuelsR`
+
+The `LadderFuelsR` package ([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) is described as enabling the use of "LiDAR data and the LadderFuelsR package...[to] provide an automated tool for analysing the vertical fuel structure of a forest and to calculate crown base height (CBH) at tree-level, among other parameters" (p.1). 
+
+let's check what's in this package
+
+```{r}
+lsf.str("package:LadderFuelsR")
+```
+
+### Prep for the package
+
+For this package we need to do some cleaning of our las data and our polygon crown data. We need to attach the `treeID` column from our spatial crowns to the las data using `lidR::merge_spatial()`. This function allows for only polygons so we need to get rid of the multipolygons in the crown data. We'll keep the largest part of the multipolygon as the smaller part is usually residual pixels from the CHM. We also generate a `tree_index` as a numeric id which is needed by the `LadderFuelsR` package since `treeID` is character.
+
+```{r}
+# the lidR::merge_spatial requires only polygons so we need to rid the multipolygons
+crowns_sf_poly <-
+  # start with only polygons
+  cloud2trees_ans$crowns_sf %>% 
+  dplyr::filter(sf::st_geometry_type(geometry)=="POLYGON") %>%
+  # union on cleaned multipolygons
+  dplyr::bind_rows(
+    cloud2trees_ans$crowns_sf %>% 
+      dplyr::filter(sf::st_geometry_type(geometry)=="MULTIPOLYGON") %>%
+      sf::st_cast(to = "POLYGON", do_split = T, warn = F) %>% 
+      dplyr::mutate(axxx = sf::st_area(geometry)) %>% # axxx is so we don't overwrite a column
+      dplyr::group_by(treeID) %>% 
+      dplyr::filter(axxx == max(axxx)) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(-axxx)
+  ) %>% 
+  # generate a treeID index because it needs to be numeric
+  dplyr::ungroup() %>% 
+  dplyr::mutate(tree_index = dplyr::row_number())
+```
+
+does it look good?
+
+```{r}
+plt_chm +
+  geom_sf(data = cloud2trees_ans$treetops_sf, shape = "x", color = "blue") +
+  geom_sf(data = crowns_sf_poly, fill = NA, color = "steelblue")
+```
+
+now we'll attach the `treeID` column to the normalized las file and keep only the points that fall within a tree crown.
+
+```{r}
+m_nlas_temp <- lidR::merge_spatial(
+    las = nlas_temp
+    , source = crowns_sf_poly
+    , attribute = "tree_index"
+  ) %>% 
+  lidR::filter_poi(!is.na(tree_index)) %>% 
+  lidR::filter_poi(Classification!=2)
+# what is this data?
+m_nlas_temp@data %>% dplyr::glimpse()
+```
+
+plot the las data colored by `tree_index`
+
+```{r, rgl = TRUE}
+m_nlas_temp %>% 
+  lidR::plot(
+    color = "tree_index", bg = "white", legend = F
+    , pal = viridis::turbo(n = m_nlas_temp@data$tree_index %>% unique() %>% length()) %>% sample()
+  )
+```
+
+check it for one tree
+
+```{r, rgl = TRUE}
+m_nlas_temp %>% 
+  lidR::filter_poi(
+    tree_index == 
+      # get the tree with the most points
+      m_nlas_temp@data %>% 
+        dplyr::count(tree_index) %>% 
+        dplyr::filter(n == max(n)) %>% 
+        dplyr::slice_head(n=1) %>% 
+        dplyr::pull(tree_index)
+  ) %>% 
+  lidR::plot(color = "tree_index", bg = "white", legend = F)
+```
+
+### Use the package
+
+
