@@ -8,4 +8,6 @@ cloud2trees
 get-tree-list-and-normalized-cloud
 ladderfuelsr
 prep-for-the-package
-use-the-package
+defining-function-for-computing-crown-level-metrics
+computing-crown-level-standard-metrics-within-all-trees-detected
+cbh-based-on-different-criteria-maximum-lad-maximum-and-last-distance

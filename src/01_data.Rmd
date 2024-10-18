@@ -53,21 +53,23 @@ Load the libraries from GitHub. Here we'll load:
 * [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees): routines for processing point cloud data collected by airborne lidar to detect forest trees (Woolsey and Tinkham, 2024)
 * [`LadderFuelsR`](https://github.com/olgaviedma/LadderFuelsR): vertical fuel continuity quantification and crown base height (CBH) calculation ([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427))
 * [`lasR`](https://github.com/r-lidar/lasR): complex processing pipelines on lidar data ([Roussel 2024](https://r-lidar.github.io/lasR/index.html))
+* [`leafR`](https://github.com/DRAAlmeida/leafR): set of functions for analyzing the ecological structure of forests based on LAI and LAD measures derived from LiDAR data ([Roussel 2024](https://r-lidar.github.io/lasR/index.html)). Data from this package used in the `LadderFuelsR` workflow even though this process is never explained by Viedma et al. 2024.
 
 ```{r, results=F}
 library(pak)
 # load them
-c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR") %>% 
+c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR", "leafR") %>% 
 # install and load
   purrr::map(function(x){
     # locations
     df <- dplyr::tibble(
-      p = c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR")
+      p = c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR", "leafR")
       , l = c(
         "weecology/NeonTreeEvaluation_package"
         , "georgewoolsey/cloud2trees"
         , "olgaviedma/LadderFuelsR"
         , "r-lidar/lasR"
+        , "DRAAlmeida/leafR"
       )
     )
     # install if needed
@@ -466,9 +468,8 @@ las_df %>%
   ggplot(aes(y = neon_site, x = n, fill = n)) +
     geom_col(width = 0.7) +
     labs(y = "NEON site", x = "lidar data plots") +
-    ggthemes::scale_fill_continuous_tableau("Gray") +
-    # paletteer::scale_fill_paletteer_c("harrypotter::gryffindor", direction = -1) +
-    ggthemes::theme_clean() +
+    harrypotter::scale_fill_hp("slytherin") +
+    theme_light() +
     theme(legend.position = "none")
 ```
 
@@ -608,12 +609,14 @@ We can plot the point cloud with and color by the point height
 ## set up for printing rgl graphics
 r3dDefaults <- rgl::r3dDefaults
 m  <- structure(c(
+  # -0.54301322,-0.25636202,0.79963446,0.00000000,0.83863217,-0.21410924,0.50085258,0.00000000,0.04280954
+  # ,0.94256878,0.33125746,0.00000000,0.00000000,0.00000000,0.00000000,1.00000000
   0.65544856,0.11915895,-0.74578017,0.00000000,-0.75504953,0.08122563,-0.65061742,0.00000000,-0.01695041
   ,0.98954701,0.14321014,0.00000000,0.00000000,0.00000000,0.00000000,1.00000000
 ), .Dim = c(4L, 4L))
 r3dDefaults$FOV <- 30
 r3dDefaults$userMatrix <- m
-r3dDefaults$zoom <- 0.90
+r3dDefaults$zoom <- 0.56
 r3dDefaults$windowRect <- c(0,23,1536,864)
 rgl::setupKnitr(autoprint = TRUE)
 ```
@@ -674,14 +677,14 @@ we also got tree top points
 
 ```{r}
 plt_chm +
-  geom_sf(data = cloud2trees_ans$treetops_sf, shape = "x", color = "blue")
+  geom_sf(data = cloud2trees_ans$treetops_sf, color = "blue")
 ```
 
 and we got tree crowns
 
 ```{r}
 plt_chm +
-  geom_sf(data = cloud2trees_ans$treetops_sf, shape = "x", color = "blue") +
+  geom_sf(data = cloud2trees_ans$treetops_sf, color = "blue") +
   geom_sf(data = cloud2trees_ans$crowns_sf, fill = NA, color = "steelblue")
 ```
 
@@ -753,7 +756,7 @@ lsf.str("package:LadderFuelsR")
 
 ### Prep for the package
 
-For this package we need to do some cleaning of our las data and our polygon crown data. We need to attach the `treeID` column from our spatial crowns to the las data using `lidR::merge_spatial()`. This function allows for only polygons so we need to get rid of the multipolygons in the crown data. We'll keep the largest part of the multipolygon as the smaller part is usually residual pixels from the CHM. We also generate a `tree_index` as a numeric id which is needed by the `LadderFuelsR` package since `treeID` is character.
+For this package we need to do some cleaning of our las data and our polygon crown data. We need to attach the `treeID` column from our spatial crowns to the las data using `lidR::merge_spatial()`. This function allows for only polygons so we need to get rid of the multipolygons in the crown data. We'll keep the largest part of the multipolygon as the smaller part is usually a residual pixel from the CHM. We also generate a `tree_index` as a numeric id which is needed by the `LadderFuelsR` package since `treeID` is character.
 
 ```{r}
 # the lidR::merge_spatial requires only polygons so we need to rid the multipolygons
@@ -768,7 +771,7 @@ crowns_sf_poly <-
       sf::st_cast(to = "POLYGON", do_split = T, warn = F) %>% 
       dplyr::mutate(axxx = sf::st_area(geometry)) %>% # axxx is so we don't overwrite a column
       dplyr::group_by(treeID) %>% 
-      dplyr::filter(axxx == max(axxx)) %>% 
+      dplyr::filter(axxx == max(axxx)) %>% # keep the biggest crown polygon by treeID
       dplyr::ungroup() %>% 
       dplyr::select(-axxx)
   ) %>% 
@@ -781,14 +784,14 @@ does it look good?
 
 ```{r}
 plt_chm +
-  geom_sf(data = cloud2trees_ans$treetops_sf, shape = "x", color = "blue") +
+  geom_sf(data = cloud2trees_ans$treetops_sf, color = "blue") +
   geom_sf(data = crowns_sf_poly, fill = NA, color = "steelblue")
 ```
 
 now we'll attach the `treeID` column to the normalized las file and keep only the points that fall within a tree crown.
 
 ```{r}
-m_nlas_temp <- lidR::merge_spatial(
+crowns_nlas_temp <- lidR::merge_spatial(
     las = nlas_temp
     , source = crowns_sf_poly
     , attribute = "tree_index"
@@ -796,27 +799,37 @@ m_nlas_temp <- lidR::merge_spatial(
   lidR::filter_poi(!is.na(tree_index)) %>% 
   lidR::filter_poi(Classification!=2)
 # what is this data?
-m_nlas_temp@data %>% dplyr::glimpse()
+crowns_nlas_temp@data %>% dplyr::glimpse()
 ```
 
 plot the las data colored by `tree_index`
 
 ```{r, rgl = TRUE}
-m_nlas_temp %>% 
+crowns_nlas_temp %>% 
   lidR::plot(
     color = "tree_index", bg = "white", legend = F
-    , pal = viridis::turbo(n = m_nlas_temp@data$tree_index %>% unique() %>% length()) %>% sample()
+    , pal = viridis::turbo(
+    n = crowns_nlas_temp@data$tree_index %>% # this whole thing gets n unique colors 
+          unique() %>% 
+          length() %>% 
+          `*`(2) # with some separation between the hues
+      ) %>% 
+      sample(
+        crowns_nlas_temp@data$tree_index %>% 
+          unique() %>% 
+          length()
+      )
   )
 ```
 
 check it for one tree
 
 ```{r, rgl = TRUE}
-m_nlas_temp %>% 
+crowns_nlas_temp %>% 
   lidR::filter_poi(
     tree_index == 
       # get the tree with the most points
-      m_nlas_temp@data %>% 
+      crowns_nlas_temp@data %>% 
         dplyr::count(tree_index) %>% 
         dplyr::filter(n == max(n)) %>% 
         dplyr::slice_head(n=1) %>% 
@@ -825,6 +838,229 @@ m_nlas_temp %>%
   lidR::plot(color = "tree_index", bg = "white", legend = F)
 ```
 
-### Use the package
+interesting, with more dense point clouds this would look more like a tree
 
+### Defining function for computing crown-level metrics
+
+Not sure how necessary this is, but pulling it from the [package README](https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#4-defining-function-for-computing-crown-level-metrics)
+
+notice, none of these functions utilize the intensity, or "i", parameter
+
+```{r}
+custom_crown_metrics <- function(z, i) { # user-defined function
+  metrics <- list(
+     dz = 1,
+     th = 1,
+     z_max = max(z),# max height
+     z_min = min(z),# min height
+     z_mean = mean(z),# mean height
+     z_sd = sd(z), # vertical variability of points
+     z_q1=quantile(z, probs = 0.01),
+     z_q5=quantile(z, probs = 0.05),
+    z_q25=quantile(z, probs = 0.25),
+    z_q50=quantile(z, probs = 0.50),
+    z_q75=quantile(z, probs = 0.75),
+    z_q95=quantile(z, probs = 0.95),
+     crr=(mean(z)-min(z))/(max(z)-min(z))
+   )
+   return(metrics) # output
+}
+# idk why they did this...just for shorthand? just define it like that from the start
+# ccm = ~custom_crown_metrics(z = Z, i = Intensity)
+```
+
+### Computing crown level standard metrics within all trees detected
+
+let's see how they do it from the [package README](https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#5computing-crown-level-standard-metrics-within-all-trees-detected)
+
+first, calculate metrics from the las data by tree (with code updates by gw)
+
+```{r}
+# setting a minimum Z height to look at crown metrics
+crowns_nlas_temp <- lidR::filter_poi(crowns_nlas_temp, Z >= 1)
+# Metric derivation at different levels of regularization
+crowns_metrics_df <- 
+  # gw updated this to do it all at once
+  lidR::crown_metrics(
+    las = crowns_nlas_temp
+    , func = .stdtreemetrics # stdtreemetrics is a lidR predefined function for tree-based metrics
+    , geom = "convex" # Geometry type of the output
+    , attribute = "tree_index"
+  ) %>% 
+  dplyr::left_join(
+    lidR::crown_metrics(
+      las = crowns_nlas_temp
+      , func = ~ custom_crown_metrics(z = Z) # the custom function defined above
+      , geom = "convex" # Geometry type of the output
+      , attribute = "tree_index"
+    ) %>%
+    sf::st_drop_geometry()
+    , by = "tree_index"
+  ) %>% 
+  # define crown diameter
+  dplyr::mutate(
+    crown_diam = sqrt(convhull_area/ pi) * 2
+  )
+# a df, ok
+crowns_metrics_df %>% dplyr::glimpse()
+```
+
+what "tree-based metrics" come from the `.stdtreemetrics`? maybe maximum Z, number of points, and crown area...not sure how useful these are for defining CBH. we shall see. the "z_" metrics are neat.
+
+does every crown have some crown metrics?
+
+```{r}
+# has the same number of trees as our crown polygons?
+dplyr::tibble(
+  crowns_sf_poly_trees = nrow(crowns_sf_poly)
+  , crowns_nlas_trees = crowns_nlas_temp@data$tree_index %>% unique() %>% length()
+  , crowns_metrics_df_trees = nrow(crowns_metrics_df)
+) %>% 
+kableExtra::kbl() %>% kableExtra::kable_styling()
+```
+
+guess not. let's look at some of those metrics and the convex hull polygons created by the `lidR::crown_metrics()`
+
+```{r}
+plt_chm +
+  ggnewscale::new_scale_fill() +
+  geom_sf(data = crowns_metrics_df, mapping = aes(fill = z_mean), color = "steelblue") +
+  harrypotter::scale_fill_hp("always", alpha = 0.8)
+```
+
+note the overlap of those polygons. what if we attach the crown metrics to the original crown polygons?
+
+```{r}
+plt_chm +
+  ggnewscale::new_scale_fill() +
+  geom_sf(
+    data = crowns_sf_poly %>% 
+      dplyr::left_join(
+        crowns_metrics_df %>% sf::st_drop_geometry()
+        , by = "tree_index"
+      )
+    , mapping = aes(fill = z_mean), color = "steelblue"
+  ) +
+  harrypotter::scale_fill_hp("always", alpha = 0.8, na.value = "black")
+```
+
+what is this `crr=(mean(z)-min(z))/(max(z)-min(z))` variable?
+
+```{r}
+plt_chm +
+  ggnewscale::new_scale_fill() +
+  geom_sf(data = crowns_metrics_df, mapping = aes(fill = crr), color = "steelblue") +
+  harrypotter::scale_fill_hp("always", alpha = 0.8)
+```
+
+how about crown diameter?
+
+```{r}
+plt_chm +
+  ggnewscale::new_scale_fill() +
+  geom_sf(data = crowns_metrics_df, mapping = aes(fill = crown_diam), color = "steelblue") +
+  harrypotter::scale_fill_hp("always", alpha = 0.8)
+```
+
+### LAI-LAD metrics by Trees
+
+see this section of the [package README](https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#7lai-lad-metrics-by-trees)
+
+this process is left unexplained by the `LadderFuelsR` authors. they are using las files cropped to individual trees (i.e. one tree at a time) and then using the `leafR` package to calculate the LAI-LAD metrics. it seems very inefficient to perform this for individual tree point clouds and not something that would work well if many, many trees.
+
+```{r, eval=FALSE, include=FALSE}
+xxx =
+  list.files(
+      file.path(system.file("extdata", package = "LadderFuelsR"))
+      , pattern = "*_CROWN.las", full.names = TRUE, ignore.case = TRUE
+    ) %>%
+    .[2] %>%
+    lidR::readLAS()
+xxx@data %>% dplyr::count(treeID)
+xxx@data %>% dplyr::select(Z) %>% summary()
+```
+
+```{r, eval=FALSE}
+# Creates a data frame of the 3D voxels information (xyz) with Leaf Area Density values
+short_name1<-NULL
+profile_list<-NULL
+lidar_lai_list<-NULL
+understory_lai_list<-NULL
+LAHV_metric_list<-NULL
+# Creates a data frame of the 3D voxels information (xyz) with Leaf Area Density values from las file
+VOXELS_LAD = leafR::lad.voxels(
+  normlas.file = nlas_temp # note here we are back to using just the normalized las file without crowns
+  , grain.size = 2
+)
+  
+  
+  lad_profile = lad.profile(VOXELS_LAD, relative = F)
+  lai_tot = lai(lad_profile)
+  understory_lai <- lai(lad_profile, min = 0.3, max = 2.5)
+  LAHV_metric<- LAHV(lad_profile, LAI.weighting = FALSE, height.weighting = FALSE)
+  
+  lad_profile1 = data.frame(lad_profile, treeID = short_name1)
+  lai_tot1 = data.frame(lai_tot, treeID = short_name1)
+  understory_lai1 = data.frame(understory_lai, treeID = short_name1)
+  LAHV_metric1 = data.frame(LAHV_metric, treeID = short_name1)
+  
+  profile_list<-rbind(profile_list, lad_profile1)
+  lidar_lai_list<-rbind(lidar_lai_list,lai_tot1)
+  understory_lai_list <-rbind(understory_lai_list,understory_lai1)
+  LAHV_metric_list<-rbind(LAHV_metric_list,LAHV_metric1)
+}
+
+head(profile_list,10)
+```
+
+
+### CBH based on different criteria: maximum LAD, maximum and last distance
+
+there is a bunch of other stuff that i'm not quite sure how useful it is for our purposes but we'll skip to this section of the [package README](https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#19cbh-based-on-different-criteria-maximum-lad-maximum-and-last-distance)
+
+
+```{r, eval=FALSE}
+
+# Tree metrics derived from get_layers_lad() function
+LAD_gt10p <- fuels_LAD_metrics[[2]]
+
+trees_name1 <- as.character(LAD_gt10p$treeID)
+trees_name2 <- factor(unique(trees_name1))
+
+cbh_metrics_list <- list()
+
+for (j in levels(trees_name2)){
+
+  # Filter data for each tree
+  tree1 <- LAD_gt10p |> dplyr::filter(treeID == j)
+  cbh_metrics <- get_cbh_metrics(tree1,min_height= 1.5)
+  cbh_metrics_list[[j]] <- cbh_metrics
+}
+
+# Combine depth values for all trees
+cbh_metrics_all <- dplyr::bind_rows(cbh_metrics_list)
+
+# Get original column names
+  original_column_names <- colnames(cbh_metrics_all)
+
+  # Specify prefixes
+desired_order <- c("treeID", "Hcbh", "dptf","effdist","dist", "Hdist", "Hdptf","maxlad_","max_","last_","nlayers")
+
+  # Identify unique prefixes
+  prefixes <- unique(sub("^([a-zA-Z]+).*", "\\1", original_column_names))
+  # Initialize vector to store new order
+  new_order <- c()
+
+  # Loop over desired order of prefixes
+  for (prefix in desired_order) {
+    # Find column names matching the current prefix
+    matching_columns <- grep(paste0("^", prefix), original_column_names, value = TRUE)
+    # Append to the new order
+    new_order <- c(new_order, matching_columns)
+  }
+  
+  # Reorder columns
+  cbh_metrics_all <- cbh_metrics_all[, new_order]
+
+```
 
