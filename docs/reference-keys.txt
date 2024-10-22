@@ -10,4 +10,11 @@ ladderfuelsr
 prep-for-the-package
 defining-function-for-computing-crown-level-metrics
 computing-crown-level-standard-metrics-within-all-trees-detected
+lai-lad-metrics-by-trees
+leafrlad.voxels
+leafrlad.profile
+leafrlai
+leafrlahv
+bring-together-and-clean
+gaps-and-fuel-layers-base-height-fbh
 cbh-based-on-different-criteria-maximum-lad-maximum-and-last-distance

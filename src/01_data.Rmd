@@ -7,6 +7,7 @@ Load the standard libraries
 library(tidyverse) # the tidyverse
 library(viridis) # viridis colors
 library(harrypotter) # hp colors
+library(RColorBrewer) # brewer colors
 library(scales) # work with number and plot scales
 library(latex2exp)
 
@@ -600,6 +601,16 @@ las_temp@data %>% dplyr::glimpse()
 
 We can plot the point cloud with and color by the point height
 
+```{r, rgl = TRUE}
+lidR::plot(
+  las_temp
+ , color = "Z", breaks = "quantile", bg = "white", legend = T
+ , pal = harrypotter::hp(n=50, house = "gryffindor")
+)
+```
+
+notice the Z values are in meters above sea level
+
 ```{r,echo=FALSE,message=FALSE,warning=FALSE}
 # ## if want to get current rgl parameters
 # par3d()$zoom
@@ -620,16 +631,6 @@ r3dDefaults$zoom <- 0.56
 r3dDefaults$windowRect <- c(0,23,1536,864)
 rgl::setupKnitr(autoprint = TRUE)
 ```
-
-```{r, rgl = TRUE}
-lidR::plot(
-  las_temp
- , color = "Z", breaks = "quantile", bg = "white", legend = T
- , pal = harrypotter::hp(n=50, house = "gryffindor")
-)
-```
-
-notice the Z values are in meters above sea level
 
 ### Get tree list and normalized cloud
 
@@ -824,6 +825,10 @@ crowns_nlas_temp %>%
 
 check it for one tree
 
+```{r, include=FALSE, echo=FALSE}
+r3dDefaults <- rgl::r3dDefaults
+```
+
 ```{r, rgl = TRUE}
 crowns_nlas_temp %>% 
   lidR::filter_poi(
@@ -877,19 +882,19 @@ first, calculate metrics from the las data by tree (with code updates by gw)
 
 ```{r}
 # setting a minimum Z height to look at crown metrics
-crowns_nlas_temp <- lidR::filter_poi(crowns_nlas_temp, Z >= 1)
+fcrowns_nlas_temp <- lidR::filter_poi(crowns_nlas_temp, Z >= 1)
 # Metric derivation at different levels of regularization
 crowns_metrics_df <- 
   # gw updated this to do it all at once
   lidR::crown_metrics(
-    las = crowns_nlas_temp
+    las = fcrowns_nlas_temp
     , func = .stdtreemetrics # stdtreemetrics is a lidR predefined function for tree-based metrics
     , geom = "convex" # Geometry type of the output
     , attribute = "tree_index"
   ) %>% 
   dplyr::left_join(
     lidR::crown_metrics(
-      las = crowns_nlas_temp
+      las = fcrowns_nlas_temp
       , func = ~ custom_crown_metrics(z = Z) # the custom function defined above
       , geom = "convex" # Geometry type of the output
       , attribute = "tree_index"
@@ -913,7 +918,7 @@ does every crown have some crown metrics?
 # has the same number of trees as our crown polygons?
 dplyr::tibble(
   crowns_sf_poly_trees = nrow(crowns_sf_poly)
-  , crowns_nlas_trees = crowns_nlas_temp@data$tree_index %>% unique() %>% length()
+  , crowns_nlas_trees = fcrowns_nlas_temp@data$tree_index %>% unique() %>% length()
   , crowns_metrics_df_trees = nrow(crowns_metrics_df)
 ) %>% 
 kableExtra::kbl() %>% kableExtra::kable_styling()
@@ -966,7 +971,25 @@ plt_chm +
 
 see this section of the [package README](https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#7lai-lad-metrics-by-trees)
 
-this process is left unexplained by the `LadderFuelsR` authors. they are using las files cropped to individual trees (i.e. one tree at a time) and then using the `leafR` package to calculate the LAI-LAD metrics. it seems very inefficient to perform this for individual tree point clouds and not something that would work well if many, many trees.
+>after height normalization and crown segmentation, the LiDAR returns were cropped with the crown contours being voxelized to obtain VHPs from which the absolute mean LAD at each height bin was retrieved ([de Almeida et al., 2019](https://scholar.google.com/scholar?cluster=5085674356305592014&hl=en&as_sdt=0,6)) (p.2).
+
+in this section, the las files cropped to individual trees (i.e. one tree at a time) are passed to the `leafR` package to calculate the LAI-LAD metrics. it seems very inefficient to perform this one-by-one for individual tree point clouds and not something that would work well if many, many trees.
+
+let's go through the process for one tree point cloud 
+
+```{r}
+# leafR::lad.voxels requires a file location :\
+fn <- paste0(tempdir(), "/temp.las")
+# let's sample the tree with the most points
+ti <- crowns_nlas_temp@data %>% 
+  dplyr::count(tree_index) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::slice_head(n=1) %>% 
+  dplyr::pull(tree_index)
+f <- crowns_nlas_temp %>% 
+    lidR::filter_poi(tree_index == ti) %>% # put this in a function and map over trees
+    lidR::writeLAS(file = fn)
+```
 
 ```{r, eval=FALSE, include=FALSE}
 xxx =
@@ -974,44 +997,165 @@ xxx =
       file.path(system.file("extdata", package = "LadderFuelsR"))
       , pattern = "*_CROWN.las", full.names = TRUE, ignore.case = TRUE
     ) %>%
-    .[2] %>%
+    .[1] %>%
     lidR::readLAS()
+  
+plot(xxx, color = "Z", legend = T, bg = "white")
+
 xxx@data %>% dplyr::count(treeID)
+xxx@data %>% dplyr::count(Classification)
 xxx@data %>% dplyr::select(Z) %>% summary()
 ```
 
-```{r, eval=FALSE}
-# Creates a data frame of the 3D voxels information (xyz) with Leaf Area Density values
-short_name1<-NULL
-profile_list<-NULL
-lidar_lai_list<-NULL
-understory_lai_list<-NULL
-LAHV_metric_list<-NULL
-# Creates a data frame of the 3D voxels information (xyz) with Leaf Area Density values from las file
-VOXELS_LAD = leafR::lad.voxels(
-  normlas.file = nlas_temp # note here we are back to using just the normalized las file without crowns
-  , grain.size = 2
-)
-  
-  
-  lad_profile = lad.profile(VOXELS_LAD, relative = F)
-  lai_tot = lai(lad_profile)
-  understory_lai <- lai(lad_profile, min = 0.3, max = 2.5)
-  LAHV_metric<- LAHV(lad_profile, LAI.weighting = FALSE, height.weighting = FALSE)
-  
-  lad_profile1 = data.frame(lad_profile, treeID = short_name1)
-  lai_tot1 = data.frame(lai_tot, treeID = short_name1)
-  understory_lai1 = data.frame(understory_lai, treeID = short_name1)
-  LAHV_metric1 = data.frame(LAHV_metric, treeID = short_name1)
-  
-  profile_list<-rbind(profile_list, lad_profile1)
-  lidar_lai_list<-rbind(lidar_lai_list,lai_tot1)
-  understory_lai_list <-rbind(understory_lai_list,understory_lai1)
-  LAHV_metric_list<-rbind(LAHV_metric_list,LAHV_metric1)
-}
+#### `leafR::lad.voxels`
 
-head(profile_list,10)
+Creates a data frame of the 3D voxels information (xyz) with Leaf Area Density values from las file. 
+
+```{r}
+##### leafR::lad.voxels
+  # Creates a data frame of the 3D voxels information (xyz) with Leaf Area Density values from las file
+  lad_voxels <- leafR::lad.voxels(
+    # normlas.file requires a file location :\
+    normlas.file = f
+    , grain.size = 2
+  )
+class(lad_voxels)
+str(lad_voxels)
 ```
+
+#### `leafR::lad.profile`
+
+This function calculate the lad profile from the input lad.voxels. By "profile" I think they mean "vertical height profile"
+
+```{r}
+##### leafR::lad.profile
+  # This function calculate the lad profile from the input lad.voxels
+  lad_profile <- leafR::lad.profile(lad_voxels, relative = F)
+  class(lad_profile)
+  str(lad_profile)
+```
+
+#### `leafR::lai`
+
+calculates the lead area index (LAI)
+
+```{r}
+lai_tot <- leafR::lai(lad_profile)
+lai_understory <- leafR::lai(lad_profile, min = 0.3, max = 2.5)
+class(lai_tot)
+str(lai_tot)
+str(lai_understory)
+```
+
+#### `leafR::LAHV`
+
+Calculates the leaf area height volume (LAHV) metric as described in [Almeida et al. (2019)](https://scholar.google.com/scholar?cluster=7365610385622591776&hl=en&as_sdt=0,6)
+
+```{r}
+lahv_metric <- leafR::LAHV(lad_profile, LAI.weighting = FALSE, height.weighting = FALSE)
+class(lahv_metric)
+str(lahv_metric)
+```
+
+#### Bring together and clean 
+
+they call this "Depurating Tree LAD profiles"
+
+* replace missing LAD values with `0.01` (no explanation of "why")
+* keep only trees where there are at least 6 profile (vertical height profile) records (>5)
+
+```{r}
+leafr_df <-
+  dplyr::tibble(
+    tree_index = ti # put this in a function and map over trees
+  ) %>% 
+  dplyr::bind_cols(lad_profile) %>% 
+  dplyr::mutate(
+    lad = dplyr::coalesce(lad, 0.01) # not sure why they put in 0.01 here
+    , lai_tot = lai_tot[1]
+    , lai_understory = lai_understory[1]
+    , lahv = lahv_metric[1]
+    , vhp_n = dplyr::n() # they keep trees where there are at least 6 (>5)
+  ) %>% 
+  dplyr::arrange(tree_index, height)
+```
+
+what is this?
+
+```{r}
+leafr_df %>% dplyr::glimpse()
+```
+
+seems like the data used to create Figure 1 (b)
+
+```{r}
+leafr_df %>% 
+  ggplot(mapping = aes(x = lad, y = height)) + 
+    geom_path() +
+    geom_point() +
+    theme_light()
+```
+
+what about the point cloud in voxels?
+
+```{r, include=FALSE, echo=FALSE}
+r3dDefaults <- rgl::r3dDefaults
+```
+
+```{r, rgl = TRUE}
+# calculate voxel metrics
+voxel_metrics(
+  crowns_nlas_temp %>% lidR::filter_poi(tree_index == ti)
+  , ~list(N = length(Z))
+  , 2
+) %>% 
+  lidR::plot(
+    color="N", pal = viridis::mako(n = 11, direction = -1)
+    , size = 2, bg = "white", voxel = TRUE, legend = T
+  )
+```
+
+### Gaps and Fuel Layers Base Height (FBH)
+
+see this section of the [package README](https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#9gaps-and-fuel-layers-base-height-fbh)
+
+uses the LAD profiles derived from normalized point cloud data after applying 
+`leafR::lad.profile()` function and passes this data to the `LadderFuelsR::get_gaps_fbhs()` function to:
+
+>calculates gaps and fuel layers base height (FBH) as the difference in percentiles between consecutive LAD values along the vertical tree profile (VTP). Negative differences are linked to gaps and positive differences to fuel base height.
+
+```{r, eval=FALSE}
+### this function is broken!!!!!!!!!!!!!!!!!!!!!!!!!!
+gaps_fbhs <- get_gaps_fbhs(
+  LAD_profiles = leafr_df %>% 
+    dplyr::filter(tree_index == ti) %>% 
+    # # it looks like this function requires the treeID column
+    dplyr::mutate(treeID = factor(tree_index)) %>% 
+    dplyr::select(treeID, height, lad)
+  , step=1
+  , min_height=1.5
+  , perc_gap= 25, perc_base= 25
+  , verbose=TRUE
+)
+
+# Remove the row with all NA values from the original data frame
+# First remove "treeID" and "treeID1" columns
+gaps_fbhs_list1_no_treeID <- gaps_fbhs_list1[, -which(names(gaps_fbhs_list1) == c("treeID","treeID1"))]
+# Check if any row has all NA values
+rows_with_all_NA_or_zero <- apply(gaps_fbhs_list1_no_treeID, 1, function(row) all(is.na(row) | row == 0))
+# Get the row index with all NA values
+row_index <- which(rows_with_all_NA_or_zero)
+
+# Remove the row with all NA values from the original data frame
+if (length(row_index) > 0) {
+  gaps_fbhs_metrics <- gaps_fbhs_list1[-row_index, ]
+} else {
+  gaps_fbhs_metrics <- gaps_fbhs_list1
+}
+rownames(gaps_fbhs_metrics) <- NULL
+head(gaps_fbhs_metrics)
+```
+
 
 
 ### CBH based on different criteria: maximum LAD, maximum and last distance
