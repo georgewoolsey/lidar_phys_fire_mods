@@ -1124,20 +1124,30 @@ uses the LAD profiles derived from normalized point cloud data after applying
 
 >calculates gaps and fuel layers base height (FBH) as the difference in percentiles between consecutive LAD values along the vertical tree profile (VTP). Negative differences are linked to gaps and positive differences to fuel base height.
 
-```{r, eval=FALSE}
+```{r}
 ### this function is broken!!!!!!!!!!!!!!!!!!!!!!!!!!
-gaps_fbhs <- get_gaps_fbhs(
-  LAD_profiles = leafr_df %>% 
-    dplyr::filter(tree_index == ti) %>% 
-    # # it looks like this function requires the treeID column
-    dplyr::mutate(treeID = factor(tree_index)) %>% 
-    dplyr::select(treeID, height, lad)
-  , step=1
-  , min_height=1.5
-  , perc_gap= 25, perc_base= 25
-  , verbose=TRUE
-)
+source("_broken_gap_fbh_from_LadderFuelsR.R") # gw fix here
+# ?LadderFuelsR::get_gaps_fbhs()
+gaps_fbhs <- 
+  gw_get_gaps_fbhs(
+  # LadderFuelsR::get_gaps_fbhs(
+    LAD_profiles = leafr_df %>% 
+      dplyr::filter(tree_index == ti) %>% 
+      # # it looks like this function requires the treeID column
+      dplyr::mutate(treeID = factor(tree_index)) %>% 
+      dplyr::select(treeID, height, lad)
+    , step=1
+    , min_height=1.5
+    , perc_gap= 25, perc_base= 25
+    , verbose=TRUE
+  )
+# huh?
+class(gaps_fbhs)
+str(gaps_fbhs)
+```
 
+
+```{r, eval=FALSE}
 # Remove the row with all NA values from the original data frame
 # First remove "treeID" and "treeID1" columns
 gaps_fbhs_list1_no_treeID <- gaps_fbhs_list1[, -which(names(gaps_fbhs_list1) == c("treeID","treeID1"))]

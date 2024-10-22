@@ -1,15 +1,37 @@
-LAD_profiles = leafr_df %>% 
-    dplyr::filter(tree_index == ti) %>% 
-    # # it looks like this function requires the treeID column
-    dplyr::mutate(treeID = factor(tree_index)) %>% 
-    dplyr::select(treeID, height, lad)
-step=1
-min_height=1.5
-perc_gap= 25
-perc_base= 25
-verbose=TRUE
+# ################## testing
+library(tidyverse)
+library(LadderFuelsR)
+# # example data for 1 tree
+# prof <- dplyr::tibble(
+#   treeID = rep(x = 1, times = 15)
+#   , height = seq(from = 1.5, to = 15.5, by = 1)
+#   , lad = c(
+#       0.568,0.606,0.338,0.143,0.170
+#       ,0.100,0.068,0.119,0.085,0.063
+#       ,0.034,0.021,0.005,0.007,0.001
+#     )
+# )
+# # execute LadderFuelsR::get_gaps_fbhs()
+# # LadderFuelsR::get_gaps_fbhs(LAD_profiles = prof)
 
-df <- LAD_profiles
+# LAD_profiles = prof
+#   # leafr_df %>% 
+#   #   dplyr::filter(tree_index == ti) %>% 
+#   #   # # it looks like this function requires the treeID column
+#   #   dplyr::mutate(treeID = factor(tree_index)) %>% 
+#   #   dplyr::select(treeID, height, lad)
+# step=1
+# min_height=1.5
+# perc_gap= 25
+# perc_base= 25
+# verbose=TRUE
+
+gw_get_gaps_fbhs<- function (LAD_profiles, step=1,
+                          min_height=1.5,
+                          perc_gap= 25,perc_base= 25,
+                          verbose=TRUE) {
+
+  df <- LAD_profiles
 
 
   if(min_height==0){
@@ -50,13 +72,30 @@ df <- LAD_profiles
 
     lad<-df$lad
     df_ord<-df[with(df, order(lad)), ]
-    df_ord
+
     all_equal <- length(unique(df_ord$lad)) == 1
-    all_equal
-    
+
+    if(all_equal) {
+
+    treeID<-unique(factor(df$treeID))
+
+    crown_height_data <- data.frame(NA)
+    names(crown_height_data) <- "cbh0"
+    gaps_height_data <- data.frame(NA)
+    names(gaps_height_data) <- "gap0"
+    distance_data <- data.frame(NA)
+    names(distance_data) <- "dist0"
+    depth0 <- data.frame(NA)
+    names(depth0) <- "depth0"
+    depth_data <- data.frame(NA)
+    names(depth_data) <- "depth01"
+
+    metrics_tree<-cbind.data.frame(crown_height_data, gaps_height_data, distance_data, depth0,depth_data, treeID)
+
+} else {
 
   # Calculate percentiles for each treeID
-  (PERCENTIL_Z <- df %>%
+  PERCENTIL_Z <- df %>%
     dplyr::group_by(treeID) %>%
     dplyr::summarise(across(lad, list(
       P5 = ~ quantile(.x, probs = 0.05, na.rm = TRUE),
@@ -81,7 +120,7 @@ df <- LAD_profiles
       P99 = ~ quantile(.x, probs = 0.99, na.rm = TRUE)
     ))) %>%
     dplyr::ungroup()
-  )
+
   #print(PERCENTIL_Z)
 
   x1 <- df$height
@@ -100,16 +139,16 @@ df <- LAD_profiles
 
     # Calculate the second derivative for all original x values
     y_second_deriv <- predict(fit, x, deriv = 2)
-    y_second_deriv
+
     # Convert the second derivative results into a data frame
     base_2drivative <- data.frame(x = y_second_deriv$x, y = round(y_second_deriv$y, digits = 10))
-    base_2drivative
+
     # Merge the second derivative with the original data frame
     critical_points <- base_2drivative[, 2]  # Extract the values of the second derivative
     base_2drivative2 <- cbind.data.frame(df[, c(1:3)], critical_points)
-    base_2drivative2
+
     # Calculate gaps_perc using dplyr::case_when
-    (gaps_perc <- df %>%
+    gaps_perc <- df %>%
       mutate(
         gaps_perc = case_when(
           lad <= PERCENTIL_Z$lad_P5 ~ "5",
@@ -136,7 +175,7 @@ df <- LAD_profiles
           TRUE ~ NA_character_
         )
       )
-    )
+
     # Check the distribution of gaps_perc
    #print(table(gaps_perc$gaps_perc))
 
@@ -174,7 +213,7 @@ df <- LAD_profiles
 
     gaps5b<-dplyr::filter(gaps5, percentil <= perc_gap_value)
 
-    ############################################
+        ############################################
 
     # filter only percentil == 5
     gaps_perc_5 <- gaps_perc2 %>%
@@ -197,7 +236,7 @@ df <- LAD_profiles
 
     # Combine the subsetted data frames into a single data frame
     result <- do.call(rbind, subset_list)
-    (result_unique <- unique(result))
+    result_unique <- unique(result)
 
 
     ############################################
@@ -222,7 +261,7 @@ df <- LAD_profiles
 
     # Combine the subsetted data frames into a single data frame
     result1 <- do.call(rbind, subset_list1)
-    (result_unique1 <- unique(result1))
+    result_unique1 <- unique(result1)
 
     ############################################
 
@@ -230,8 +269,8 @@ df <- LAD_profiles
 
     gaps5j <- gaps5i[!duplicated(gaps5i), ]
     gaps5k<-gaps5j[with(gaps5j, order(height)), ]
-    gaps5k
-    (gaps6<-data.frame(t(gaps5k)))
+
+    gaps6<-data.frame(t(gaps5k))
 
 
     #######################################
@@ -298,7 +337,7 @@ df <- LAD_profiles
 
     # Combine the subsetted data frames into a single data frame
     result2 <- do.call(rbind, subset_list2)
-    (result_unique2 <- unique(result2))
+    result_unique2 <- unique(result2)
 
     ################################################3
 
@@ -307,7 +346,7 @@ df <- LAD_profiles
     crown3b <- crown3b[!duplicated(crown3b), ]
     crown3b<-crown3b[with(crown3b, order(height)), ]
 
-    (crown4<-data.frame(t(crown3b)))
+       crown4<-data.frame(t(crown3b))
 
 
   ############ ADAPT THE GAPS TO THE CBH (PREFEReNCE THE CBHs because there are some problems with distance calculus)
@@ -366,43 +405,39 @@ crown_lad <- data.frame(merged_crown2[2,])
 
    #######################################
    #######################################
-   gaps6[1,]
-   # Check if gaps6 exists and has data
-   if (!is.null(gaps6) && nrow(gaps6) > 0) {
-     gaps_height_t <- gaps6[1,] %>%
-       as.data.frame() %>%
-       dplyr::mutate_all(as.numeric) %>%
-       t() %>%
-       as.data.frame() %>%
-       dplyr::mutate(type = "gap")
+
+   # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! gw changed
+   if (!is.null(gaps5m) && nrow(gaps5m) > 0) {
+     gaps_height_t <- gaps5m %>%
+       dplyr::select(height) %>% 
+       dplyr::mutate(type = "gap") %>% 
+       dplyr::rename(V1=height)
    } else {
      gaps_height_t <- tibble(V1 = NA, type = "gap")
    }
+   # gaps5m
+   # gaps_height_t
 
 
    # Check if crown4 exists and contains data
-   if (!is.null(crown4) && nrow(crown4) > 0) {
-     crown_height_t <- crown4[1,] %>%
-       as.data.frame() %>%
-       dplyr::mutate_all(as.numeric) %>%
-       t() %>%
-       as.data.frame() %>%
-       dplyr::mutate(type = "cbh")
+   # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! gw changed
+   if (!is.null(crown3b) && nrow(crown3b) > 0) {
+     crown_height_t <- crown3b %>% 
+       dplyr::select(height) %>% 
+       dplyr::mutate(type = "cbh") %>% 
+       dplyr::rename(V1=height)
    } else {
      crown_height_t <- tibble(V1 = NA, type = "cbh")
    }
-   crown_height_t
+   # crown3b
+   # crown_height_t
 
    # Rename the column in gaps_height_t to match the column name in crown_height_t
-   colnames(gaps_height_t)
-   colnames(crown_height_t)
-   
    colnames(gaps_height_t)[colnames(gaps_height_t) == "V1"] <- "height"
    colnames(crown_height_t)[colnames(crown_height_t) == "V1"] <- "height"
 
    # Now you can combine the data frames
    combined_df <- rbind(gaps_height_t, crown_height_t)
-   combined_df$height
    combined_df_ord <- combined_df[order(combined_df$height), ]
 
    combined_df_ord1<-na.omit(combined_df_ord)
@@ -450,3 +485,16 @@ names(max_height)="max_height"
 
 return(gap_cbh_metrics)
 }
+
+# # example data for 1 tree
+# prof <- dplyr::tibble(
+#   treeID = rep(x = 1, times = 15)
+#   , height = seq(from = 1.5, to = 15.5, by = 1)
+#   , lad = c(
+#       0.568,0.606,0.338,0.143,0.170
+#       ,0.100,0.068,0.119,0.085,0.063
+#       ,0.034,0.021,0.005,0.007,0.001
+#     )
+# )
+# gw_get_gaps_fbhs(prof)
+
