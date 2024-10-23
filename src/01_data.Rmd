@@ -1392,6 +1392,8 @@ is CBH in here? did we do it?
 * max_height - Maximum height of the tree profile
 * nlayers - Number of effective fuel layers
 
+...don't see it
+
 let's take the `LadderFuelsR::get_plots_effective()` function for a spin
 
 ```{r}
