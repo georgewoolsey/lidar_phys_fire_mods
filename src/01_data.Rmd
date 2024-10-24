@@ -1,4 +1,6 @@
-# Data Load and Explore
+# Data Load and Methods Explore{#s01}
+
+In this section we'll review the packages we'll be using to process and evaluate the lidar data. None of the analysis is happening here, just reviewing the methodologies.
 
 Load the standard libraries
 
@@ -87,7 +89,7 @@ c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR", "leafR") %>%
 
 ```
 
-## `NeonTreeEvaluation`
+## `NeonTreeEvaluation`{#neon}
 
 Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) developed: 
 
@@ -578,7 +580,7 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
-## `cloud2trees`
+## `cloud2trees`{#cloud2trees}
 
 The [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package provides routines for processing point cloud data (.las|.laz format) to detect forest trees. 
 
@@ -746,7 +748,7 @@ that's a great workflow, guy.
 
 i'm not your guy, buddy.
 
-## `LadderFuelsR`
+## `LadderFuelsR`{#ladr}
 
 The `LadderFuelsR` package ([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) is described as enabling the use of "LiDAR data and the LadderFuelsR package...[to] provide an automated tool for analysing the vertical fuel structure of a forest and to calculate crown base height (CBH) at tree-level, among other parameters" (p.1). 
 
@@ -1120,7 +1122,7 @@ voxel_metrics(
 
 I quit following the [package README](https://github.com/olgaviedma/LadderFuelsR) because it's unnecessarily complex
 
-## `LadderFuelsR` - simplified
+## `LadderFuelsR` - simplified{#ladr_s}
 
 the [package README](https://github.com/olgaviedma/LadderFuelsR) is so convoluted and difficult to follow. let's just cut the superfluity (i'll see your  ["depurating"](#huh) and raise you "superfluity"). 
 
@@ -1392,7 +1394,7 @@ is CBH in here? did we do it?
 * max_height - Maximum height of the tree profile
 * nlayers - Number of effective fuel layers
 
-...don't see it
+is it possible to have multiple `Hcbh` values for one tree? is step 9 below even necessary at this point?
 
 let's take the `LadderFuelsR::get_plots_effective()` function for a spin
 
@@ -1410,7 +1412,7 @@ maybe we'll try to recreate this plot at some point
 # wanna recreate this?
 ```
 
-### Step 9 - ~`LadderFuelsR::get_cbh_dist`~ `LadderFuelsR::get_cbh_metrics`
+### Step 9 - ~~`LadderFuelsR::get_cbh_dist`~~ `LadderFuelsR::get_cbh_metrics`
 
 `LadderFuelsR::get_cbh_dist` is described in the research article but does not exist in the package or README. Looks like `LadderFuelsR::get_cbh_metrics` is there though.
 
@@ -1426,17 +1428,49 @@ cbh_metrics <- LadderFuelsR::get_cbh_metrics(effective_LAD = layers_lad_df, min_
 cbh_metrics %>% dplyr::glimpse()
 ```
 
-there are some plotting functions
+what are these?
+* treeID: tree ID with strings and numeric values
+* treeID1: tree ID with only numeric values
+* dptf: Depth of fuel layers (m) after considering distances greater than the actual height bin step
+* effdist: Effective distance between consecutive fuel layers (m) after considering distances greater than any number of steps
+* Hcbh: Base height of each fuel separated by a distance greater than the certain number of steps
+* Hdptf: Height of the depth of fuel layers (m) after considering distances greater than the actual step
+* Hdist: Height of the distance (> any number of steps) between consecutive fuel layers (m)
+* Hcbh_Hdptf - Percentage of LAD values comprised in each effective fuel layer
+* maxlad_Hcbh - Height of the CBH of the segmented tree based on the maximum LAD percentage
+* maxlad1_Hcbh - Height of the CBH from the second fuel layer when the maximum LAD occurred in the first fuel layer but its depth <= "hdepth1_height"
+* max_Hcbh - Height of the CBH of the segmented tree based on the maximum distance found in its profile
+* last_Hcbh - Height of the CBH of the segmented tree based on the last distance found in its profile
+* maxlad_ - Values of distance and fuel depth and their corresponding heights at the maximum LAD percentage
+* maxlad1_ - Values of distance and fuel depth and their corresponding heights for the second fuel layer when the maximum LAD occurred in the first fuel layer but its depth <= "hdepth1_height"
+* max_ - Values of distance and fuel depth and their corresponding heights at the maximum distance
+* last_ - Values of distance and fuel depth and their corresponding heights at the last distance
+* nlayers - Number of effective fuel layers
+* max_height - Maximum height of the tree profile
+
+there are also some plotting functions
 
 ```{r}
 # Generate plots for fuels LAD metrics
-plots_cbh_maxlad <- LadderFuelsR::get_plots_cbh_LAD(lad_profile, cbh_metrics, min_height=1.5)
-plots_cbh_maxdist <- LadderFuelsR::get_plots_cbh_maxdist(lad_profile, cbh_metrics, min_height=1.5)
-plots_cbh_lastdist <- LadderFuelsR::get_plots_cbh_lastdist(lad_profile, cbh_metrics, min_height=1.5)
+plots_cbh_maxlad <- LadderFuelsR::get_plots_cbh_LAD(
+  LAD_profiles = lad_profile
+  , cbh_metrics = cbh_metrics
+  , min_height=1.5
+)
+plots_cbh_maxdist <- LadderFuelsR::get_plots_cbh_maxdist(
+  LAD_profiles = lad_profile
+  , cbh_metrics = cbh_metrics
+  , min_height=1.5
+)
+plots_cbh_lastdist <- LadderFuelsR::get_plots_cbh_lastdist(
+  LAD_profiles = lad_profile
+  , cbh_metrics = cbh_metrics
+  , min_height=1.5
+)
 # patchwork them
-plots_cbh_maxlad[[1]] +
-  plots_cbh_maxdist[[1]] +
-  plots_cbh_lastdist[[1]] +
+(plots_cbh_maxlad[[1]] + labs(title = "get_plots_cbh_LAD")) +
+(plots_cbh_maxdist[[1]] + labs(title = "get_plots_cbh_maxdist")) +
+(plots_cbh_lastdist[[1]] + labs(title = "get_plots_cbh_lastdist")) +
   patchwork::plot_layout(ncol = 2)
 ```
 
