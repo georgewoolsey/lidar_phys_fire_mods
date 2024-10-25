@@ -28,6 +28,9 @@ library(lidR) # lidar data
 
 # models
 library(brms) # bayesian modelling
+
+# utilities
+library(rvest) # web scraping
 ```
 
 ```{r pkg-ld, include=F, warning=F, message=F}
@@ -1474,3 +1477,8 @@ plots_cbh_lastdist <- LadderFuelsR::get_plots_cbh_lastdist(
   patchwork::plot_layout(ncol = 2)
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls())
+gc()
+```
