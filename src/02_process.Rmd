@@ -297,12 +297,14 @@ ladderfuelsr_cbh <- function(
   # LadderFuelsR::get_gaps_fbhs
   , dist_btwn_bins_m = 1 # step
   , min_fuel_layer_ht_m = 1.5 # min_height
-  , lad_perc_gap = 25 # perc_gap
-  , lad_perc_base = 25 # perc_base
+  , lad_pct_gap = 25 # perc_gap
+  , lad_pct_base = 25 # perc_base
   # LadderFuelsR::get_real_fbh
   , num_jump_steps = 1 # number_steps
   # LadderFuelsR::get_layers_lad
   , min_lad_pct = 10 # threshold
+  # LadderFuelsR::get_cbh_metrics
+  , frst_layer_ht_m = 2.5 # hdepth1_height
 ) {
   # check if string to las/laz file
   if(inherits(las, "character")){
@@ -406,8 +408,8 @@ ladderfuelsr_cbh <- function(
           LAD_profiles = lad_profile
           , step = dist_btwn_bins_m
           , min_height = min_fuel_layer_ht_m
-          , perc_gap = lad_perc_gap
-          , perc_base = lad_perc_base
+          , perc_gap = lad_pct_gap
+          , perc_base = lad_pct_base
           , verbose = F
         )
       # fix the columns that should be numeric
@@ -416,141 +418,175 @@ ladderfuelsr_cbh <- function(
           !tidyselect::starts_with("treeID")
           , as.numeric
         ))
-    #######################################
-    ### Step 2 - `LadderFuelsR::calculate_gaps_perc`
-    #######################################
-      ### this function calculates the percentile value of each height
-      ## LadderFuelsR::calculate_gaps_perc
-      #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ERROR if treeID is not the first column
-      gaps_perc <- LadderFuelsR::calculate_gaps_perc(
-        LAD_profiles = lad_profile
-        , min_height = min_fuel_layer_ht_m
+    ### check for all NA or 0
+    gaps_na <- gaps_fbhs %>% 
+      dplyr::filter(
+        dplyr::if_all(
+          .cols = -tidyselect::starts_with("treeID")
+          , .fns = ~ dplyr::coalesce(.x, 0) == 0
+        )
+      ) %>% 
+      nrow()
+    if(gaps_na>0){
+      message(
+        paste0(
+          "no fuel gaps found. unable to quantify CBH (treeID="
+          , treeID, ")."
+        )
       )
-
-    #######################################
-    ### Step 3 - `LadderFuelsR::get_distance`
-    #######################################
-      ### calculates distances (and their heights) between fuel layers as
-      ### the difference between consecutive gaps and fuel bases
-      ### (the gap height always must be lower than the fuel base height).
-      ## LadderFuelsR::get_distance
-      metrics_distance <- LadderFuelsR::get_distance(
-        gap_cbh_metrics = gaps_fbhs
-        , gaps_perc = gaps_perc
-        , step = dist_btwn_bins_m
-        , min_height = min_fuel_layer_ht_m
-        , verbose = F
-      )
-
-    #######################################
-    ### Step 4 - `LadderFuelsR::get_depths`
-    #######################################
-      ### calculates fuels depth as the difference between gaps
-      ### interleaved between fuel layers minus one step if
-      ### the fuel depths are greater than one step.
-      ## LadderFuelsR::get_depths
-      metrics_depth <- LadderFuelsR::get_depths(
-        LAD_profiles = lad_profile
-        , distance_metrics = metrics_distance
-        , step = dist_btwn_bins_m
-        , min_height= min_fuel_layer_ht_m
-        , verbose = F
-      )
-    
-    #######################################
-    ### Step 5 - `LadderFuelsR::get_real_fbh`
-    #######################################      
-      ### reshapes fuel layers after removing distances equal 
-      ### to any number of height bin steps, keeping the first 
-      ### "base height" from those consecutive ones separated by such distance.
+      return(NULL)
+    }else{
+      ######`#################################
+      ### Step 2 - `LadderFuelsR::calculate_gaps_perc`
+      #######################################
+        ### this function calculates the percentile value of each height
+        ## LadderFuelsR::calculate_gaps_perc
+        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ERROR if treeID is not the first column
+        gaps_perc <- LadderFuelsR::calculate_gaps_perc(
+          LAD_profiles = lad_profile
+          , min_height = min_fuel_layer_ht_m
+        )
+  
+      #######################################
+      ### Step 3 - `LadderFuelsR::get_distance`
+      #######################################
+        ### calculates distances (and their heights) between fuel layers as
+        ### the difference between consecutive gaps and fuel bases
+        ### (the gap height always must be lower than the fuel base height).
+        ## LadderFuelsR::get_distance
+        metrics_distance <- LadderFuelsR::get_distance(
+          gap_cbh_metrics = gaps_fbhs
+          , gaps_perc = gaps_perc
+          , step = dist_btwn_bins_m
+          , min_height = min_fuel_layer_ht_m
+          , verbose = F
+        )
+  
+      #######################################
+      ### Step 4 - `LadderFuelsR::get_depths`
+      #######################################
+        ### calculates fuels depth as the difference between gaps
+        ### interleaved between fuel layers minus one step if
+        ### the fuel depths are greater than one step.
+        ## LadderFuelsR::get_depths
+        metrics_depth <- LadderFuelsR::get_depths(
+          LAD_profiles = lad_profile
+          , distance_metrics = metrics_distance
+          , step = dist_btwn_bins_m
+          , min_height= min_fuel_layer_ht_m
+          , verbose = F
+        )
       
-      ## LadderFuelsR::get_real_fbh
-      real_fbh <- LadderFuelsR::get_real_fbh(
-        depth_metrics = metrics_depth
-        , step = dist_btwn_bins_m
-        , number_steps = num_jump_steps
-        , min_height = min_fuel_layer_ht_m
-        , verbose = F
-      )
-    
-    #######################################
-    ### Step 6 - `LadderFuelsR::get_real_depths`
-    #######################################
-      ### recalculates fuel layers depth after considering 
-      ### distances greater than the actual height bin step.
+      #######################################
+      ### Step 5 - `LadderFuelsR::get_real_fbh`
+      #######################################      
+        ### reshapes fuel layers after removing distances equal 
+        ### to any number of height bin steps, keeping the first 
+        ### "base height" from those consecutive ones separated by such distance.
+        
+        ## LadderFuelsR::get_real_fbh
+        real_fbh <- LadderFuelsR::get_real_fbh(
+          depth_metrics = metrics_depth
+          , step = dist_btwn_bins_m
+          , number_steps = num_jump_steps
+          , min_height = min_fuel_layer_ht_m
+          , verbose = F
+        )
       
-      ## LadderFuelsR::get_real_depths
-      real_depth <- LadderFuelsR::get_real_depths(
-        effective_fbh = real_fbh
-        , step = dist_btwn_bins_m
-        , min_height = min_fuel_layer_ht_m
-        , verbose = F
-      )
-    
-    #######################################
-    ### Step 7 - `LadderFuelsR::get_effective_gap`
-    #######################################
-      ### recalculates the distance between fuel layers after considering 
-      ### distances greater than any number of height bin steps.
+      #######################################
+      ### Step 6 - `LadderFuelsR::get_real_depths`
+      #######################################
+        ### recalculates fuel layers depth after considering 
+        ### distances greater than the actual height bin step.
+        
+        ## LadderFuelsR::get_real_depths
+        real_depth <- LadderFuelsR::get_real_depths(
+          effective_fbh = real_fbh
+          , step = dist_btwn_bins_m
+          , min_height = min_fuel_layer_ht_m
+          , verbose = F
+        )
       
-      ## LadderFuelsR::get_effective_gap
-      eff_gap <- LadderFuelsR::get_effective_gap(
-        effective_depth = real_depth
-        , number_steps = num_jump_steps
-        , min_height = min_fuel_layer_ht_m
-        , verbose = F
-      )
-    #######################################
-    ### Step 8 - `LadderFuelsR::get_layers_lad`
-    #######################################
-      ### calculates the percentage of Leaf Area Density (LAD) within 
-      ### each fuel layer (first output) and removes those fuel layers 
-      ### with LAD percentage less than a specified threshold 
-      ### (default 10 the depth of the remaining ones (second output).
+      #######################################
+      ### Step 7 - `LadderFuelsR::get_effective_gap`
+      #######################################
+        ### recalculates the distance between fuel layers after considering 
+        ### distances greater than any number of height bin steps.
+        
+        ## LadderFuelsR::get_effective_gap
+        eff_gap <- LadderFuelsR::get_effective_gap(
+          effective_depth = real_depth
+          , number_steps = num_jump_steps
+          , min_height = min_fuel_layer_ht_m
+          , verbose = F
+        )
+      #######################################
+      ### Step 8 - `LadderFuelsR::get_layers_lad`
+      #######################################
+        ### calculates the percentage of Leaf Area Density (LAD) within 
+        ### each fuel layer (first output) and removes those fuel layers 
+        ### with LAD percentage less than a specified threshold 
+        ### (default 10 the depth of the remaining ones (second output).
+        
+        ## LadderFuelsR::get_layers_lad
+        layers_lad_df <- LadderFuelsR::get_layers_lad(
+          LAD_profiles = lad_profile
+          , effective_distances = eff_gap
+          , threshold = min_lad_pct
+          , step = dist_btwn_bins_m
+          , min_height = min_fuel_layer_ht_m
+          , verbose = F
+        )
+        ### idk why it is a list of 2 with the same data just the order 
+        ### of the `max_height` and `Hcbh1_Hdptf1` columns are switched. do you spot another difference??
+        ### looking through the befuddling README it looks like the authors only keep the second data frame in the list
+        if(length(layers_lad_df)>1){
+          layers_lad_df <- layers_lad_df[[2]]
+        }
       
-      ## LadderFuelsR::get_layers_lad
-      layers_lad_df <- LadderFuelsR::get_layers_lad(
-        LAD_profiles = lad_profile
-        , effective_distances = eff_gap
-        , threshold = min_lad_pct
-        , step = dist_btwn_bins_m
-        , min_height = min_fuel_layer_ht_m
-        , verbose = F
-      )
-      ### idk why it is a list of 2 with the same data just the order 
-      ### of the `max_height` and `Hcbh1_Hdptf1` columns are switched. do you spot another difference??
-      ### looking through the befuddling README it looks like the authors only keep the second data frame in the list
-      if(length(layers_lad_df)>1){
-        layers_lad_df <- layers_lad_df[[2]]
-      }
-    
-    # return
-      return(list(
-        gaps_fbhs = gaps_fbhs
-        , lad_profile = lad_profile
-        , gaps_perc = gaps_perc
-        , metrics_distance = metrics_distance
-        , metrics_depth = metrics_depth
-        , real_fbh = real_fbh
-        , real_depth = real_depth
-        , eff_gap = eff_gap
-        , layers_lad_df = layers_lad_df
-      ))
+      #######################################
+      ### Step 9 - `LadderFuelsR::get_cbh_metrics`
+      #######################################
+        ### `LadderFuelsR::get_cbh_dist` is described in the research article but does not 
+        ### exist in the package or README. Looks like `LadderFuelsR::get_cbh_metrics` is there though.
+        ### determines the CBH of a segmented tree using three criteria: 
+        ### maximum LAD percentage, maximum distance and the last distance.
+        
+        ## LadderFuelsR::get_cbh_metrics
+        cbh_metrics <- LadderFuelsR::get_cbh_metrics(
+          effective_LAD = layers_lad_df
+          , min_height = min_fuel_layer_ht_m
+          , hdepth1_height = frst_layer_ht_m
+          , verbose = F
+        )
+  
+      # return
+        return(list(
+          gaps_fbhs = gaps_fbhs
+          , lad_profile = lad_profile
+          , gaps_perc = gaps_perc
+          , metrics_distance = metrics_distance
+          , metrics_depth = metrics_depth
+          , real_fbh = real_fbh
+          , real_depth = real_depth
+          , eff_gap = eff_gap
+          , layers_lad_df = layers_lad_df
+          , cbh_metrics = cbh_metrics
+        ))
+    } # if all NA or all 0, whereby no fuel gaps can be determined
   } # if all NA or all 0, whereby no fuel gaps can be determined
 }
 ```
 
 
 ```{r}
-remove(ladderfuelsr_cbh_ans)
 # CALL IT
 ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
   las = nlas_one_tree # %>% lidR::decimate_points(random(0.5))
   # , treeID = unique(nlas_one_tree@data$treeID)
 ) 
 ladderfuelsr_cbh_ans %>% names()
-# ladderfuelsr_cbh_ans$lad_profile %>% dplyr::glimpse()
-ladderfuelsr_cbh_ans$layers_lad_df %>% dplyr::glimpse()
+ladderfuelsr_cbh_ans$lad_profile %>% dplyr::glimpse()
 ```
 
 Create our own plot of the gaps and fuel layers base height in the vertical tree profile
@@ -594,52 +630,14 @@ but what are these columns?
 * `cbh` - Height of the fuel layer base height (m)
 * `gap` - Height of gap between fuel layers (m)
 
-* treeID: tree ID with strings and numeric values
-* treeID1: tree ID with only numeric values
-* dptf: Depth of fuel layers (m) after considering distances greater than the actual height bin step
-* effdist: Effective distance between consecutive fuel layers (m) after considering distances greater than any number of steps
-* Hcbh: Base height of each fuel separated by a distance greater than the certain number of steps
-* Hdptf: Height of the depth of fuel layers (m) after considering distances greater than the actual step
-* Hdist: Height of the distance (> any number of steps) between consecutive fuel layers (m)
-* Hcbh_Hdptf - Percentage of LAD values comprised in each effective fuel layer
-* max_height - Maximum height of the tree profile
-* nlayers - Number of effective fuel layers
-
-is it possible to have multiple `Hcbh` values for one tree? is step 9 below even necessary at this point?
-
-let's take the `LadderFuelsR::get_plots_effective()` function for a spin
+### Return CBH Metrics
 
 ```{r}
-LadderFuelsR::get_plots_effective(
-  LAD_profiles = lad_profile
-  , effective_LAD = layers_lad_df
-  , min_height = 1.5
-)
-```
-
-maybe we'll try to recreate this plot at some point
-
-```{r}
-# wanna recreate this?
-```
-
-### Step 9 - ~~`LadderFuelsR::get_cbh_dist`~~ `LadderFuelsR::get_cbh_metrics`
-
-`LadderFuelsR::get_cbh_dist` is described in the research article but does not exist in the package or README. Looks like `LadderFuelsR::get_cbh_metrics` is there though.
-
-determines the CBH of a segmented tree using three criteria: maximum LAD percentage, maximum distance and the last distance.
-
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
-
->Function `get_cbh_dist()` applies three criteria to define the CBH in a segmented tree: the fuel layer containing the maximum LAD (%) (Figure 10a), the fuel layer located at the highest distance (Figure 10b), and the fuel layer separated by the last effective distance (Figure 10c). In the case of maximum LAD (%), the output also gives the CBH from the second fuel layer when the first one has the maximum LAD (%) but its depth is smaller than the value indicated in the parameter ‘hdepth1_height’ (default 2m). (p.8)
-
-```{r}
-## LadderFuelsR::get_cbh_metrics
-cbh_metrics <- LadderFuelsR::get_cbh_metrics(effective_LAD = layers_lad_df, min_height= 1.5)
-cbh_metrics %>% dplyr::glimpse()
+ladderfuelsr_cbh_ans$cbh_metrics %>% dplyr::glimpse()
 ```
 
 what are these?
+
 * treeID: tree ID with strings and numeric values
 * treeID1: tree ID with only numeric values
 * dptf: Depth of fuel layers (m) after considering distances greater than the actual height bin step
@@ -664,18 +662,18 @@ there are also some plotting functions
 ```{r}
 # Generate plots for fuels LAD metrics
 plots_cbh_maxlad <- LadderFuelsR::get_plots_cbh_LAD(
-  LAD_profiles = lad_profile
-  , cbh_metrics = cbh_metrics
+  LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
+  , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
   , min_height=1.5
 )
 plots_cbh_maxdist <- LadderFuelsR::get_plots_cbh_maxdist(
-  LAD_profiles = lad_profile
-  , cbh_metrics = cbh_metrics
+  LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
+  , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
   , min_height=1.5
 )
 plots_cbh_lastdist <- LadderFuelsR::get_plots_cbh_lastdist(
-  LAD_profiles = lad_profile
-  , cbh_metrics = cbh_metrics
+  LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
+  , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
   , min_height=1.5
 )
 # patchwork them

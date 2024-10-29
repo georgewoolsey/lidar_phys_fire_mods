@@ -1,7 +1,7 @@
 introduction
 objective
 data
-data-load-and-explore
+s01
 neontreeevaluation
 explore-lidar-data-from-package
 cloud2trees
@@ -17,7 +17,7 @@ leafrlai
 leafrlahv
 huh
 i-quit
-ladderfuelsr---simplified
+ladr_s
 setup
 step-0---leafr-steps
 step-1---ladderfuelsrget_gaps_fbhs
@@ -29,3 +29,8 @@ step-6---ladderfuelsrget_real_depths
 step-7---ladderfuelsrget_effective_gap
 step-8---ladderfuelsrget_layers_lad
 step-9---ladderfuelsrget_cbh_dist-ladderfuelsrget_cbh_metrics
+s02
+get-some-lidar-data
+cloud2trees-that-lidar-data
+define-ladderfuelsr-processing-function
+return-cbh-metrics
