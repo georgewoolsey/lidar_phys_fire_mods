@@ -583,7 +583,6 @@ ladderfuelsr_cbh <- function(
 # CALL IT
 ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
   las = nlas_one_tree # %>% lidR::decimate_points(random(0.5))
-  # , treeID = unique(nlas_one_tree@data$treeID)
 ) 
 ladderfuelsr_cbh_ans %>% names()
 ladderfuelsr_cbh_ans$lad_profile %>% dplyr::glimpse()
@@ -664,22 +663,140 @@ there are also some plotting functions
 plots_cbh_maxlad <- LadderFuelsR::get_plots_cbh_LAD(
   LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
   , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
-  , min_height=1.5
+  , min_height = 0.5
 )
 plots_cbh_maxdist <- LadderFuelsR::get_plots_cbh_maxdist(
   LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
   , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
-  , min_height=1.5
+  , min_height = 0.5
 )
 plots_cbh_lastdist <- LadderFuelsR::get_plots_cbh_lastdist(
   LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
   , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
-  , min_height=1.5
+  , min_height = 0.5
 )
 # patchwork them
 (plots_cbh_maxlad[[1]] + labs(title = "get_plots_cbh_LAD")) +
 (plots_cbh_maxdist[[1]] + labs(title = "get_plots_cbh_maxdist")) +
 (plots_cbh_lastdist[[1]] + labs(title = "get_plots_cbh_lastdist")) +
   patchwork::plot_layout(ncol = 2)
+```
+
+these plots represent the three criteria to define the CBH in a segmented tree: 
+
+* `get_plots_cbh_LAD` = the fuel layer containing the maximum LAD percentage (column named `maxlad_Hcbh`)
+* `get_plots_cbh_maxdist` = the fuel layer located at the highest distance (column named `max_Hcbh`)
+* `get_plots_cbh_lastdist` = the fuel layer separated by the last effective distance (column named `last_Hcbh`)
+
+### Example over mulitiple trees
+
+let's run an example of performing the CBH estimation over multiple trees and combining all of the data
+
+```{r}
+class(nlas_one_tree)
+trees_cbh <- function(
+  tree_list
+  , crs = NA
+  , norm_las = NA
+){
+  ##################################
+  # ensure that norm las data exists
+  ##################################
+  nlas_msg <- paste0(
+    "`norm_las` must contain a directory with nomalized las files, the path of a .laz|.las file"
+    , "\n, -or- a file of class `LAS`. Please update the `norm_las` parameter."
+  )
+  if(is.na(norm_las)){stop(nlas_msg)}
+  if(inherits(norm_las, "character")){
+    if(!stringr::str_ends(norm_las, ".*\\.(laz|las)$")){
+      # try to read directory for las files
+      fls <- list.files(normalizePath(norm_las), pattern = ".*\\.(laz|las)$", full.names = TRUE)
+      # stop it if no files
+      if(length(fls)<1){stop(nlas_msg)}
+      nlas_ctg <- lidR::readLAScatalog(fls)
+    }else if(stringr::str_ends(norm_las, ".*\\.(laz|las)$")){
+      nlas_ctg <- lidR::readLAScatalog(norm_las)
+    }else{
+      stop(nlas_msg)
+    }
+  }else if(inherits(norm_las, "LAS")){
+    nlas_ctg <- norm_las
+  }else{
+    stop(nlas_msg)
+  }
+  ##################################
+  # ensure that treeID data exists
+  ##################################
+  f <- tree_list %>% names()
+  if(length(f)==0){f <- ""}
+  if(
+    max(grepl("treeID", f))==0
+  ){
+    stop(paste0(
+      "`tree_list` data must contain `treeID` column to estimate CBH."
+      , "\nProvide the `treeID` as a unique identifier of individual trees."
+    ))
+  }
+  
+  ##################################
+  # convert to spatial points data
+  ##################################
+  if(inherits(tree_list, "sf")){
+    # if points, just use it
+    if( min(sf::st_is(tree_list, type = c("POINT", "MULTIPOINT"))) == 1 ){
+      tree_tops <- tree_list %>%
+        dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
+    }else{ # if spatial but not points, drop geom and set to points
+      tree_tops <- tree_list %>%
+        sf::st_drop_geometry() %>%
+        sf::st_as_sf(
+          coords = c("tree_x", "tree_y"), crs = sf::st_crs(tree_list)
+          , remove = F
+        ) %>%
+        dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
+    }
+  }else{ # not spatial data
+    # convert from data.frame to spatial points
+    if(!inherits(tree_list, "data.frame")){
+      stop("must pass a data.frame or sf object to the `tree_list` parameter")
+    }
+    if(is.na(crs) | is.na(readr::parse_number(as.character(crs)))){
+      stop("must provide the EPSG code in `crs` parameter for the projection of x,y data")
+    }
+    tree_tops <- tree_list %>%
+      sf::st_as_sf(
+        coords = c("tree_x", "tree_y")
+        , crs = paste0( "EPSG:", readr::parse_number(as.character(crs)) )
+        , remove = F
+      ) %>%
+      dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
+  }
+
+  # check for duplicate treeID
+  if(
+    nrow(tree_tops) != length(unique(tree_tops$treeID))
+  ){
+    stop("Duplicates found in the treeID column. Please remove duplicates and try again.")
+  }
+
+  ####################################################################
+  # Calculate local tree competition metrics
+  ####################################################################
+}
+# ladderfuelsr_cbh
+# # filter for single tree point cloud
+# one_tree_sf <- crowns_sf_poly %>% 
+#   # get one of the taller trees
+#   dplyr::filter(tree_height_m >= quantile(crowns_sf_poly$tree_height_m, probs = 0.9)) %>% 
+#   dplyr::slice_sample(n=1)
+# # clip the point cloud
+# nlas_one_tree <- lidR::clip_roi(
+#     las = crowns_nlas_ctg
+#     , geometry = one_tree_sf
+#   ) %>% 
+#   lidR::filter_poi(!Classification %in% c(2,9,18)) %>% ## class 2 = ground; 9 = water; 18 = noise
+#   lidR::add_attribute(x = id, name = "treeID")
+# # what is this data?
+# nlas_one_tree@data %>% dplyr::glimpse()
 ```
 

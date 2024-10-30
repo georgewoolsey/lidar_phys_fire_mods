@@ -1179,7 +1179,7 @@ calculates gaps and fuel layers base height (FBH) as the difference in percentil
 
 **notice that this function is broken in the package...see [this issue](https://github.com/olgaviedma/LadderFuelsR/issues/2)**
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_gaps_fbhs()` identifies height bins with negative differences in LAD percentile for identifying gaps. When among consecutive height bins differences are negative, it selects the height bin with the lowest LAD (<= perc_gap [P25th]). Additionally, the function looks for height bins with LAD <= P25th, and when they are consecutive, it takes only the first and last values of the set being considered. For obtaining fuel layer base heights (FBHs), it identifies height bins with positive differences in LAD percentile. When such positive differences are consecutive, it selects the height bin with minimum LAD (> perc_base [P25th]). Moreover, it filters height bins with LAD > P25th, and when these are consecutive it takes only the first and last values of each set. Finally, to avoid any duplicated height bins in gaps and FBHs, it selects only the height bins identified as gaps that were not present in the FBH file, giving preference to the FBH height bins (p.3-5)
 
@@ -1278,7 +1278,7 @@ gaps_perc %>% dplyr::glimpse()
 
 calculates distances (and their heights) between fuel layers as the difference between consecutive gaps and fuel bases (the gap height always must be lower than the fuel base height).
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_distance()` calculates the distance between fuel layers as the height difference between each pair of consecutive gaps and FBHs (Figure 4a). In addition, when there are consecutive gaps, the distance is calculated as the difference between the minimum gap and the next FBH encountered (Figure 4b). Similarly, when there were consecutive FBHs, the distance was calculated as the difference between the minimum FBH and the previous gap encountered. When there are gaps above the last FBH, these values were removed for further analysis. (p.5)
 
@@ -1296,7 +1296,7 @@ metrics_distance %>% dplyr::glimpse()
 
 calculates fuels depth as the difference between gaps interleaved between fuel layers minus one step if the fuel depths are greater than one step.
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_depths()` calculates the depth of each fuel layer as the difference between the gaps comprising the FBHs. Finally, to get the real layer depth, and only when layer depth is greater than the step, it subtracts the step value from the depth (Figure 5). There are special cases when there are no gaps between FBHs: (i) if the gap height is less than the minimum height of the FBHs, depth is calculated as the difference between the maximum height of the FBHs set and the height of that gap minus the step (Figure 6a); (ii) if the gap height is greater than the maximum height of FBHs, depth is the difference between the maximum gap height and the minimum height of the FBHs set minus the step (Figure 6b). (p.5)
 
@@ -1314,7 +1314,7 @@ metrics_depth %>% dplyr::glimpse()
 
 reshapes fuel layers after removing distances equal to any number of height bin steps, keeping the first "base height" from those consecutive ones separated by such distance.
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_real_fbh()` identifies the first FBH from consecutive FBHs or the first FBH from those separated by a distance equal to number of steps that can be skipped to reshape the fuel layers. For each distance value, it locates the next FBH value. If distance = num_step, the height of that FBH is propagated upwards. If distance > num_step, the height of that FBH is kept (Figure 7a,b). (p.5-6)
 
@@ -1331,7 +1331,7 @@ real_fbh %>% dplyr::glimpse()
 
 recalculates fuel layers depth after considering distances greater than the actual height bin step.
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_real_depths()` calculates the cumulative heights of depth values when distance = num_step. It iterates over each distance value and if dist[i] > num_step, it keeps the corresponding depth value. However, if dist[i] = num_step, it sums all consecutive distances and corresponding depth values (Figure 7a,b). (p.6)
 
@@ -1345,7 +1345,7 @@ real_depth %>% dplyr::glimpse()
 
 recalculates the distance between fuel layers after considering distances greater than any number of height bin steps.
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_effective_gap()` calculates the effective distance between fuel layers based on the previously identified FBHs. It loops over all the FBHs and, at each iteration, it checks if the current value and the next value in FBHs are not equal. If they are not equal, it keeps the corresponding distance value, otherwise it removes it (Figure 8). (p.6)
 
@@ -1362,7 +1362,7 @@ eff_gap %>% dplyr::glimpse()
 
 calculates the percentage of Leaf Area Density (LAD) within each fuel layer (first output) and removes those fuel layers with LAD percentage less than a specified threshold (default 10 the depth of the remaining ones (second output).
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_layers_lad()` calculates LAD (%) within each fuel layer, which is defined by the height range between the FBH and its depth. First, it calculates the total LAD from the original profile. Next, it retrieves the beginning and end height bin of each fuel layer and calculates the percentage of total LAD that falls within that height range. Later, the fuel layers that had a LAD (%) less than a specified threshold (default 10%) were removed, recalculating the distances (Figure 9). (p.7)
 
@@ -1421,7 +1421,7 @@ maybe we'll try to recreate this plot at some point
 
 determines the CBH of a segmented tree using three criteria: maximum LAD percentage, maximum distance and the last distance.
 
-([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427)) note:
+[Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) note:
 
 >Function `get_cbh_dist()` applies three criteria to define the CBH in a segmented tree: the fuel layer containing the maximum LAD (%) (Figure 10a), the fuel layer located at the highest distance (Figure 10b), and the fuel layer separated by the last effective distance (Figure 10c). In the case of maximum LAD (%), the output also gives the CBH from the second fuel layer when the first one has the maximum LAD (%) but its depth is smaller than the value indicated in the parameter ‘hdepth1_height’ (default 2m). (p.8)
 
@@ -1432,6 +1432,7 @@ cbh_metrics %>% dplyr::glimpse()
 ```
 
 what are these?
+
 * treeID: tree ID with strings and numeric values
 * treeID1: tree ID with only numeric values
 * dptf: Depth of fuel layers (m) after considering distances greater than the actual height bin step
@@ -1455,6 +1456,7 @@ there are also some plotting functions
 
 ```{r}
 # Generate plots for fuels LAD metrics
+?get_plots_cbh_LAD
 plots_cbh_maxlad <- LadderFuelsR::get_plots_cbh_LAD(
   LAD_profiles = lad_profile
   , cbh_metrics = cbh_metrics
@@ -1476,6 +1478,12 @@ plots_cbh_lastdist <- LadderFuelsR::get_plots_cbh_lastdist(
 (plots_cbh_lastdist[[1]] + labs(title = "get_plots_cbh_lastdist")) +
   patchwork::plot_layout(ncol = 2)
 ```
+
+these plots represent the three criteria to define the CBH in a segmented tree: 
+
+* `get_plots_cbh_LAD` = the fuel layer containing the maximum LAD percentage (column named `maxlad_Hcbh`)
+* `get_plots_cbh_maxdist` = the fuel layer located at the highest distance (column named `max_Hcbh`)
+* `get_plots_cbh_lastdist` = the fuel layer separated by the last effective distance (column named `last_Hcbh`)
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
