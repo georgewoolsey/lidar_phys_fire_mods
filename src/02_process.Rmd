@@ -187,6 +187,12 @@ las %>%
   )
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(las)
+gc()
+```
+
 ### `cloud2trees` that lidar data
 
 extract trees from the lidar data using `cloud2trees` to create some example tree-level point cloud data to test the `LadderFuelsR` function we define below with
@@ -394,17 +400,18 @@ ladderfuelsr_cbh <- function(
     ## "depurating tree lad profiles"
     ## see: https://github.com/olgaviedma/LadderFuelsR#8depurating-tree-lad-profiles
     lad_profile <- lad_profile %>% 
-      dplyr::mutate(lad = dplyr::coalesce(lad, 0.01)) %>% 
+      dplyr::mutate(lad = dplyr::coalesce(as.numeric(lad), 0.01)) %>% 
       dplyr::arrange(treeID, height)
     #######################################
     ### Step 1 - `LadderFuelsR::get_gaps_fbhs`
     #######################################
-      ### this function is broken!!!!!!!!!!!!!!!!!!!!!!!!!!
-      source("_broken_gap_fbh_from_LadderFuelsR.R") # gw fix here
-      ## LadderFuelsR::get_gaps_fbhs
+      ### this function is fixed: https://github.com/olgaviedma/LadderFuelsR/pull/3
+      ### LadderFuelsR::get_gaps_fbhs
+      ### This function calculates gaps and fuel layers base height (FBH) as 
+      ### the difference in percentiles between consecutive LAD values along the vertical tree profile (VTP)
       gaps_fbhs <-
-        gw_get_gaps_fbhs(
-        # LadderFuelsR::get_gaps_fbhs(
+        # gw_get_gaps_fbhs(
+        LadderFuelsR::get_gaps_fbhs(
           LAD_profiles = lad_profile
           , step = dist_btwn_bins_m
           , min_height = min_fuel_layer_ht_m
@@ -578,7 +585,6 @@ ladderfuelsr_cbh <- function(
 }
 ```
 
-
 ```{r}
 # CALL IT
 ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
@@ -688,16 +694,32 @@ these plots represent the three criteria to define the CBH in a segmented tree:
 * `get_plots_cbh_maxdist` = the fuel layer located at the highest distance (column named `max_Hcbh`)
 * `get_plots_cbh_lastdist` = the fuel layer separated by the last effective distance (column named `last_Hcbh`)
 
-### Example over mulitiple trees
+## Function to CBH tree list
 
-let's run an example of performing the CBH estimation over multiple trees and combining all of the data
+let's define a function for performing the CBH estimation over multiple trees and combining all of the data
 
 ```{r}
-class(nlas_one_tree)
 trees_cbh <- function(
-  tree_list
-  , crs = NA
+  trees_poly
   , norm_las = NA
+  , tree_sample_prop = 1
+  ##### LadderFuelsR
+  # minimum vhp records
+  # https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#8depurating-tree-lad-profiles
+  , min_vhp_n = 6
+  # leafR::lad.voxels
+  , voxel_grain_size_m = 2
+  # LadderFuelsR::get_gaps_fbhs
+  , dist_btwn_bins_m = 1 # step
+  , min_fuel_layer_ht_m = 1.5 # min_height
+  , lad_pct_gap = 25 # perc_gap
+  , lad_pct_base = 25 # perc_base
+  # LadderFuelsR::get_real_fbh
+  , num_jump_steps = 1 # number_steps
+  # LadderFuelsR::get_layers_lad
+  , min_lad_pct = 10 # threshold
+  # LadderFuelsR::get_cbh_metrics
+  , frst_layer_ht_m = 2.5 # hdepth1_height
 ){
   ##################################
   # ensure that norm las data exists
@@ -727,76 +749,147 @@ trees_cbh <- function(
   ##################################
   # ensure that treeID data exists
   ##################################
-  f <- tree_list %>% names()
+  f <- trees_poly %>% names()
   if(length(f)==0){f <- ""}
   if(
     max(grepl("treeID", f))==0
   ){
     stop(paste0(
-      "`tree_list` data must contain `treeID` column to estimate CBH."
+      "`trees_poly` data must contain `treeID` column to estimate CBH."
       , "\nProvide the `treeID` as a unique identifier of individual trees."
     ))
+  }else{
+    # check for duplicate treeID
+    if(
+      nrow(trees_poly) != length(unique(trees_poly$treeID))
+    ){
+      stop("Duplicates found in the treeID column. Please remove duplicates and try again.")
+    }
+    # ensure that treeID is numeric
+    # generate a treeID index because it needs to be numeric for LadderFuelsR
+    trees_poly <- trees_poly %>% 
+      dplyr::ungroup() %>% 
+      dplyr::mutate(
+        treeID_backup = treeID
+        , treeID = dplyr::row_number()
+      ) %>% 
+      dplyr::relocate(treeID)
   }
   
   ##################################
-  # convert to spatial points data
+  # ensure spatial polygon data
   ##################################
-  if(inherits(tree_list, "sf")){
-    # if points, just use it
-    if( min(sf::st_is(tree_list, type = c("POINT", "MULTIPOINT"))) == 1 ){
-      tree_tops <- tree_list %>%
-        dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
-    }else{ # if spatial but not points, drop geom and set to points
-      tree_tops <- tree_list %>%
-        sf::st_drop_geometry() %>%
-        sf::st_as_sf(
-          coords = c("tree_x", "tree_y"), crs = sf::st_crs(tree_list)
-          , remove = F
-        ) %>%
-        dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
+  sf_msg <- paste0(
+      "`trees_poly` data must be an object of class `sf` with only POLYGON type."
+      , "\nProvide an `sf` object and see `sf::st_geometry_type()`."
+    )
+  if(!inherits(trees_poly, "sf")){stop(sf_msg)}
+  if( min(sf::st_is(trees_poly, type = c("POLYGON", "MULTIPOLYGON"))) == 0 ){stop(sf_msg)}
+  
+  ##################################
+  # ensure the las and sf are same projection
+  ##################################
+  # get crs
+    crs_las <- sf::st_crs(nlas_ctg)
+    crs_poly <- sf::st_crs(trees_poly)
+  # test equal epsg
+    if(
+      is.na(crs_las$epsg) |
+      is.na(crs_poly$epsg) |
+      crs_las$epsg != crs_poly$epsg
+    ){
+      stop("The `trees_poly` and `norm_las` data have differing CRS projections. Please see `sf::st_crs()` and ensure compatibility.")
     }
-  }else{ # not spatial data
-    # convert from data.frame to spatial points
-    if(!inherits(tree_list, "data.frame")){
-      stop("must pass a data.frame or sf object to the `tree_list` parameter")
-    }
-    if(is.na(crs) | is.na(readr::parse_number(as.character(crs)))){
-      stop("must provide the EPSG code in `crs` parameter for the projection of x,y data")
-    }
-    tree_tops <- tree_list %>%
-      sf::st_as_sf(
-        coords = c("tree_x", "tree_y")
-        , crs = paste0( "EPSG:", readr::parse_number(as.character(crs)) )
-        , remove = F
-      ) %>%
-      dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
-  }
-
-  # check for duplicate treeID
-  if(
-    nrow(tree_tops) != length(unique(tree_tops$treeID))
-  ){
-    stop("Duplicates found in the treeID column. Please remove duplicates and try again.")
-  }
-
+  
   ####################################################################
-  # Calculate local tree competition metrics
+  # map over ladderfuelsr_cbh function
   ####################################################################
+  cbh_df <- trees_poly %>% 
+    dplyr::slice_sample(prop = min(as.numeric(tree_sample_prop), 1, na.rm = T)) %>% 
+    dplyr::pull(treeID) %>% 
+    purrr::map(\(x) function(
+      x = x
+      , min_vhp_n = min_vhp_n
+      , voxel_grain_size_m = voxel_grain_size_m
+      , dist_btwn_bins_m = dist_btwn_bins_m
+      , min_fuel_layer_ht_m = min_fuel_layer_ht_m
+      , lad_pct_gap = lad_pct_gap
+      , lad_pct_base = lad_pct_base
+      , num_jump_steps = num_jump_steps
+      , min_lad_pct = min_lad_pct
+      , frst_layer_ht_m = frst_layer_ht_m
+    ){
+      ##################################
+      # filter sf
+      ##################################
+      one_tree_sf <- trees_poly %>% dplyr::filter(treeID==x)
+      ##################################
+      # clip the point cloud
+      ##################################
+      nlas_one_tree <- lidR::clip_roi(las = nlas_ctg, geometry = one_tree_sf) %>%
+        lidR::filter_poi(!Classification %in% c(2,9,18)) %>% ## class 2 = ground; 9 = water; 18 = noise
+        lidR::add_attribute(x = x, name = "treeID")
+      ##################################
+      # check for points
+      ##################################
+      if(nrow(nlas_one_tree@data)>10){
+        # CALL ladderfuelsr_cbh
+        ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
+          las = nlas_one_tree
+          , treeID = x
+          , min_vhp_n = min_vhp_n
+          , voxel_grain_size_m = voxel_grain_size_m
+          , dist_btwn_bins_m = dist_btwn_bins_m
+          , min_fuel_layer_ht_m = min_fuel_layer_ht_m
+          , lad_pct_gap = lad_pct_gap
+          , lad_pct_base = lad_pct_base
+          , num_jump_steps = num_jump_steps
+          , min_lad_pct = min_lad_pct
+          , frst_layer_ht_m = frst_layer_ht_m
+        ) 
+      }else{
+        ladderfuelsr_cbh_ans <- NULL
+      }
+      
+      # build return data
+      if(is.null(ladderfuelsr_cbh_ans$cbh_metrics)){
+        # blank the cbh columns
+        df <- one_tree_sf %>% 
+          dplyr::mutate(
+            maxlad_Hcbh = as.numeric(NA)
+            , max_Hcbh = as.numeric(NA)
+            , last_Hcbh = as.numeric(NA)
+          )
+      }else{
+        df <- one_tree_sf %>% 
+          dplyr::mutate(
+            maxlad_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$maxlad_Hcbh
+            , max_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$max_Hcbh
+            , last_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh
+          )
+      }
+      return(df)
+    }) 
+    # %>% 
+    # dplyr::bind_rows() %>% 
+    # # get rid of treeID
+    # dplyr::mutate(treeID = treeID_backup) %>% 
+    # dplyr::select(-treeID_backup) %>% 
+    # dplyr::relocate(treeID)
+    
+  # return
+  return(cbh_df)
 }
-# ladderfuelsr_cbh
-# # filter for single tree point cloud
-# one_tree_sf <- crowns_sf_poly %>% 
-#   # get one of the taller trees
-#   dplyr::filter(tree_height_m >= quantile(crowns_sf_poly$tree_height_m, probs = 0.9)) %>% 
-#   dplyr::slice_sample(n=1)
-# # clip the point cloud
-# nlas_one_tree <- lidR::clip_roi(
-#     las = crowns_nlas_ctg
-#     , geometry = one_tree_sf
-#   ) %>% 
-#   lidR::filter_poi(!Classification %in% c(2,9,18)) %>% ## class 2 = ground; 9 = water; 18 = noise
-#   lidR::add_attribute(x = id, name = "treeID")
-# # what is this data?
-# nlas_one_tree@data %>% dplyr::glimpse()
+```
+
+test it
+
+```{r}
+trees_cbh_ans <- trees_cbh(
+  trees_poly = cloud2trees_ans$crowns_sf
+  , norm_las = "../data/point_cloud_processing_temp/02_normalize/" # pull this from create_project_structure.R
+  , tree_sample_prop = .1
+)
+trees_cbh_ans
 ```
 
