@@ -694,7 +694,78 @@ these plots represent the three criteria to define the CBH in a segmented tree:
 * `get_plots_cbh_maxdist` = the fuel layer located at the highest distance (column named `max_Hcbh`)
 * `get_plots_cbh_lastdist` = the fuel layer separated by the last effective distance (column named `last_Hcbh`)
 
-## Function to CBH tree list
+## Function to CBH a tree list
+
+first, an intermediate function to clip the point cloud to a polygon and run it through the xxx function
+
+```{r}
+call_ladderfuelsr_cbh <- function(
+      id
+      , poly_df
+      , nlas
+      , my_min_vhp_n
+      , my_voxel_grain_size_m
+      , my_dist_btwn_bins_m
+      , my_min_fuel_layer_ht_m
+      , my_lad_pct_gap
+      , my_lad_pct_base
+      , my_num_jump_steps
+      , my_min_lad_pct
+      , my_frst_layer_ht_m
+    ){
+      ##################################
+      # filter sf
+      ##################################
+      one_tree_sf <- poly_df %>% dplyr::filter(treeID==id)
+      ##################################
+      # clip the point cloud
+      ##################################
+      nlas_one_tree <- lidR::clip_roi(las = nlas, geometry = one_tree_sf) %>%
+        lidR::filter_poi(!Classification %in% c(2,9,18)) %>% ## class 2 = ground; 9 = water; 18 = noise
+        lidR::add_attribute(x = id, name = "treeID")
+      ##################################
+      # check for points
+      ##################################
+      if(nrow(nlas_one_tree@data)>10){
+        # CALL ladderfuelsr_cbh
+        ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
+          las = nlas_one_tree
+          , treeID = id
+          , min_vhp_n = my_min_vhp_n
+          , voxel_grain_size_m = my_voxel_grain_size_m
+          , dist_btwn_bins_m = my_dist_btwn_bins_m
+          , min_fuel_layer_ht_m = my_min_fuel_layer_ht_m
+          , lad_pct_gap = my_lad_pct_gap
+          , lad_pct_base = my_lad_pct_base
+          , num_jump_steps = my_num_jump_steps
+          , min_lad_pct = my_min_lad_pct
+          , frst_layer_ht_m = my_frst_layer_ht_m
+        ) 
+      }else{
+        ladderfuelsr_cbh_ans <- NULL
+      }
+      
+      # build return data
+      if(is.null(ladderfuelsr_cbh_ans$cbh_metrics)){
+        # blank the cbh columns
+        df <- one_tree_sf %>% 
+          dplyr::mutate(
+            maxlad_Hcbh = as.numeric(NA)
+            , max_Hcbh = as.numeric(NA)
+            , last_Hcbh = as.numeric(NA)
+          )
+      }else{
+        df <- one_tree_sf %>% 
+          dplyr::mutate(
+            maxlad_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$maxlad_Hcbh
+            , max_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$max_Hcbh
+            , last_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh
+          )
+      }
+      return(df)
+    }
+```
+
 
 let's define a function for performing the CBH estimation over multiple trees and combining all of the data
 
@@ -807,75 +878,25 @@ trees_cbh <- function(
   cbh_df <- trees_poly %>% 
     dplyr::slice_sample(prop = min(as.numeric(tree_sample_prop), 1, na.rm = T)) %>% 
     dplyr::pull(treeID) %>% 
-    purrr::map(\(x) function(
-      x = x
-      , min_vhp_n = min_vhp_n
-      , voxel_grain_size_m = voxel_grain_size_m
-      , dist_btwn_bins_m = dist_btwn_bins_m
-      , min_fuel_layer_ht_m = min_fuel_layer_ht_m
-      , lad_pct_gap = lad_pct_gap
-      , lad_pct_base = lad_pct_base
-      , num_jump_steps = num_jump_steps
-      , min_lad_pct = min_lad_pct
-      , frst_layer_ht_m = frst_layer_ht_m
-    ){
-      ##################################
-      # filter sf
-      ##################################
-      one_tree_sf <- trees_poly %>% dplyr::filter(treeID==x)
-      ##################################
-      # clip the point cloud
-      ##################################
-      nlas_one_tree <- lidR::clip_roi(las = nlas_ctg, geometry = one_tree_sf) %>%
-        lidR::filter_poi(!Classification %in% c(2,9,18)) %>% ## class 2 = ground; 9 = water; 18 = noise
-        lidR::add_attribute(x = x, name = "treeID")
-      ##################################
-      # check for points
-      ##################################
-      if(nrow(nlas_one_tree@data)>10){
-        # CALL ladderfuelsr_cbh
-        ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
-          las = nlas_one_tree
-          , treeID = x
-          , min_vhp_n = min_vhp_n
-          , voxel_grain_size_m = voxel_grain_size_m
-          , dist_btwn_bins_m = dist_btwn_bins_m
-          , min_fuel_layer_ht_m = min_fuel_layer_ht_m
-          , lad_pct_gap = lad_pct_gap
-          , lad_pct_base = lad_pct_base
-          , num_jump_steps = num_jump_steps
-          , min_lad_pct = min_lad_pct
-          , frst_layer_ht_m = frst_layer_ht_m
-        ) 
-      }else{
-        ladderfuelsr_cbh_ans <- NULL
-      }
-      
-      # build return data
-      if(is.null(ladderfuelsr_cbh_ans$cbh_metrics)){
-        # blank the cbh columns
-        df <- one_tree_sf %>% 
-          dplyr::mutate(
-            maxlad_Hcbh = as.numeric(NA)
-            , max_Hcbh = as.numeric(NA)
-            , last_Hcbh = as.numeric(NA)
-          )
-      }else{
-        df <- one_tree_sf %>% 
-          dplyr::mutate(
-            maxlad_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$maxlad_Hcbh
-            , max_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$max_Hcbh
-            , last_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh
-          )
-      }
-      return(df)
-    }) 
-    # %>% 
-    # dplyr::bind_rows() %>% 
-    # # get rid of treeID
-    # dplyr::mutate(treeID = treeID_backup) %>% 
-    # dplyr::select(-treeID_backup) %>% 
-    # dplyr::relocate(treeID)
+    purrr::map(\(x) call_ladderfuelsr_cbh(
+      id = x
+      , poly_df = trees_poly
+      , nlas = nlas_ctg
+      , my_min_vhp_n = min_vhp_n
+      , my_voxel_grain_size_m = voxel_grain_size_m
+      , my_dist_btwn_bins_m = dist_btwn_bins_m
+      , my_min_fuel_layer_ht_m = min_fuel_layer_ht_m
+      , my_lad_pct_gap = lad_pct_gap
+      , my_lad_pct_base = lad_pct_base
+      , my_num_jump_steps = num_jump_steps
+      , my_min_lad_pct = min_lad_pct
+      , my_frst_layer_ht_m = frst_layer_ht_m
+    )) %>% 
+    dplyr::bind_rows() %>%
+    # get rid of treeID
+    dplyr::mutate(treeID = treeID_backup) %>%
+    dplyr::select(-treeID_backup) %>%
+    dplyr::relocate(treeID)
     
   # return
   return(cbh_df)
@@ -890,6 +911,9 @@ trees_cbh_ans <- trees_cbh(
   , norm_las = "../data/point_cloud_processing_temp/02_normalize/" # pull this from create_project_structure.R
   , tree_sample_prop = .1
 )
-trees_cbh_ans
+trees_cbh_ans %>% dplyr::glimpse()
+trees_cbh_ans %>% sf::st_drop_geometry() %>% 
+  dplyr::select(treeID, tree_height_m, tidyselect::ends_with("cbh")) %>% 
+  View()
 ```
 
