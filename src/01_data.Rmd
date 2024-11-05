@@ -977,7 +977,7 @@ plt_chm +
 
 see this section of the [package README](https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#7lai-lad-metrics-by-trees)
 
->after height normalization and crown segmentation, the LiDAR returns were cropped with the crown contours being voxelized to obtain VHPs from which the absolute mean LAD at each height bin was retrieved ([de Almeida et al., 2019](https://scholar.google.com/scholar?cluster=5085674356305592014&hl=en&as_sdt=0,6)) (p.2).
+>after height normalization and crown segmentation, the LiDAR returns were cropped with the crown contours being voxelized to obtain VHPs from which the absolute mean LAD at each height bin was retrieved ([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427), p.2).
 
 in this section, the las files cropped to individual trees (i.e. one tree at a time) are passed to the `leafR` package to calculate the LAI-LAD metrics. it seems very inefficient to perform this one-by-one for individual tree point clouds and not something that would work well if many, many trees.
 

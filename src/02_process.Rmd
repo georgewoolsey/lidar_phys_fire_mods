@@ -299,7 +299,7 @@ ladderfuelsr_cbh <- function(
   # https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#8depurating-tree-lad-profiles
   , min_vhp_n = 6
   # leafR::lad.voxels
-  , voxel_grain_size_m = 2
+  , voxel_grain_size_m = 2 # grain.size
   # LadderFuelsR::get_gaps_fbhs
   , dist_btwn_bins_m = 1 # step
   , min_fuel_layer_ht_m = 1.5 # min_height
@@ -310,7 +310,7 @@ ladderfuelsr_cbh <- function(
   # LadderFuelsR::get_layers_lad
   , min_lad_pct = 10 # threshold
   # LadderFuelsR::get_cbh_metrics
-  , frst_layer_ht_m = 2.5 # hdepth1_height
+  , frst_layer_min_ht_m = 2.5 # hdepth1_height
 ) {
   # check if string to las/laz file
   if(inherits(las, "character")){
@@ -409,9 +409,14 @@ ladderfuelsr_cbh <- function(
       ### LadderFuelsR::get_gaps_fbhs
       ### This function calculates gaps and fuel layers base height (FBH) as 
       ### the difference in percentiles between consecutive LAD values along the vertical tree profile (VTP)
+      
+      # quiet this function
+      quiet_get_gaps_fbhs <- purrr::quietly(LadderFuelsR::get_gaps_fbhs)
+    
       gaps_fbhs <-
         # gw_get_gaps_fbhs(
-        LadderFuelsR::get_gaps_fbhs(
+        # LadderFuelsR::get_gaps_fbhs(
+        quiet_get_gaps_fbhs(
           LAD_profiles = lad_profile
           , step = dist_btwn_bins_m
           , min_height = min_fuel_layer_ht_m
@@ -419,6 +424,8 @@ ladderfuelsr_cbh <- function(
           , perc_base = lad_pct_base
           , verbose = F
         )
+      # just get the result
+      gaps_fbhs <- gaps_fbhs$result
       # fix the columns that should be numeric
       gaps_fbhs <- gaps_fbhs %>%
         dplyr::mutate(dplyr::across(
@@ -563,7 +570,7 @@ ladderfuelsr_cbh <- function(
         cbh_metrics <- LadderFuelsR::get_cbh_metrics(
           effective_LAD = layers_lad_df
           , min_height = min_fuel_layer_ht_m
-          , hdepth1_height = frst_layer_ht_m
+          , hdepth1_height = frst_layer_min_ht_m
           , verbose = F
         )
   
@@ -696,7 +703,7 @@ these plots represent the three criteria to define the CBH in a segmented tree:
 
 ## Function to CBH a tree list
 
-first, an intermediate function to clip the point cloud to a polygon and run it through the xxx function
+first, an intermediate function to clip the point cloud to a polygon and run it through the `ladderfuelsr_cbh()` function wew defined above
 
 ```{r}
 call_ladderfuelsr_cbh <- function(
@@ -711,7 +718,7 @@ call_ladderfuelsr_cbh <- function(
       , my_lad_pct_base
       , my_num_jump_steps
       , my_min_lad_pct
-      , my_frst_layer_ht_m
+      , my_frst_layer_min_ht_m
     ){
       ##################################
       # filter sf
@@ -739,7 +746,7 @@ call_ladderfuelsr_cbh <- function(
           , lad_pct_base = my_lad_pct_base
           , num_jump_steps = my_num_jump_steps
           , min_lad_pct = my_min_lad_pct
-          , frst_layer_ht_m = my_frst_layer_ht_m
+          , frst_layer_min_ht_m = my_frst_layer_min_ht_m
         ) 
       }else{
         ladderfuelsr_cbh_ans <- NULL
@@ -750,16 +757,16 @@ call_ladderfuelsr_cbh <- function(
         # blank the cbh columns
         df <- one_tree_sf %>% 
           dplyr::mutate(
-            maxlad_Hcbh = as.numeric(NA)
-            , max_Hcbh = as.numeric(NA)
-            , last_Hcbh = as.numeric(NA)
+            cbh_maxlad_height_m = as.numeric(NA)
+            , cbh_max_height_m = as.numeric(NA)
+            , cbh_last_height_m = as.numeric(NA)
           )
       }else{
         df <- one_tree_sf %>% 
           dplyr::mutate(
-            maxlad_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$maxlad_Hcbh
-            , max_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$max_Hcbh
-            , last_Hcbh = ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh
+            cbh_maxlad_height_m = ladderfuelsr_cbh_ans$cbh_metrics$maxlad_Hcbh[1]
+            , cbh_max_height_m = ladderfuelsr_cbh_ans$cbh_metrics$max_Hcbh[1]
+            , cbh_last_height_m = ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh[1]
           )
       }
       return(df)
@@ -774,6 +781,11 @@ trees_cbh <- function(
   trees_poly
   , norm_las = NA
   , tree_sample_prop = 1
+  , which_cbh = "lowest"
+    # maxlad_Hcbh = max_lad
+    # max_Hcbh = highest
+    # last_Hcbh = lowest
+  , estimate_missing_cbh = FALSE
   ##### LadderFuelsR
   # minimum vhp records
   # https://github.com/olgaviedma/LadderFuelsR?tab=readme-ov-file#8depurating-tree-lad-profiles
@@ -790,14 +802,34 @@ trees_cbh <- function(
   # LadderFuelsR::get_layers_lad
   , min_lad_pct = 10 # threshold
   # LadderFuelsR::get_cbh_metrics
-  , frst_layer_ht_m = 2.5 # hdepth1_height
+  , frst_layer_min_ht_m = 2.5 # hdepth1_height
 ){
+  ##################################
+  # check which cbh
+  ##################################
+    # clean it
+    which_cbh <- dplyr::coalesce(which_cbh, "lowest")
+    which_cbh <- ifelse(
+      stringr::str_remove_all(which_cbh,"\\s") == ""
+      , "lowest"
+      , which_cbh
+    )
+    which_cbh <- tolower(which_cbh[1])
+    # check it
+    cbh_l <- c("max_lad", "highest", "lowest")
+    if(!which_cbh %in% cbh_l){
+      stop(paste0(
+        "`which_cbh` must be one of:"
+        , "\n"
+        , paste(cbh_l, collapse = ", ")
+      ))
+    }
   ##################################
   # ensure that norm las data exists
   ##################################
   nlas_msg <- paste0(
     "`norm_las` must contain a directory with nomalized las files, the path of a .laz|.las file"
-    , "\n, -or- a file of class `LAS`. Please update the `norm_las` parameter."
+    , "\n, -or- an object of class `LAS`. Please update the `norm_las` parameter."
   )
   if(is.na(norm_las)){stop(nlas_msg)}
   if(inherits(norm_las, "character")){
@@ -826,7 +858,7 @@ trees_cbh <- function(
     max(grepl("treeID", f))==0
   ){
     stop(paste0(
-      "`trees_poly` data must contain `treeID` column to estimate CBH."
+      "`trees_poly` data must contain `treeID` column to estimate missing CBH values."
       , "\nProvide the `treeID` as a unique identifier of individual trees."
     ))
   }else{
@@ -890,30 +922,279 @@ trees_cbh <- function(
       , my_lad_pct_base = lad_pct_base
       , my_num_jump_steps = num_jump_steps
       , my_min_lad_pct = min_lad_pct
-      , my_frst_layer_ht_m = frst_layer_ht_m
+      , my_frst_layer_min_ht_m = frst_layer_min_ht_m
     )) %>% 
     dplyr::bind_rows() %>%
     # get rid of treeID
+    dplyr::mutate(
+      treeID = treeID_backup
+    ) %>%
+    dplyr::select(-treeID_backup) %>%
+    dplyr::relocate(treeID) %>% 
+    sf::st_drop_geometry()
+  
+  # pick a cbh
+  if(which_cbh == "max_lad"){
+    cbh_df <- cbh_df %>% 
+      dplyr::mutate(
+        tree_cbh_m = cbh_maxlad_height_m
+        , is_training_cbh = !is.na(cbh_maxlad_height_m)
+      )
+  }else if(which_cbh == "highest"){
+    cbh_df <- cbh_df %>% 
+      dplyr::mutate(
+        tree_cbh_m = cbh_max_height_m
+        , is_training_cbh = !is.na(cbh_max_height_m)
+      )
+  }else{
+    cbh_df <- cbh_df %>% 
+      dplyr::mutate(
+        tree_cbh_m = cbh_last_height_m
+        , is_training_cbh = !is.na(cbh_last_height_m)
+      )
+  }
+    
+  # get rid of treeID
+  trees_poly <- trees_poly %>% 
     dplyr::mutate(treeID = treeID_backup) %>%
     dplyr::select(-treeID_backup) %>%
     dplyr::relocate(treeID)
+  
+  # ensure that there are enough data to estimate
+  n_cbh <- cbh_df %>% dplyr::filter(is_training_cbh==T) %>% nrow()
+  
+  # ensure that tree height data exists
+  f <- trees_poly %>% names()
+  if(length(f)==0){f <- ""}
+  
+  #############################################
+  # check for estimate missing
+  #############################################
+  if(
+    estimate_missing_cbh==T 
+    & n_cbh > 10
+    & max(grepl("tree_height_m", f))==1
+  ){
+    # add x,y to data
+    mod_df <- trees_poly %>% 
+      dplyr::left_join(
+        cbh_df %>% 
+          dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+        , by = "treeID"
+      ) %>% 
+      dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F)) %>% 
+      dplyr::select(treeID, tree_height_m, tree_cbh_m, is_training_cbh) %>% 
+      sf::st_centroid() %>%
+      dplyr::mutate(
+        tree_xxx = sf::st_coordinates(.)[,1]
+        , tree_yyy = sf::st_coordinates(.)[,2]
+        , crown_area_zzz = sf::st_area(.)
+        , tree_height_m = as.numeric(tree_height_m)
+        , tree_cbh_m = as.numeric(tree_cbh_m)
+      ) %>% 
+      sf::st_drop_geometry()
+    # training versus predict data
+    training_df <- mod_df %>% dplyr::filter(is_training_cbh==T) %>% dplyr::select(-is_training_cbh)
+    predict_df <- mod_df %>% dplyr::filter(is_training_cbh==F) %>% dplyr::select(-is_training_cbh)
     
+    ### tuning RF model
+      # If we are interested with just starting out and tuning the mtry parameter
+      # we can use randomForest::tuneRF for a quick and easy tuning assessment.
+      # tuneRf will start at a value of mtry that you supply and increase by a
+      # certain step factor until the OOB error stops improving be a specified amount.
+      rf_tune_temp <- randomForest::tuneRF(
+        y = training_df$tree_cbh_m
+        , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+        , stepFactor = 0.5
+        , ntreeTry = 500
+        , mtryStart = 0.5
+        , improve = 0.01
+        , plot = F
+        , trace = F
+      )
+      # rf_tune_temp
+
+      ### Run a randomForest model to predict DBH using various crown predictors
+      cbh_mod <- randomForest::randomForest(
+        y = training_df$tree_cbh_m
+        , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+        , mtry = rf_tune_temp %>%
+          dplyr::as_tibble() %>%
+          dplyr::filter(OOBError==min(OOBError)) %>%
+          dplyr::pull(mtry)
+        , na.action = na.omit
+      )
+    
+    # # model
+    # cbh_mod <- stats::lm(
+    #   formula = tree_cbh_m ~ tree_xxx + tree_yyy + tree_xxx:tree_yyy + tree_height_m + crown_area_zzz
+    #   , data = training_df
+    # )
+    
+    # predict missing
+    predicted_cbh_temp <- predict(
+      cbh_mod
+      , predict_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+    ) %>%
+    dplyr::as_tibble() %>%
+    dplyr::pull(1)
+    
+    ## combine predicted data with training data for full data set
+    trees_poly <- trees_poly %>% 
+      # join with training data estimates
+      dplyr::left_join(
+        cbh_df %>%
+          dplyr::filter(is_training_cbh==T) %>% 
+          dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+        , by = "treeID"
+      ) %>% 
+      dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F)) %>%
+      # join with predicted data estimates
+      dplyr::left_join(
+        predict_df %>%
+          dplyr::mutate(
+            predicted_cbh = predicted_cbh_temp
+          ) %>%
+          dplyr::select(treeID, predicted_cbh)
+        , by = dplyr::join_by("treeID")
+      ) %>%
+      # clean up data
+      dplyr::mutate(
+        tree_cbh_m = dplyr::coalesce(tree_cbh_m, predicted_cbh)
+      ) %>% 
+      dplyr::select(-predicted_cbh)
+    
+    ## prevent the CBH from being > the tree height
+      # find the 90th percentile of height-cbh ratio
+      max_ratio <- cbh_df %>%
+        dplyr::filter(is_training_cbh==T) %>% 
+        dplyr::mutate(ratio = tree_cbh_m/tree_height_m) %>% 
+        dplyr::pull(ratio) %>% 
+        stats::quantile(probs = 0.95)
+      # update values
+      trees_poly <- trees_poly %>% 
+        dplyr::mutate(
+          tree_cbh_m = dplyr::case_when(
+            is_training_cbh==F & tree_cbh_m/tree_height_m > max_ratio ~ max_ratio*tree_height_m
+            , T ~ tree_cbh_m
+          )
+        )
+      
+  }else if(estimate_missing_cbh==T){
+    if(max(grepl("tree_height_m", f))==0){
+      message(paste0(
+        "`trees_poly` data must contain `tree_height_m` column to estimate CBH."
+        , "\nSetting `estimate_missing_cbh=TRUE` requires this data."
+        , "\nReturning CBH values extracted from cloud only."
+      ))  
+    }else{
+      message(paste0(
+        "Insufficient data available to estimate missing CBH values."
+        , "\nReturning CBH values extracted from cloud only."
+      ))
+    }
+    ## combine predicted data with training data for full data set
+    trees_poly <- trees_poly %>% 
+      # join with training data estimates
+      dplyr::left_join(
+        cbh_df %>%
+          dplyr::filter(is_training_cbh==T) %>% 
+          dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+        , by = "treeID"
+      ) %>% 
+      dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
+  }else{
+    ## combine predicted data with training data for full data set
+    trees_poly <- trees_poly %>% 
+      # join with training data estimates
+      dplyr::left_join(
+        cbh_df %>%
+          dplyr::filter(is_training_cbh==T) %>% 
+          dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+        , by = "treeID"
+      ) %>% 
+      dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
+  }
   # return
-  return(cbh_df)
+  return(trees_poly)
+  
+  # return(list(
+  #   trees_poly = trees_poly
+  #   , cbh_mod = cbh_mod
+  # ))
 }
 ```
 
-test it
+Test it and set the parameters based on recommendations from the literature (alternatively, we could keep the default parameter settings)
+
+With respect to the the `voxel_grain_size_m` parameter (see `grain.size` in `leafR::lad.voxels()`):
+
+>In general, the LAD and LAI estimates tended to stabilize with an increasing grain size and increasing ALS pulse density. At small grain sizes of 1 m, 2 m, and 5 m, absolute LAD profiles became stable at respective pulse densities of 15, 15, and 10 pulses per m^2^...the lower accuracy particularly of the LAD profile estimation at a coarse grain size or at low pulse densities may be unacceptable for some applications, particularly in models and methods that rely on the fine scale vertical and horizontal heterogeneity of the canopy structure to make ecological inferences. Examples include the estimation of timber stock or demographic structure or light interception and absorption...For these applications our results suggest that pulse densities of 20 pulses per m^2^ or greater and grain sizes between 2 and 5 m, which maximize accuracy and stability, should be utilized. ([de Almeida et al., 2019](https://scholar.google.com/scholar?cluster=5085674356305592014&hl=en&as_sdt=0,6), p. 9-10)
+
+...however the documentation of `leafR::lad.voxels()` recommends "1 meter for lad profiles"
+
+Regarding the `min_fuel_layer_ht_m` parameter (see `min_height` in `LadderFuelsR::get_gaps_fbhs()`):
+
+>The LAD strata estimated from both ALS and ground lidar were limited to pulse returns above one meter from the ground. This avoids ground-return interference in the ALS data and is also imposed by the ground lidar sensor height. ([de Almeida et al., 2019](https://scholar.google.com/scholar?cluster=5085674356305592014&hl=en&as_sdt=0,6), p. 6)
+
+Finally, for the `frst_layer_min_ht_m` parameter (see `hdepth1_height` in `LadderFuelsR::get_cbh_metrics()`):
+
+>In the case of maximum LAD (%), the output also gives the CBH from the second fuel layer when the first one has the maximum LAD (%) but its depth is smaller than the value indicated in the parameter "hdepth1_height" (default 2 m). ([Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427), p. 8)
+
+and from the package:
+
+>If the first fuel layer has the maximum LAD and its depth is greater than the indicated value, then this fuel layer is considered as the CBH of the tree. On the contrary, if its depth is <= the value, the CBH with maximum LAD will be the second fuel layer, although it has not the maximum LAD.
+
+We'll leave all of the other values at their default
 
 ```{r}
 trees_cbh_ans <- trees_cbh(
   trees_poly = cloud2trees_ans$crowns_sf
   , norm_las = "../data/point_cloud_processing_temp/02_normalize/" # pull this from create_project_structure.R
-  , tree_sample_prop = .1
+  , tree_sample_prop = .4
+  , estimate_missing_cbh = T
+  , which_cbh = "lowest"
+  , min_vhp_n = 4 # = 2.5m with min_fuel_layer_ht_m=1 and dist_btwn_bins_m = 0.5
+  , min_fuel_layer_ht_m = 1 # default = 1.5
+  , dist_btwn_bins_m = 0.5 # default = 1
+  , num_jump_steps = 0.5 # default = 1
+  , frst_layer_min_ht_m = 0.5 # default = 2.5
 )
+```
+
+what?
+
+```{r}
 trees_cbh_ans %>% dplyr::glimpse()
-trees_cbh_ans %>% sf::st_drop_geometry() %>% 
-  dplyr::select(treeID, tree_height_m, tidyselect::ends_with("cbh")) %>% 
-  View()
+```
+
+let's view the height versus CBH relationship by training data
+
+```{r}
+trees_cbh_ans %>% 
+  ggplot(aes(x = tree_height_m, y = tree_cbh_m, color = is_training_cbh)) +
+  geom_point(size = 3, alpha = 0.8) +
+  harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
+  scale_y_continuous(breaks = scales::breaks_extended(12)) +
+  scale_x_continuous(breaks = scales::breaks_extended(12)) +
+  labs(y = "CBH (m)", x = "Height (m)", color = "is training data") +
+  theme_light() +
+  theme(legend.position = "top")
+```
+
+check out the CBH spatially
+
+```{r}
+trees_cbh_ans %>% 
+  ggplot(aes(color = is_training_cbh, fill = tree_cbh_m)) +
+  geom_sf() +
+  harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
+  harrypotter::scale_fill_hp("always") +
+  labs(fill = "CBH (m)", color = "is training data") +
+  theme_light() +
+  theme(legend.position = "top", axis.text = element_blank()) +
+  guides(
+    color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA))
+  )
 ```
 
