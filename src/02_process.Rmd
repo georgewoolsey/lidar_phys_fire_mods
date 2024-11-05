@@ -456,10 +456,16 @@ ladderfuelsr_cbh <- function(
         ### this function calculates the percentile value of each height
         ## LadderFuelsR::calculate_gaps_perc
         #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ERROR if treeID is not the first column
-        gaps_perc <- LadderFuelsR::calculate_gaps_perc(
+        # quiet this function
+        quiet_calculate_gaps_perc <- purrr::quietly(LadderFuelsR::calculate_gaps_perc)
+        # run it quietly
+        gaps_perc <- quiet_calculate_gaps_perc(
+          # LadderFuelsR::calculate_gaps_perc(
           LAD_profiles = lad_profile
           , min_height = min_fuel_layer_ht_m
         )
+        # just get the result
+        gaps_perc <- gaps_perc$result
   
       #######################################
       ### Step 3 - `LadderFuelsR::get_distance`
@@ -553,7 +559,8 @@ ladderfuelsr_cbh <- function(
         )
         ### idk why it is a list of 2 with the same data just the order 
         ### of the `max_height` and `Hcbh1_Hdptf1` columns are switched. do you spot another difference??
-        ### looking through the befuddling README it looks like the authors only keep the second data frame in the list
+        ### looking through the befuddling README it looks like the authors only keep 
+        ### the second data frame in the list
         if(length(layers_lad_df)>1){
           layers_lad_df <- layers_lad_df[[2]]
         }
@@ -838,9 +845,15 @@ trees_cbh <- function(
       fls <- list.files(normalizePath(norm_las), pattern = ".*\\.(laz|las)$", full.names = TRUE)
       # stop it if no files
       if(length(fls)<1){stop(nlas_msg)}
+      # read it
       nlas_ctg <- lidR::readLAScatalog(fls)
+      # turn of lidR progress
+      lidR::opt_progress(nlas_ctg) <- F
     }else if(stringr::str_ends(norm_las, ".*\\.(laz|las)$")){
+      # read it
       nlas_ctg <- lidR::readLAScatalog(norm_las)
+      # turn of lidR progress
+      lidR::opt_progress(nlas_ctg) <- F
     }else{
       stop(nlas_msg)
     }
@@ -1065,16 +1078,25 @@ trees_cbh <- function(
       dplyr::select(-predicted_cbh)
     
     ## prevent the CBH from being > the tree height
-      # find the 90th percentile of height-cbh ratio
+      # find the 95th percentile of height-cbh ratio
       max_ratio <- cbh_df %>%
-        dplyr::filter(is_training_cbh==T) %>% 
+        dplyr::filter(
+          is_training_cbh==T
+          & tree_cbh_m < tree_height_m
+        ) %>% 
         dplyr::mutate(ratio = tree_cbh_m/tree_height_m) %>% 
         dplyr::pull(ratio) %>% 
         stats::quantile(probs = 0.95)
       # update values
       trees_poly <- trees_poly %>% 
         dplyr::mutate(
-          tree_cbh_m = dplyr::case_when(
+          # update training data where tree_cbh_m > tree_height_m
+          is_training_cbh = dplyr::case_when(
+            is_training_cbh==T & tree_cbh_m >= tree_height_m ~ FALSE
+            , T ~ is_training_cbh
+          )
+          # update tree_cbh_m
+          , tree_cbh_m = dplyr::case_when(
             is_training_cbh==F & tree_cbh_m/tree_height_m > max_ratio ~ max_ratio*tree_height_m
             , T ~ tree_cbh_m
           )
@@ -1187,7 +1209,7 @@ check out the CBH spatially
 ```{r}
 trees_cbh_ans %>% 
   ggplot(aes(color = is_training_cbh, fill = tree_cbh_m)) +
-  geom_sf() +
+  geom_sf(lwd = 0.8) +
   harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
   harrypotter::scale_fill_hp("always") +
   labs(fill = "CBH (m)", color = "is training data") +

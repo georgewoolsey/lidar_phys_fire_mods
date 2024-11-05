@@ -1456,7 +1456,6 @@ there are also some plotting functions
 
 ```{r}
 # Generate plots for fuels LAD metrics
-?get_plots_cbh_LAD
 plots_cbh_maxlad <- LadderFuelsR::get_plots_cbh_LAD(
   LAD_profiles = lad_profile
   , cbh_metrics = cbh_metrics
