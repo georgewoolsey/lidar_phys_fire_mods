@@ -708,6 +708,59 @@ these plots represent the three criteria to define the CBH in a segmented tree:
 * `get_plots_cbh_maxdist` = the fuel layer located at the highest distance (column named `max_Hcbh`)
 * `get_plots_cbh_lastdist` = the fuel layer separated by the last effective distance (column named `last_Hcbh`)
 
+### CBH on the point cloud
+
+can we make a view of the CBH on the point cloud?
+
+```{r}
+# make a matrix to represent the cbh
+x_temp <- seq(
+    min(nlas_one_tree@data$X)
+    , max(nlas_one_tree@data$X)
+    , length.out = 2
+  )
+y_temp <- seq(
+    min(nlas_one_tree@data$Y)
+    , max(nlas_one_tree@data$Y)
+    , length.out = 2
+  )
+xy_temp <- expand.grid(x = x_temp, y = y_temp)
+z_temp <- matrix(
+  rep(
+    ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh
+    , nrow(xy_temp)
+  )
+  , nrow = length(x_temp), ncol = length(y_temp)
+)
+# plot it
+plot3D::scatter3D(
+  x = nlas_one_tree@data$X
+  , y = nlas_one_tree@data$Y
+  , z = nlas_one_tree@data$Z
+  , colvar = nlas_one_tree@data$Z
+  , cex = 0.3, pch = 19
+  , colkey = T
+  , phi = -6
+  , col = harrypotter::hp(n=50, house = "gryffindor")
+  , main ="CBH shown in black"
+  , surf = list(
+    x = x_temp
+    , y = y_temp
+    , z = z_temp
+    , facets = NA
+    , border = "black"
+    , lwd = 2
+  )
+)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls()[grep("plots_",ls())])
+remove(one_tree_sf, nlas_one_tree, crowns_nlas_ctg, chrs, html, crowns_sf_poly)
+gc()
+```
+
 ## Function to CBH a tree list
 
 first, an intermediate function to clip the point cloud to a polygon and run it through the `ladderfuelsr_cbh()` function wew defined above
@@ -779,7 +832,6 @@ call_ladderfuelsr_cbh <- function(
       return(df)
     }
 ```
-
 
 let's define a function for performing the CBH estimation over multiple trees and combining all of the data
 
@@ -1015,52 +1067,68 @@ trees_cbh <- function(
       # we can use randomForest::tuneRF for a quick and easy tuning assessment.
       # tuneRf will start at a value of mtry that you supply and increase by a
       # certain step factor until the OOB error stops improving be a specified amount.
-      rf_tune_temp <- randomForest::tuneRF(
+      # quiet this
+      quiet_tuneRF <- purrr::quietly(randomForest::tuneRF)
+      # run it
+      rf_tune_temp <- quiet_tuneRF(
+        # randomForest::tuneRF(
         y = training_df$tree_cbh_m
         , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
         , stepFactor = 0.5
-        , ntreeTry = 500
+        , ntreeTry = 200
         , mtryStart = 0.5
         , improve = 0.01
         , plot = F
         , trace = F
       )
-      # rf_tune_temp
+      # just get the result
+      rf_tune_temp <- rf_tune_temp$result
+      
+      # Extract the optimal mtry value
+      optimal_mtry <- rf_tune_temp %>%
+        dplyr::as_tibble() %>%
+        dplyr::filter(OOBError==min(OOBError)) %>%
+        dplyr::filter(dplyr::row_number() == 1) %>% 
+        dplyr::pull(mtry)
+      # ensure that the mtry value is not greater than the number of predictors
+      optimal_mtry <- min(
+        optimal_mtry
+        , ncol(
+          training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+        )
+      )
 
       ### Run a randomForest model to predict DBH using various crown predictors
       cbh_mod <- randomForest::randomForest(
         y = training_df$tree_cbh_m
         , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
-        , mtry = rf_tune_temp %>%
-          dplyr::as_tibble() %>%
-          dplyr::filter(OOBError==min(OOBError)) %>%
-          dplyr::pull(mtry)
+        , mtry = optimal_mtry
         , na.action = na.omit
       )
-    
+
     # # model
     # cbh_mod <- stats::lm(
     #   formula = tree_cbh_m ~ tree_xxx + tree_yyy + tree_xxx:tree_yyy + tree_height_m + crown_area_zzz
     #   , data = training_df
     # )
-    
+
     # predict missing
     predicted_cbh_temp <- predict(
-      cbh_mod
-      , predict_df %>% dplyr::select(-c(treeID,tree_cbh_m))
-    ) %>%
-    dplyr::as_tibble() %>%
-    dplyr::pull(1)
-    
+        cbh_mod
+        , predict_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+      ) %>%
+      dplyr::as_tibble() %>%
+      dplyr::pull(1)
+
     ## combine predicted data with training data for full data set
-    trees_poly <- trees_poly %>% 
+    trees_poly <- trees_poly %>%
       # join with training data estimates
       dplyr::left_join(
         cbh_df %>%
-          dplyr::filter(is_training_cbh==T) %>% 
+          dplyr::filter(is_training_cbh==T) %>%
           dplyr::select(treeID, tree_cbh_m, is_training_cbh)
         , by = "treeID"
-      ) %>% 
+      ) %>%
       dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F)) %>%
       # join with predicted data estimates
       dplyr::left_join(
@@ -1074,21 +1142,21 @@ trees_cbh <- function(
       # clean up data
       dplyr::mutate(
         tree_cbh_m = dplyr::coalesce(tree_cbh_m, predicted_cbh)
-      ) %>% 
+      ) %>%
       dplyr::select(-predicted_cbh)
-    
+
     ## prevent the CBH from being > the tree height
       # find the 95th percentile of height-cbh ratio
       max_ratio <- cbh_df %>%
         dplyr::filter(
           is_training_cbh==T
           & tree_cbh_m < tree_height_m
-        ) %>% 
-        dplyr::mutate(ratio = tree_cbh_m/tree_height_m) %>% 
-        dplyr::pull(ratio) %>% 
+        ) %>%
+        dplyr::mutate(ratio = tree_cbh_m/tree_height_m) %>%
+        dplyr::pull(ratio) %>%
         stats::quantile(probs = 0.95)
       # update values
-      trees_poly <- trees_poly %>% 
+      trees_poly <- trees_poly %>%
         dplyr::mutate(
           # update training data where tree_cbh_m > tree_height_m
           is_training_cbh = dplyr::case_when(
@@ -1101,14 +1169,14 @@ trees_cbh <- function(
             , T ~ tree_cbh_m
           )
         )
-      
+
   }else if(estimate_missing_cbh==T){
     if(max(grepl("tree_height_m", f))==0){
       message(paste0(
         "`trees_poly` data must contain `tree_height_m` column to estimate CBH."
         , "\nSetting `estimate_missing_cbh=TRUE` requires this data."
         , "\nReturning CBH values extracted from cloud only."
-      ))  
+      ))
     }else{
       message(paste0(
         "Insufficient data available to estimate missing CBH values."
@@ -1116,25 +1184,25 @@ trees_cbh <- function(
       ))
     }
     ## combine predicted data with training data for full data set
-    trees_poly <- trees_poly %>% 
+    trees_poly <- trees_poly %>%
       # join with training data estimates
       dplyr::left_join(
         cbh_df %>%
-          dplyr::filter(is_training_cbh==T) %>% 
+          dplyr::filter(is_training_cbh==T) %>%
           dplyr::select(treeID, tree_cbh_m, is_training_cbh)
         , by = "treeID"
-      ) %>% 
+      ) %>%
       dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
   }else{
     ## combine predicted data with training data for full data set
-    trees_poly <- trees_poly %>% 
+    trees_poly <- trees_poly %>%
       # join with training data estimates
       dplyr::left_join(
         cbh_df %>%
-          dplyr::filter(is_training_cbh==T) %>% 
+          dplyr::filter(is_training_cbh==T) %>%
           dplyr::select(treeID, tree_cbh_m, is_training_cbh)
         , by = "treeID"
-      ) %>% 
+      ) %>%
       dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
   }
   # return

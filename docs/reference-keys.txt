@@ -34,4 +34,5 @@ get-some-lidar-data
 cloud2trees-that-lidar-data
 define-ladderfuelsr-processing-function
 return-cbh-metrics
+cbh-on-the-point-cloud
 function-to-cbh-a-tree-list
