@@ -794,8 +794,10 @@ call_ladderfuelsr_cbh <- function(
       # check for points
       ##################################
       if(nrow(nlas_one_tree@data)>10){
+        # quiet this function
+        quiet_ladderfuelsr_cbh <- purrr::quietly(ladderfuelsr_cbh)
         # CALL ladderfuelsr_cbh
-        ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
+        ladderfuelsr_cbh_ans <- quiet_ladderfuelsr_cbh(
           las = nlas_one_tree
           , treeID = id
           , min_vhp_n = my_min_vhp_n
@@ -808,6 +810,8 @@ call_ladderfuelsr_cbh <- function(
           , min_lad_pct = my_min_lad_pct
           , frst_layer_min_ht_m = my_frst_layer_min_ht_m
         ) 
+        # just get the result
+        ladderfuelsr_cbh_ans <- ladderfuelsr_cbh_ans$result
       }else{
         ladderfuelsr_cbh_ans <- NULL
       }
@@ -1215,6 +1219,8 @@ trees_cbh <- function(
 }
 ```
 
+### Test the CBH function
+
 Test it and set the parameters based on recommendations from the literature (alternatively, we could keep the default parameter settings)
 
 With respect to the the `voxel_grain_size_m` parameter (see `grain.size` in `leafR::lad.voxels()`):
@@ -1241,7 +1247,7 @@ We'll leave all of the other values at their default
 trees_cbh_ans <- trees_cbh(
   trees_poly = cloud2trees_ans$crowns_sf
   , norm_las = "../data/point_cloud_processing_temp/02_normalize/" # pull this from create_project_structure.R
-  , tree_sample_prop = .4
+  , tree_sample_prop = .5
   , estimate_missing_cbh = T
   , which_cbh = "lowest"
   , min_vhp_n = 4 # = 2.5m with min_fuel_layer_ht_m=1 and dist_btwn_bins_m = 0.5
@@ -1286,5 +1292,326 @@ trees_cbh_ans %>%
   guides(
     color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA))
   )
+```
+
+### Comparison to `LadderFuelsR` defaults
+
+We just calculated the estimates of CBH using custom parameter values for the `LadderFuelsR` process. Let's compare these custom values to values obtained if we just use the defaults from the `LadderFuelsR` package.
+
+```{r}
+# compare to default values from LadderFuelsR
+trees_cbh_ans2 <- trees_cbh(
+  trees_poly = cloud2trees_ans$crowns_sf
+  , norm_las = "../data/point_cloud_processing_temp/02_normalize/"
+  , tree_sample_prop = .5
+  , estimate_missing_cbh = T
+  , which_cbh = "lowest"
+  # we can leave all other parameters at defaults
+)
+# join to initial data
+trees_cbh_ans <- trees_cbh_ans %>% 
+  dplyr::left_join(
+    trees_cbh_ans2 %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::select(
+        treeID,is_training_cbh,tree_cbh_m
+      ) %>% 
+      dplyr::rename(
+        def_is_training_cbh = is_training_cbh
+        , def_tree_cbh_m = tree_cbh_m
+      )
+    , by = "treeID"
+  ) %>% 
+  dplyr::mutate(
+    pct_diff_cbh = (tree_cbh_m-def_tree_cbh_m)/def_tree_cbh_m
+  )
+```
+
+what does the distribution of the percent difference look like (negative values = custom CBH < default CBH and vice versa)? 
+
+```{r}
+trees_cbh_ans %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::select(tidyselect::ends_with("_cbh_m"), pct_diff_cbh) %>% 
+  summary()
+```
+
+so maybe the CBH estimates are sensitive to the parameterization of the `LadderFuelsR` process...
+
+```{r}
+trees_cbh_ans %>% 
+  dplyr::mutate(
+    cbh_bin = ggplot2::cut_width(pct_diff_cbh, width = 0.1, center = 0.05)
+    , is_ltz = pct_diff_cbh<=0
+  ) %>% 
+  dplyr::count(cbh_bin, is_ltz) %>% 
+  ggplot(aes(
+    x = cbh_bin, y = n, fill = is_ltz
+  )) +
+  geom_col(width = 0.7) +
+  harrypotter::scale_fill_hp_d("slytherin", begin = 0.2, end = 0.8) +
+  labs(y = "# Trees", x = "CBH % diff", fill = "custom CBH < default") +
+  theme_light() +
+  theme(legend.position = "top", axis.text.x = element_text(angle = 90, vjust = 0, hjust = 1))
+```
+
+look at how the CBH estimates changed
+
+```{r}
+trees_cbh_ans %>% 
+  dplyr::mutate(
+    is_ltz = pct_diff_cbh<=0
+  ) %>% 
+  ggplot(aes(
+    x = def_tree_cbh_m, y = tree_cbh_m, color = is_ltz
+  )) +
+  ggplot2::geom_abline() +
+  geom_point(size = 2, alpha = 0.8) +
+  harrypotter::scale_color_hp_d("slytherin", begin = 0.2, end = 0.8) +
+  scale_y_continuous(limits = c(0,NA), breaks = scales::breaks_extended(12)) +
+  scale_x_continuous(limits = c(0,NA), breaks = scales::breaks_extended(12)) +
+  labs(y = "custom CBH (m)", x = "default CBH (m)", color = "custom CBH < default") +
+  theme_light() +
+  theme(legend.position = "top")
+```
+
+one more way to look at how the CBH estimates changed
+
+```{r}
+dta_temp <- 
+  trees_cbh_ans %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::mutate(
+      is_ltz = pct_diff_cbh<=0
+    ) %>% 
+    dplyr::select(treeID, is_ltz, tidyselect::ends_with("_cbh_m")) %>% 
+    tidyr::pivot_longer(
+      cols = tidyselect::ends_with("_cbh_m")
+      , names_to = "cbh_type"
+      , values_to = "cbh"
+      , values_drop_na = F
+    ) %>% 
+    dplyr::mutate(
+      cbh_type = dplyr::case_when(
+        cbh_type == "def_tree_cbh_m" ~ "default CBH"
+        , T ~ "custom CBH"
+      ) %>% 
+      factor() %>% 
+      forcats::fct_rev()
+    )
+# plot
+  ggplot(
+    data = dta_temp
+    , mapping = aes(x = cbh_type, y = cbh, color = is_ltz, group = treeID)
+  ) +
+  ggplot2::geom_line(data = dta_temp %>% dplyr::filter(is_ltz == F), lwd = 1) +
+  # ggplot2::geom_point(data = dta_temp %>% dplyr::filter(is_ltz == F)) +
+  ggplot2::geom_line(data = dta_temp %>% dplyr::filter(is_ltz == T), lwd = 1.1, alpha = 0.8) +
+  # ggplot2::geom_point(data = dta_temp %>% dplyr::filter(is_ltz == T), alpha = 0.6) +
+  harrypotter::scale_color_hp_d("slytherin", begin = 0.2, end = 0.8) +
+  scale_y_continuous(limits = c(0,NA), breaks = scales::breaks_extended(12)) +
+  labs(y = "CBH (m)", x = "", color = "custom CBH < default") +
+  theme_light() +
+  theme(legend.position = "none")
+```
+
+In selecting parameter levels, Let's err on the side of a lower CBH for fuel modelling: 1) to be conservative with how "high" we say the CBH is; 2) since it looks like the minimum CBH extracted from lidar data via the `LadderFuelsR` process is ~1.5 m; 3) and since lower density lidar gets very few returns closer to the ground level due to canopy occlusion.
+
+for completeness, let's view the height versus CBH relationship by training data using the default parameter values
+
+```{r}
+trees_cbh_ans %>% 
+  ggplot(aes(x = tree_height_m, y = def_tree_cbh_m, color = def_is_training_cbh)) +
+  geom_point(size = 3, alpha = 0.8) +
+  harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
+  scale_y_continuous(breaks = scales::breaks_extended(12)) +
+  scale_x_continuous(breaks = scales::breaks_extended(12)) +
+  labs(y = "CBH (m)", x = "Height (m)", color = "is training data") +
+  theme_light() +
+  theme(legend.position = "top")
+```
+
+### test CBH based on parameterization of `LadderFuelsR`
+
+let's build a test for different levels of the `min_fuel_layer_ht_m` and `dist_btwn_bins_m` parameters
+
+we'll increase the sample proportion of data to attempt to extract a CBH from the point cloud for this exercise to the full data for this exercise. we'll also put in a timer to see how long this generally takes.
+
+```{r doing-tha-cbh-test}
+# build a data frame of potential values
+dta_temp <- tidyr::crossing(
+    min_fuel_layer_ht_m = seq(0, 2.5, by = 0.5) # default = 1.5
+    , dist_btwn_bins_m = seq(0.5, 2.5, by = 0.5) # default = 1
+  ) 
+  # # something in LadderFuelsR is making the program crash if:
+  #   # 1) dist_btwn_bins_m - min_fuel_layer_ht_m >= 1.5
+  #   # 2) min_fuel_layer_ht_m = 1 & dist_btwn_bins_m = 1
+  #   # 2) min_fuel_layer_ht_m = 1 & dist_btwn_bins_m = 2
+  #   # 2) min_fuel_layer_ht_m = 1.5 & dist_btwn_bins_m = 2
+  # dplyr::filter(
+  #   dist_btwn_bins_m - min_fuel_layer_ht_m < 1.5
+  #   & (min_fuel_layer_ht_m != 1 & dist_btwn_bins_m != 1)
+  #   & (min_fuel_layer_ht_m != 1 & dist_btwn_bins_m != 2)
+  # )
+# tester function
+test_cbh_fn <- function(i) {
+  # parameters
+  my_min_fuel_layer_ht_m <- dta_temp %>% 
+    dplyr::filter(dplyr::row_number()==i) %>% 
+    dplyr::pull(min_fuel_layer_ht_m)
+  my_dist_btwn_bins_m <- dta_temp %>% 
+    dplyr::filter(dplyr::row_number()==i) %>% 
+    dplyr::pull(dist_btwn_bins_m)
+  # run it
+  safe_trees_cbh <- purrr::safely(trees_cbh)
+  st <- Sys.time()
+  trees_cbh_ans <- safe_trees_cbh(
+    trees_poly = cloud2trees_ans$crowns_sf
+    , norm_las = "../data/point_cloud_processing_temp/02_normalize/"
+    , tree_sample_prop = 1
+    , estimate_missing_cbh = T
+    , which_cbh = "lowest"
+    # we can leave all other parameters at defaults
+    , min_fuel_layer_ht_m = my_min_fuel_layer_ht_m # default = 1.5
+    , dist_btwn_bins_m = my_dist_btwn_bins_m # default = 1
+  )
+  end <- Sys.time()
+  if(!is.null(trees_cbh_ans$result)){
+    message(paste(
+      "my_min_fuel_layer_ht_m="
+      , my_min_fuel_layer_ht_m
+      , "; my_dist_btwn_bins_m="
+      , my_dist_btwn_bins_m
+    ))
+    # return
+    return(
+      trees_cbh_ans$result %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::select(treeID, tree_height_m, tidyselect::contains("cbh")) %>% 
+        dplyr::mutate(
+          min_fuel_layer_ht_m = my_min_fuel_layer_ht_m
+          , dist_btwn_bins_m = my_dist_btwn_bins_m
+          , timer_secs = difftime(end, st, units = "secs") %>% as.numeric()
+        )
+    )
+  }else{
+    message(paste(
+      "ERROR: my_min_fuel_layer_ht_m="
+      , my_min_fuel_layer_ht_m
+      , "; my_dist_btwn_bins_m="
+      , my_dist_btwn_bins_m
+    ))
+    return(NULL)
+  }
+}
+# run it
+test_cbh_dta <- 
+  1:nrow(dta_temp) %>% 
+  purrr::map(test_cbh_fn) %>% 
+  dplyr::bind_rows()
+```
+
+which combinations caused errors?
+
+```{r}
+# which combinations caused errors?
+dta_temp %>% 
+  dplyr::anti_join(
+    test_cbh_dta
+    , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+  ) %>% 
+  kableExtra::kbl(caption = "these combintations resulted in ERROR!") %>% 
+  kableExtra::kable_styling()
+```
+
+which combinations resulted in success?
+
+```{r}
+# which combinations caused errors?
+dta_temp %>% 
+  dplyr::inner_join(
+    test_cbh_dta %>% dplyr::distinct(min_fuel_layer_ht_m, dist_btwn_bins_m)
+    , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+  ) %>% 
+  kableExtra::kbl(caption = "these combintations resulted in SUCCESS!") %>% 
+  kableExtra::kable_styling()
+```
+
+is there a pattern??
+
+* ERROR if : min_fuel_layer_ht_m == dist_btwn_bins_m (except 0.5,1.5,2.5)??
+* ERROR if : dist_btwn_bins_m - min_fuel_layer_ht_m >= 1.5
+
+perhaps the pattern is driven by the interaction with another parameter that we did't adjust
+
+anyway.....
+
+what does the success data look like?
+
+```{r}
+test_cbh_dta %>% 
+  dplyr::glimpse()
+```
+
+sick, how about by data set?
+
+```{r}
+test_cbh_dta %>% 
+  dplyr::count(min_fuel_layer_ht_m, dist_btwn_bins_m) %>% 
+  kableExtra::kbl(caption = "look at our test data combintation successes") %>% 
+  kableExtra::kable_styling()
+```
+
+let's check those CBH values
+
+```{r}
+test_cbh_dta %>% 
+  dplyr::mutate(
+    is_default = min_fuel_layer_ht_m == 1.5 &
+      dist_btwn_bins_m == 1
+    , minHT_step = forcats::fct_cross(
+      factor(min_fuel_layer_ht_m), factor(dist_btwn_bins_m)
+      , keep_empty = F
+    ) %>% 
+    forcats::fct_reorder(
+      .x = tree_cbh_m
+      , .fun = median
+    ) %>% 
+    forcats::fct_rev()
+  ) %>% 
+  ggplot(aes(y = minHT_step, x = tree_cbh_m, fill = is_default)) +
+  geom_boxplot(width = 0.7, outliers = F) +
+  harrypotter::scale_fill_hp_d("dracomalfoy", begin = 0.8, end = 0.2) +
+  scale_x_continuous(breaks = scales::breaks_extended(12)) +
+  labs(y = "min_fuel_layer_ht_m : dist_btwn_bins_m", x = "CBH (m)", fill = "is the default") +
+  theme_light() +
+  theme(legend.position = "top")
+  
+```
+
+very interesting. it seems that the default settings result in variable CBH estimates that are generally lower than other parameter settings tested. Setting `min_fuel_layer_ht_m = 1` and `dist_btwn_bins_m = 0.5` results in CBH estimates that are lower (what we are aiming for) than the default settings and similarly variable to the default setting. Increasing the `min_fuel_layer_ht_m` to values >= 2 does indeed result in increase CBH estimates that are also more consistent (potentially a desirable result) which may be due to the limited number of taller trees in this particular test data.
+
+*let's proceed by using these settings: `min_fuel_layer_ht_m = 1` and `dist_btwn_bins_m = 0.5`*
+
+we need to perform a study measuring the accuracy of the CBH estimated from the point cloud versus field validation data to properly determine what parameter settings to use in the `LadderFuelsR` process
+
+let's check out the timer on a per tree basis
+
+```{r}
+secs_per_tree <- test_cbh_dta %>% 
+  dplyr::count(min_fuel_layer_ht_m, dist_btwn_bins_m, timer_secs) %>% 
+  dplyr::mutate(
+    secs_per_tree = timer_secs/n
+  ) %>% 
+  dplyr::pull(secs_per_tree)
+secs_per_tree %>% summary()
+```
+
+that's not too shabby but let's remember that this is a lower density point cloud. the estimate is that for every 1,000 trees the CBH extraction from the point cloud would take `r round((median(secs_per_tree)*1000)/60,1)` minutes. how does that sound?
+
+this is also based on the point density of this test data:
+
+```{r, message=TRUE}
+lidR::readLAScatalog("../data/point_cloud_processing_temp/02_normalize/")
 ```
 

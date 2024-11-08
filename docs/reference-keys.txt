@@ -1,3 +1,6 @@
+tab:unnamed-chunk-132
+tab:unnamed-chunk-133
+tab:unnamed-chunk-135
 introduction
 objective
 data
@@ -36,3 +39,6 @@ define-ladderfuelsr-processing-function
 return-cbh-metrics
 cbh-on-the-point-cloud
 function-to-cbh-a-tree-list
+test-the-cbh-function
+comparison-to-ladderfuelsr-defaults
+test-cbh-based-on-parameterization-of-ladderfuelsr

@@ -226,7 +226,12 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="3.2.1" data-path="s02.html"><a href="s02.html#return-cbh-metrics"><i class="fa fa-check"></i><b>3.2.1</b> Return CBH Metrics</a></li>
 <li class="chapter" data-level="3.2.2" data-path="s02.html"><a href="s02.html#cbh-on-the-point-cloud"><i class="fa fa-check"></i><b>3.2.2</b> CBH on the point cloud</a></li>
 </ul></li>
-<li class="chapter" data-level="3.3" data-path="s02.html"><a href="s02.html#function-to-cbh-a-tree-list"><i class="fa fa-check"></i><b>3.3</b> Function to CBH a tree list</a></li>
+<li class="chapter" data-level="3.3" data-path="s02.html"><a href="s02.html#function-to-cbh-a-tree-list"><i class="fa fa-check"></i><b>3.3</b> Function to CBH a tree list</a>
+<ul>
+<li class="chapter" data-level="3.3.1" data-path="s02.html"><a href="s02.html#test-the-cbh-function"><i class="fa fa-check"></i><b>3.3.1</b> Test the CBH function</a></li>
+<li class="chapter" data-level="3.3.2" data-path="s02.html"><a href="s02.html#comparison-to-ladderfuelsr-defaults"><i class="fa fa-check"></i><b>3.3.2</b> Comparison to <code>LadderFuelsR</code> defaults</a></li>
+<li class="chapter" data-level="3.3.3" data-path="s02.html"><a href="s02.html#test-cbh-based-on-parameterization-of-ladderfuelsr"><i class="fa fa-check"></i><b>3.3.3</b> test CBH based on parameterization of <code>LadderFuelsR</code></a></li>
+</ul></li>
 </ul></li>
 </ul>
 
@@ -355,39 +360,39 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb7-3"><a href="s01.html#cb7-3" tabindex="-1"></a>  <span class="fu">list.files</span>(<span class="at">recursive =</span> T, <span class="at">pattern =</span> <span class="st">&quot;.*</span><span class="sc">\\</span><span class="st">.(laz|las)$&quot;</span>, <span class="at">full.names =</span> F) <span class="sc">%&gt;%</span> </span>
 <span id="cb7-4"><a href="s01.html#cb7-4" tabindex="-1"></a>  <span class="fu">sample</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb7-5"><a href="s01.html#cb7-5" tabindex="-1"></a>  .[<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>]</span></code></pre></div>
-<pre><code>##  [1] &quot;NeonTreeEvaluation/evaluation/LiDAR/OSBS_268.las&quot;        
-##  [2] &quot;NeonTreeEvaluation/evaluation/LiDAR/TEAK_002_2019.laz&quot;   
-##  [3] &quot;NeonTreeEvaluation/evaluation/LiDAR/TEAK_050_2018.laz&quot;   
-##  [4] &quot;NeonTreeEvaluation/evaluation/LiDAR/BONA_074_2019.laz&quot;   
-##  [5] &quot;NeonTreeEvaluation/evaluation/LiDAR/DEJU_027_2019.laz&quot;   
-##  [6] &quot;NeonTreeEvaluation/evaluation/LiDAR/SOAP_057_2019.laz&quot;   
-##  [7] &quot;NeonTreeEvaluation/evaluation/LiDAR/JORN_002_2019.laz&quot;   
-##  [8] &quot;NeonTreeEvaluation/evaluation/LiDAR/SJER_057_2018.laz&quot;   
-##  [9] &quot;NeonTreeEvaluation/evaluation/LiDAR/BLAN_007_2019.laz&quot;   
-## [10] &quot;NeonTreeEvaluation/evaluation/LiDAR/unnamed_plot_134.las&quot;</code></pre>
+<pre><code>##  [1] &quot;NeonTreeEvaluation/evaluation/LiDAR/BONA_023_2019.laz&quot;  
+##  [2] &quot;NeonTreeEvaluation/evaluation/LiDAR/RMNP_003_2018.laz&quot;  
+##  [3] &quot;NeonTreeEvaluation/evaluation/LiDAR/SJER_055_2018.laz&quot;  
+##  [4] &quot;NeonTreeEvaluation/evaluation/LiDAR/BLAN_012_2019.laz&quot;  
+##  [5] &quot;NeonTreeEvaluation/evaluation/LiDAR/MOAB_028_2019.laz&quot;  
+##  [6] &quot;NeonTreeEvaluation/evaluation/LiDAR/YELL_023_2020.laz&quot;  
+##  [7] &quot;NeonTreeEvaluation/evaluation/LiDAR/unnamed_plot_89.las&quot;
+##  [8] &quot;NeonTreeEvaluation/evaluation/LiDAR/CLBJ_040_2019.laz&quot;  
+##  [9] &quot;NeonTreeEvaluation/evaluation/LiDAR/OSBS_015_2019.laz&quot;  
+## [10] &quot;NeonTreeEvaluation/evaluation/LiDAR/TALL_012_2019.laz&quot;</code></pre>
 <p>For a list of NEON site abbreviations <a href="https://www.neonscience.org/field-sites/field-sites-map">https://www.neonscience.org/field-sites/field-sites-map</a></p>
 <p><code>NeonTreeEvaluation::list_annotations</code> looks into package contents for ground truth annotations for the image-annotated crowns.</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="s01.html#cb9-1" tabindex="-1"></a><span class="co"># list_annotations</span></span>
 <span id="cb9-2"><a href="s01.html#cb9-2" tabindex="-1"></a>NeonTreeEvaluation<span class="sc">::</span><span class="fu">list_annotations</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb9-3"><a href="s01.html#cb9-3" tabindex="-1"></a>  <span class="fu">sample</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb9-4"><a href="s01.html#cb9-4" tabindex="-1"></a>  .[<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>]</span></code></pre></div>
-<pre><code>##  [1] &quot;OSBS_022_2019&quot;                        
-##  [2] &quot;2018_TEAK_3_314000_4108000_image_86&quot;  
-##  [3] &quot;8&quot;                                    
-##  [4] &quot;TEAK_045_2018&quot;                        
-##  [5] &quot;2019_LENO_5_383000_3523000_image_crop&quot;
-##  [6] &quot;DELA_047_2019&quot;                        
-##  [7] &quot;DSNY_012_2018&quot;                        
-##  [8] &quot;UNDE_006_2017&quot;                        
-##  [9] &quot;2018_TEAK_3_316000_4097000_image_493&quot; 
-## [10] &quot;TEAK_050_2018&quot;</code></pre>
+<pre><code>##  [1] &quot;OSBS_037_2019&quot;                       
+##  [2] &quot;OSBS_029_2019&quot;                       
+##  [3] &quot;2018_SJER_3_253000_4105000_image_72&quot; 
+##  [4] &quot;2018_TEAK_3_319000_4095000_image_175&quot;
+##  [5] &quot;2018_SJER_3_252000_4108000_image_517&quot;
+##  [6] &quot;SJER_015_2018&quot;                       
+##  [7] &quot;WREF_072_2019&quot;                       
+##  [8] &quot;DSNY_025_2018&quot;                       
+##  [9] &quot;SCBI_046_2019&quot;                       
+## [10] &quot;DELA_047_2019&quot;</code></pre>
 <p>The field collected stems are individual points for each tree. They overlap with a subset of the sensor data. Use the <code>NeonTreeEvaluation::list_field_stems</code> function to determine which plots have stem data.</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="s01.html#cb11-1" tabindex="-1"></a><span class="co"># list_field_stems</span></span>
 <span id="cb11-2"><a href="s01.html#cb11-2" tabindex="-1"></a>NeonTreeEvaluation<span class="sc">::</span><span class="fu">list_field_stems</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb11-3"><a href="s01.html#cb11-3" tabindex="-1"></a>  <span class="fu">sample</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb11-4"><a href="s01.html#cb11-4" tabindex="-1"></a>  .[<span class="dv">1</span><span class="sc">:</span><span class="dv">10</span>]</span></code></pre></div>
-<pre><code>##  [1] &quot;DELA_039&quot; &quot;SERC_002&quot; &quot;LENO_017&quot; &quot;STEI_002&quot; &quot;RMNP_013&quot; &quot;MLBS_017&quot;
-##  [7] &quot;MLBS_073&quot; &quot;OSBS_038&quot; &quot;TALL_009&quot; &quot;SCBI_011&quot;</code></pre>
+<pre><code>##  [1] &quot;DELA_052&quot; &quot;GUAN_006&quot; &quot;LENO_008&quot; &quot;SERC_056&quot; &quot;SOAP_052&quot; &quot;MLBS_005&quot;
+##  [7] &quot;RMNP_005&quot; &quot;TALL_001&quot; &quot;DELA_015&quot; &quot;BART_074&quot;</code></pre>
 <p>The <code>NeonTreeEvaluation::crown_polygons</code> function lists “field-annotated crowns” in which an observer annotates a polygon on the remote-sensing image on a tablet while standing in the field. From Ordway Swisher Biological Station, Florida and Mountain Lake Biological Station.</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="s01.html#cb13-1" tabindex="-1"></a><span class="co"># crown_polygons</span></span>
 <span id="cb13-2"><a href="s01.html#cb13-2" tabindex="-1"></a>NeonTreeEvaluation<span class="sc">::</span>crown_polygons <span class="sc">%&gt;%</span> </span>
@@ -621,18 +626,18 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb31-19"><a href="s01.html#cb31-19" tabindex="-1"></a><span class="co"># huh?</span></span>
 <span id="cb31-20"><a href="s01.html#cb31-20" tabindex="-1"></a>conifer_spp <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_sample</span>(<span class="at">n =</span> <span class="dv">10</span>)</span></code></pre></div>
 <pre><code>## # A tibble: 10 × 3
-##    taxonID   vernacularName          genus         
-##    &lt;chr&gt;     &lt;chr&gt;                   &lt;chr&gt;         
-##  1 CALLI7    cypress-pine            Callitris     
-##  2 JUNIPSPP  juniper                 Juniperus     
-##  3 PIST3     southwestern white pine Pinus         
-##  4 SEQUO2    giant sequoia           Sequoiadendron
-##  5 JUCO11    redberry juniper        Juniperus     
-##  6 ABLAL     subalpine fir           Abies         
-##  7 TAXUSSPP  yew                     Taxus         
-##  8 PODOCASPP &lt;NA&gt;                    &lt;NA&gt;          
-##  9 PLOR80    oriental arborvitae     Platycladus   
-## 10 JUVIS     southern redcedar       Juniperus</code></pre>
+##    taxonID  vernacularName                genus         
+##    &lt;chr&gt;    &lt;chr&gt;                         &lt;chr&gt;         
+##  1 TAAS     pond cypress                  Taxodium      
+##  2 PIWA3    bhutan pine                   Pinus         
+##  3 ABIESSPP fir                           Abies         
+##  4 HEAB2    santa cruz cypress            Hesperocyparis
+##  5 HEFO10   tecate cypress                Hesperocyparis
+##  6 PODOCA   &lt;NA&gt;                          &lt;NA&gt;          
+##  7 TSCA2    carolina hemlock              Tsuga         
+##  8 TORRESPP torreya                       Torreya       
+##  9 ABAM     pacific silver fir            Abies         
+## 10 PITOI    santa cruz island torrey pine Pinus</code></pre>
 <p>filter that field tree list for conifers</p>
 <div class="sourceCode" id="cb33"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb33-1"><a href="s01.html#cb33-1" tabindex="-1"></a>conifer_trees <span class="ot">&lt;-</span> field_trees <span class="sc">%&gt;%</span> </span>
 <span id="cb33-2"><a href="s01.html#cb33-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">inner_join</span>(conifer_spp, <span class="at">by =</span> <span class="st">&quot;taxonID&quot;</span>)</span></code></pre></div>
@@ -906,53 +911,56 @@ height
 <span id="cb53-36"><a href="s01.html#cb53-36" tabindex="-1"></a>    , <span class="at">label =</span> <span class="fu">c</span>(<span class="st">&quot;neon_site&quot;</span>)</span>
 <span id="cb53-37"><a href="s01.html#cb53-37" tabindex="-1"></a>    , <span class="at">col.regions =</span> viridis<span class="sc">::</span><span class="fu">mako</span>(<span class="dv">10</span>, <span class="at">direction =</span> <span class="sc">-</span><span class="dv">1</span>)</span>
 <span id="cb53-38"><a href="s01.html#cb53-38" tabindex="-1"></a>  )</span></code></pre></div>
-<div class="leaflet html-widget html-fill-item" id="htmlwidget-0061faf98af0c4fe4228" style="width:1008px;height:672px;"></div>
-<script type="application/json" data-for="htmlwidget-0061faf98af0c4fe4228">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["point",440]},{"method":"addCircleMarkers","args":[[45.7604365371426,44.05134228611964,39.08441923650567,65.15580106715423,32.53146987229301,35.63657407348276,17.97016335836158,42.48178459977508,63.8730700576182,31.19755391134177,18.03446131564425,31.83288133103487,37.39485338226996,29.69467221927716,19.55176532568917,40.21768034597346,38.88174906720172,38.88903715244572,37.03334948861171,32.93127899686993,37.00036908866564,46.23181219215382],[-122.354988357329,-71.28321396065959,-77.96444171329743,-147.5046299578157,-87.80909504367152,-83.55862176680898,-66.85011338901158,-72.21990895355928,-149.2878858987199,-84.46375895717473,-67.06682374881446,-88.18132552074428,-80.53072406777669,-81.97208079047266,-155.3177383431732,-105.5072086703649,-78.14448685530846,-76.55092900230224,-119.263296547448,-87.42350315755769,-119.0025432518736,-89.53653678808381],6,null,"LiDAR plots",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"point","stroke":true,"color":"#333333","weight":1,"opacity":[0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9],"fill":true,"fillColor":["#79D3B3","#79D3B3","#4DC1AC","#DEF5E5","#201324","#79D3B3","#40498E","#79D3B3","#DEF5E5","#DEF5E5","#DEF5E5","#38619A","#312446","#4DC1AC","#AFE4C3","#38619A","#3C3569","#0B0405","#79D3B3","#40498E","#DEF5E5","#AFE4C3"],"fillOpacity":[0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6]},null,null,["<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>ABBY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>2&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>BART&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>3&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>BLAN&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 9&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>4&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>BONA&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>5&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>DELA&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>33&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>6&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>GRSM&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 7&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>7&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>GUAN&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>25&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>8&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>HARV&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>9&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>HEAL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>10&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>JERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>11&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>LAJA&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>12&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>LENO&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>22&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>13&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>MLBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>32&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>14&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>OSBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 9&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>15&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>PUUM&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 3&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>16&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>RMNP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>21&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>17&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>SCBI&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>28&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>18&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>SERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>36&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>19&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>SOAP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>20&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>TALL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>24&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>21&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>TEAK&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>22&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>UNDE&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 3&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["ABBY","BART","BLAN","BONA","DELA","GRSM","GUAN","HARV","HEAL","JERC","LAJA","LENO","MLBS","OSBS","PUUM","RMNP","SCBI","SERC","SOAP","TALL","TEAK","UNDE"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"LiDAR plots",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#DEF5E5 , #9CDEBD 11.4285714285714%, #4BBFAC 25.7142857142857%, #3697A8 40%, #376D9E 54.2857142857143%, #3F4485 68.5714285714286%, #322548 82.8571428571429%, #140A13 97.1428571428571%, #0B0405 "],"labels":["5","10","15","20","25","30","35"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"numeric","title":"LiDAR plots","extra":{"p_1":0.1142857142857143,"p_n":0.9714285714285714},"layerId":null,"className":"info legend","group":"LiDAR plots"}]}],"limits":{"lat":[17.97016335836158,65.15580106715423],"lng":[-155.3177383431732,-66.85011338901158]},"fitBounds":[17.97016335836158,-155.3177383431732,65.15580106715423,-66.85011338901158,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-e771e7f81664d9bbc017" style="width:1008px;height:672px;"></div>
+<script type="application/json" data-for="htmlwidget-e771e7f81664d9bbc017">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["point",440]},{"method":"addCircleMarkers","args":[[45.7604365371426,44.05134228611964,39.08441923650567,65.15580106715423,32.53146987229301,35.63657407348276,17.97016335836158,42.48178459977508,63.8730700576182,31.19755391134177,18.03446131564425,31.83288133103487,37.39485338226996,29.69467221927716,19.55176532568917,40.21768034597346,38.88174906720172,38.88903715244572,37.03334948861171,32.93127899686993,37.00036908866564,46.23181219215382],[-122.354988357329,-71.28321396065959,-77.96444171329743,-147.5046299578157,-87.80909504367152,-83.55862176680898,-66.85011338901158,-72.21990895355928,-149.2878858987199,-84.46375895717473,-67.06682374881446,-88.18132552074428,-80.53072406777669,-81.97208079047266,-155.3177383431732,-105.5072086703649,-78.14448685530846,-76.55092900230224,-119.263296547448,-87.42350315755769,-119.0025432518736,-89.53653678808381],6,null,"LiDAR plots",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"point","stroke":true,"color":"#333333","weight":1,"opacity":[0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9],"fill":true,"fillColor":["#79D3B3","#79D3B3","#4DC1AC","#DEF5E5","#201324","#79D3B3","#40498E","#79D3B3","#DEF5E5","#DEF5E5","#DEF5E5","#38619A","#312446","#4DC1AC","#AFE4C3","#38619A","#3C3569","#0B0405","#79D3B3","#40498E","#DEF5E5","#AFE4C3"],"fillOpacity":[0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6]},null,null,["<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>ABBY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>2&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>BART&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>3&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>BLAN&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 9&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>4&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>BONA&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>5&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>DELA&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>33&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>6&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>GRSM&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 7&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>7&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>GUAN&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>25&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>8&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>HARV&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>9&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>HEAL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>10&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>JERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>11&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>LAJA&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>12&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>LENO&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>22&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>13&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>MLBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>32&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>14&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>OSBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 9&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>15&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>PUUM&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 3&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>16&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>RMNP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>21&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>17&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>SCBI&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>28&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>18&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>SERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>36&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>19&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>SOAP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>20&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>TALL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>24&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>21&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>TEAK&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>22&emsp;<\/td><\/tr><tr><td>1<\/td><th>neon_site&emsp;<\/th><td>UNDE&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 3&emsp;<\/td><\/tr><tr><td>3<\/td><th>x&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["ABBY","BART","BLAN","BONA","DELA","GRSM","GUAN","HARV","HEAL","JERC","LAJA","LENO","MLBS","OSBS","PUUM","RMNP","SCBI","SERC","SOAP","TALL","TEAK","UNDE"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"LiDAR plots",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#DEF5E5 , #9CDEBD 11.4285714285714%, #4BBFAC 25.7142857142857%, #3697A8 40%, #376D9E 54.2857142857143%, #3F4485 68.5714285714286%, #322548 82.8571428571429%, #140A13 97.1428571428571%, #0B0405 "],"labels":["5","10","15","20","25","30","35"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"numeric","title":"LiDAR plots","extra":{"p_1":0.1142857142857143,"p_n":0.9714285714285714},"layerId":null,"className":"info legend","group":"LiDAR plots"}]}],"limits":{"lat":[17.97016335836158,65.15580106715423],"lng":[-155.3177383431732,-66.85011338901158]},"fitBounds":[17.97016335836158,-155.3177383431732,65.15580106715423,-66.85011338901158,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
 <p>load one las data</p>
 <div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb54-1"><a href="s01.html#cb54-1" tabindex="-1"></a>f_temp <span class="ot">=</span> las_df <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice_sample</span>(<span class="at">n =</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">pull</span>(f_path)</span>
 <span id="cb54-2"><a href="s01.html#cb54-2" tabindex="-1"></a>las_temp <span class="ot">=</span> lidR<span class="sc">::</span><span class="fu">readLAS</span>(f_temp)</span>
 <span id="cb54-3"><a href="s01.html#cb54-3" tabindex="-1"></a><span class="co"># quick summary</span></span>
 <span id="cb54-4"><a href="s01.html#cb54-4" tabindex="-1"></a>las_temp</span></code></pre></div>
-<pre><code>## class        : LAS (v1.3 format 1)
-## memory       : 2.1 Mb 
-## extent       : 548886.1, 548926.1, 5067779, 5067819 (xmin, xmax, ymin, ymax)
-## coord. ref.  : WGS 84 / UTM zone 10N 
-## area         : 1676 m²
-## points       : 37 thousand points
-## density      : 22.09 points/m²
-## density      : 10.84 pulses/m²</code></pre>
+<pre><code>## class        : LAS (v1.3 format 3)
+## memory       : 889.1 Kb 
+## extent       : 364547.1, 364587, 4305320, 4305360 (xmin, xmax, ymin, ymax)
+## coord. ref.  : WGS 84 / UTM zone 18N 
+## area         : 1632 m²
+## points       : 11.9 thousand points
+## density      : 7.31 points/m²
+## density      : 4.63 pulses/m²</code></pre>
 <div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="s01.html#cb56-1" tabindex="-1"></a><span class="co"># data str</span></span>
 <span id="cb56-2"><a href="s01.html#cb56-2" tabindex="-1"></a>las_temp<span class="sc">@</span>data <span class="sc">%&gt;%</span> </span>
 <span id="cb56-3"><a href="s01.html#cb56-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 37,024
-## Columns: 16
-## $ X                 &lt;dbl&gt; 548918.8, 548918.9, 548918.9, 548919.2, 548919.6, 54…
-## $ Y                 &lt;dbl&gt; 5067779, 5067779, 5067779, 5067779, 5067779, 5067779…
-## $ Z                 &lt;dbl&gt; 609.094, 609.858, 610.850, 610.012, 608.328, 612.242…
-## $ gpstime           &lt;dbl&gt; 585009.2, 585009.2, 585009.2, 585009.2, 585009.2, 58…
-## $ Intensity         &lt;int&gt; 65, 269, 67, 165, 42, 170, 83, 25, 206, 222, 51, 167…
-## $ ReturnNumber      &lt;int&gt; 5, 1, 1, 2, 3, 1, 2, 1, 2, 1, 1, 2, 1, 1, 2, 1, 2, 1…
-## $ NumberOfReturns   &lt;int&gt; 5, 1, 3, 3, 3, 2, 2, 2, 2, 1, 2, 2, 1, 2, 2, 2, 2, 4…
-## $ ScanDirectionFlag &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
+<pre><code>## Rows: 11,935
+## Columns: 19
+## $ X                 &lt;dbl&gt; 364586.8, 364586.5, 364585.4, 364584.6, 364583.9, 36…
+## $ Y                 &lt;dbl&gt; 4305320, 4305321, 4305321, 4305321, 4305321, 4305321…
+## $ Z                 &lt;dbl&gt; 10.01, 9.86, 11.99, 11.85, 11.93, 11.66, 8.00, 7.43,…
+## $ gpstime           &lt;dbl&gt; 314473.4, 314473.4, 314473.4, 314473.4, 314473.4, 31…
+## $ Intensity         &lt;int&gt; 5, 4, 3, 4, 6, 9, 8, 12, 6, 7, 3, 3, 1, 2, 8, 6, 5, …
+## $ ReturnNumber      &lt;int&gt; 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 2, 2, 3, 2, 1, 1, 1, 2…
+## $ NumberOfReturns   &lt;int&gt; 2, 2, 2, 2, 1, 1, 1, 2, 1, 2, 2, 2, 3, 2, 1, 1, 2, 2…
+## $ ScanDirectionFlag &lt;int&gt; 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0…
 ## $ EdgeOfFlightline  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
-## $ Classification    &lt;int&gt; 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5…
+## $ Classification    &lt;int&gt; 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5…
 ## $ Synthetic_flag    &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Keypoint_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Withheld_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
-## $ ScanAngleRank     &lt;int&gt; -16, -16, -16, -16, -16, -16, -16, -16, -16, -16, -1…
-## $ UserData          &lt;int&gt; 24, 32, 42, 33, 17, 55, 44, 66, 53, 55, 74, 64, 69, …
-## $ PointSourceID     &lt;int&gt; 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8…</code></pre>
+## $ ScanAngleRank     &lt;int&gt; 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, …
+## $ UserData          &lt;int&gt; 70, 69, 90, 89, 90, 87, 52, 47, 44, 95, 45, 51, 3, 1…
+## $ PointSourceID     &lt;int&gt; 1311, 1311, 1311, 1311, 1311, 1311, 1311, 1311, 1311…
+## $ R                 &lt;int&gt; 31488, 30720, 37632, 7936, 8192, 11264, 8192, 7168, …
+## $ G                 &lt;int&gt; 38400, 35840, 40960, 11520, 12800, 16896, 11776, 122…
+## $ B                 &lt;int&gt; 25344, 26112, 34560, 8448, 11520, 17152, 15616, 1689…</code></pre>
 <p>summarize x, y, z</p>
 <div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb58-1"><a href="s01.html#cb58-1" tabindex="-1"></a>las_temp<span class="sc">@</span>data <span class="sc">%&gt;%</span> </span>
 <span id="cb58-2"><a href="s01.html#cb58-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(X,Y,Z) <span class="sc">%&gt;%</span> </span>
 <span id="cb58-3"><a href="s01.html#cb58-3" tabindex="-1"></a>  <span class="fu">summary</span>()</span></code></pre></div>
 <pre><code>##        X                Y                 Z        
-##  Min.   :548886   Min.   :5067779   Min.   :598.6  
-##  1st Qu.:548896   1st Qu.:5067789   1st Qu.:605.2  
-##  Median :548906   Median :5067798   Median :607.4  
-##  Mean   :548906   Mean   :5067799   Mean   :607.5  
-##  3rd Qu.:548916   3rd Qu.:5067809   3rd Qu.:609.8  
-##  Max.   :548926   Max.   :5067819   Max.   :649.6</code></pre>
+##  Min.   :364547   Min.   :4305320   Min.   : 1.83  
+##  1st Qu.:364557   1st Qu.:4305329   1st Qu.:19.92  
+##  Median :364567   Median :4305339   Median :29.84  
+##  Mean   :364567   Mean   :4305339   Mean   :26.26  
+##  3rd Qu.:364577   3rd Qu.:4305349   3rd Qu.:34.81  
+##  Max.   :364587   Max.   :4305360   Max.   :41.42</code></pre>
 <p>plot this las</p>
 <div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="s01.html#cb60-1" tabindex="-1"></a>plot3D<span class="sc">::</span><span class="fu">scatter3D</span>(</span>
 <span id="cb60-2"><a href="s01.html#cb60-2" tabindex="-1"></a>  <span class="at">x =</span> las_temp<span class="sc">@</span>data<span class="sc">$</span>X</span>
@@ -969,10 +977,10 @@ height
 <span id="cb61-2"><a href="s01.html#cb61-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(Classification)</span></code></pre></div>
 <pre><code>##    Classification     n
 ##             &lt;int&gt; &lt;int&gt;
-## 1:              1  6577
-## 2:              2  1786
-## 3:              5 28660
-## 4:              7     1</code></pre>
+## 1:              1   416
+## 2:              2   398
+## 3:              5 11117
+## 4:              7     4</code></pre>
 <p>plot color by classification</p>
 <div class="sourceCode" id="cb63"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb63-1"><a href="s01.html#cb63-1" tabindex="-1"></a>plot3D<span class="sc">::</span><span class="fu">scatter3D</span>(</span>
 <span id="cb63-2"><a href="s01.html#cb63-2" tabindex="-1"></a>  <span class="at">x =</span> las_temp<span class="sc">@</span>data<span class="sc">$</span>X</span>
@@ -995,29 +1003,29 @@ height
 <span id="cb64-3"><a href="s01.html#cb64-3" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">filter</span>(neon_site<span class="sc">==</span><span class="st">&quot;RMNP&quot;</span>) <span class="sc">%&gt;%</span>  <span class="co"># rocky mtn national park</span></span>
 <span id="cb64-4"><a href="s01.html#cb64-4" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">slice_sample</span>(<span class="at">n =</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span> </span>
 <span id="cb64-5"><a href="s01.html#cb64-5" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">pull</span>(f_path))</span></code></pre></div>
-<pre><code>## [1] &quot;C:/Program Files/R/R-4.3.0/library/NeonTreeEvaluation/extdata/NeonTreeEvaluation/evaluation/LiDAR/RMNP_003_2018.laz&quot;</code></pre>
+<pre><code>## [1] &quot;C:/Program Files/R/R-4.3.0/library/NeonTreeEvaluation/extdata/NeonTreeEvaluation/evaluation/LiDAR/RMNP_042_2018.laz&quot;</code></pre>
 <div class="sourceCode" id="cb66"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb66-1"><a href="s01.html#cb66-1" tabindex="-1"></a><span class="co"># read in the data</span></span>
 <span id="cb66-2"><a href="s01.html#cb66-2" tabindex="-1"></a>las_temp <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">readLAS</span>(f_temp)</span></code></pre></div>
 <p>what is this data?</p>
 <div class="sourceCode" id="cb67"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb67-1"><a href="s01.html#cb67-1" tabindex="-1"></a>las_temp<span class="sc">@</span>data <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 49,205
+<pre><code>## Rows: 20,407
 ## Columns: 16
-## $ X                 &lt;dbl&gt; 458837.0, 458837.2, 458837.6, 458836.8, 458837.2, 45…
-## $ Y                 &lt;dbl&gt; 4450227, 4450227, 4450227, 4450227, 4450227, 4450227…
-## $ Z                 &lt;dbl&gt; 2626.882, 2626.091, 2624.778, 2626.132, 2624.461, 26…
-## $ gpstime           &lt;dbl&gt; 425181.4, 425181.4, 425181.4, 425181.4, 425181.4, 42…
-## $ Intensity         &lt;int&gt; 61, 57, 35, 80, 37, 86, 9, 124, 51, 20, 39, 140, 43,…
-## $ ReturnNumber      &lt;int&gt; 1, 2, 3, 1, 2, 1, 2, 1, 1, 2, 3, 1, 1, 2, 1, 2, 1, 2…
-## $ NumberOfReturns   &lt;int&gt; 3, 3, 3, 2, 2, 2, 2, 1, 3, 3, 3, 1, 2, 2, 2, 2, 2, 2…
+## $ X                 &lt;dbl&gt; 453532.6, 453546.3, 453546.8, 453547.2, 453547.7, 45…
+## $ Y                 &lt;dbl&gt; 4458594, 4458556, 4458556, 4458556, 4458556, 4458556…
+## $ Z                 &lt;dbl&gt; 2750.133, 2746.354, 2746.339, 2746.320, 2746.295, 27…
+## $ gpstime           &lt;dbl&gt; 409989.8, 409990.3, 409990.3, 409990.3, 409990.3, 40…
+## $ Intensity         &lt;int&gt; 74, 306, 289, 344, 273, 270, 306, 324, 344, 330, 335…
+## $ ReturnNumber      &lt;int&gt; 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1…
+## $ NumberOfReturns   &lt;int&gt; 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1…
 ## $ ScanDirectionFlag &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
 ## $ EdgeOfFlightline  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
-## $ Classification    &lt;int&gt; 5, 5, 5, 5, 5, 5, 2, 5, 5, 1, 2, 2, 5, 2, 5, 5, 5, 2…
+## $ Classification    &lt;int&gt; 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2…
 ## $ Synthetic_flag    &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Keypoint_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Withheld_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
-## $ ScanAngleRank     &lt;int&gt; 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, …
-## $ UserData          &lt;int&gt; 93, 84, 70, 86, 68, 61, 0, 61, 60, 19, 0, 0, 76, 0, …
-## $ PointSourceID     &lt;int&gt; 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, …</code></pre>
+## $ ScanAngleRank     &lt;int&gt; -6, -7, -7, -7, -7, -6, -6, -6, -6, -6, -6, -6, -6, …
+## $ UserData          &lt;int&gt; 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, …
+## $ PointSourceID     &lt;int&gt; 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9…</code></pre>
 <p>We can plot the point cloud with and color by the point height</p>
 <div class="sourceCode" id="cb69"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb69-1"><a href="s01.html#cb69-1" tabindex="-1"></a>lidR<span class="sc">::</span><span class="fu">plot</span>(</span>
 <span id="cb69-2"><a href="s01.html#cb69-2" tabindex="-1"></a>  las_temp</span>
@@ -1069,23 +1077,23 @@ height
 <p>there is data on the individual trees in the crowns and tree tops data (which are the same data but one spaltial polygons and the other is spatial points).</p>
 <div class="sourceCode" id="cb76"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb76-1"><a href="s01.html#cb76-1" tabindex="-1"></a>cloud2trees_ans<span class="sc">$</span>crowns_sf <span class="sc">%&gt;%</span> </span>
 <span id="cb76-2"><a href="s01.html#cb76-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 229
+<pre><code>## Rows: 107
 ## Columns: 20
-## $ treeID                    &lt;chr&gt; &quot;1_458833.4_4450240.6&quot;, &quot;2_458858.1_4450240.…
-## $ tree_height_m             &lt;dbl&gt; 11.030, 8.124, 7.659, 8.306, 7.471, 9.758, 5…
-## $ tree_x                    &lt;dbl&gt; 458833.4, 458858.1, 458839.6, 458854.6, 4588…
-## $ tree_y                    &lt;dbl&gt; 4450241, 4450241, 4450240, 4450240, 4450240,…
-## $ crown_area_m2             &lt;dbl&gt; 6.5000, 1.6250, 1.3125, 1.3750, 4.3750, 2.81…
-## $ geometry                  &lt;GEOMETRY [m]&gt; POLYGON ((458832 4450241, 4..., POL…
-## $ fia_est_dbh_cm            &lt;dbl&gt; 16.343596, 11.664241, 11.025794, 12.016107, …
-## $ fia_est_dbh_cm_lower      &lt;dbl&gt; 9.274637, 6.556701, 6.186752, 6.789626, 6.06…
-## $ fia_est_dbh_cm_upper      &lt;dbl&gt; 25.114865, 18.022694, 16.908300, 18.607822, …
-## $ dbh_cm                    &lt;dbl&gt; 16.343596, 11.664241, 11.025794, 12.016107, …
+## $ treeID                    &lt;chr&gt; &quot;1_453532.6_4458594.6&quot;, &quot;2_453544.6_4458594.…
+## $ tree_height_m             &lt;dbl&gt; 3.185, 12.866, 11.826, 4.287, 8.980, 7.009, …
+## $ tree_x                    &lt;dbl&gt; 453532.6, 453544.6, 453542.6, 453547.4, 4535…
+## $ tree_y                    &lt;dbl&gt; 4458595, 4458595, 4458594, 4458593, 4458592,…
+## $ crown_area_m2             &lt;dbl&gt; 0.8750, 10.0000, 11.0625, 0.5625, 5.1875, 1.…
+## $ geometry                  &lt;GEOMETRY [m]&gt; POLYGON ((453532.5 4458595,..., POL…
+## $ fia_est_dbh_cm            &lt;dbl&gt; 4.891438, 19.776269, 17.793208, 6.265440, 13…
+## $ fia_est_dbh_cm_lower      &lt;dbl&gt; 2.646565, 10.478410, 9.483730, 3.344581, 6.9…
+## $ fia_est_dbh_cm_upper      &lt;dbl&gt; 7.763825, 31.669043, 27.979694, 9.838453, 20…
+## $ dbh_cm                    &lt;dbl&gt; 4.891438, 19.776269, 17.793208, 6.265440, 13…
 ## $ is_training_data          &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
-## $ dbh_m                     &lt;dbl&gt; 0.16343596, 0.11664241, 0.11025794, 0.120161…
-## $ radius_m                  &lt;dbl&gt; 0.08171798, 0.05832120, 0.05512897, 0.060080…
-## $ basal_area_m2             &lt;dbl&gt; 0.020979016, 0.010685697, 0.009547939, 0.011…
-## $ basal_area_ft2            &lt;dbl&gt; 0.22581813, 0.11502084, 0.10277402, 0.122064…
+## $ dbh_m                     &lt;dbl&gt; 0.04891438, 0.19776269, 0.17793208, 0.062654…
+## $ radius_m                  &lt;dbl&gt; 0.02445719, 0.09888134, 0.08896604, 0.031327…
+## $ basal_area_m2             &lt;dbl&gt; 0.001879156, 0.030716986, 0.024865567, 0.003…
+## $ basal_area_ft2            &lt;dbl&gt; 0.02022724, 0.33063764, 0.26765296, 0.033186…
 ## $ ptcld_extracted_dbh_cm    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ ptcld_predicted_dbh_cm    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_trees_per_ha         &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
@@ -1105,7 +1113,7 @@ height
 <span id="cb79-3"><a href="s01.html#cb79-3" tabindex="-1"></a>  , <span class="at">pattern =</span> <span class="st">&quot;.las&quot;</span></span>
 <span id="cb79-4"><a href="s01.html#cb79-4" tabindex="-1"></a>  , <span class="at">full.names =</span> T</span>
 <span id="cb79-5"><a href="s01.html#cb79-5" tabindex="-1"></a>))</span></code></pre></div>
-<pre><code>## [1] &quot;../data/point_cloud_processing_temp/02_normalize/RMNP_003_2018_normalize.las&quot;</code></pre>
+<pre><code>## [1] &quot;../data/point_cloud_processing_temp/02_normalize/RMNP_042_2018_normalize.las&quot;</code></pre>
 <div class="sourceCode" id="cb81"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb81-1"><a href="s01.html#cb81-1" tabindex="-1"></a><span class="co"># read in the data</span></span>
 <span id="cb81-2"><a href="s01.html#cb81-2" tabindex="-1"></a>nlas_temp <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">readLAS</span>(n_f_temp)</span></code></pre></div>
 <p>plot it to check that it is height normalized</p>
@@ -1191,25 +1199,25 @@ height
 <span id="cb88-7"><a href="s01.html#cb88-7" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">filter_poi</span>(Classification<span class="sc">!=</span><span class="dv">2</span>)</span>
 <span id="cb88-8"><a href="s01.html#cb88-8" tabindex="-1"></a><span class="co"># what is this data?</span></span>
 <span id="cb88-9"><a href="s01.html#cb88-9" tabindex="-1"></a>crowns_nlas_temp<span class="sc">@</span>data <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 20,961
+<pre><code>## Rows: 9,885
 ## Columns: 17
-## $ X                 &lt;dbl&gt; 458837.0, 458837.2, 458837.6, 458836.8, 458837.2, 45…
-## $ Y                 &lt;dbl&gt; 4450227, 4450227, 4450227, 4450227, 4450227, 4450227…
-## $ Z                 &lt;dbl&gt; 9.254, 8.415, 7.014, 8.580, 6.823, 6.078, 6.127, 5.9…
-## $ gpstime           &lt;dbl&gt; 425181.4, 425181.4, 425181.4, 425181.4, 425181.4, 42…
-## $ Intensity         &lt;int&gt; 61, 57, 35, 80, 37, 86, 124, 51, 20, 43, 119, 49, 75…
-## $ ReturnNumber      &lt;int&gt; 1, 2, 3, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 3, 4…
-## $ NumberOfReturns   &lt;int&gt; 3, 3, 3, 2, 2, 2, 1, 3, 3, 2, 2, 2, 2, 1, 5, 5, 5, 5…
+## $ X                 &lt;dbl&gt; 453540.9, 453541.3, 453541.5, 453541.8, 453542.0, 45…
+## $ Y                 &lt;dbl&gt; 4458556, 4458556, 4458556, 4458556, 4458556, 4458556…
+## $ Z                 &lt;dbl&gt; 6.196, 7.331, 5.996, 7.657, 6.043, 10.264, 8.629, 7.…
+## $ gpstime           &lt;dbl&gt; 409990.3, 409990.3, 409990.3, 409990.3, 409990.3, 40…
+## $ Intensity         &lt;int&gt; 15, 24, 47, 137, 41, 83, 43, 37, 9, 168, 151, 9, 92,…
+## $ ReturnNumber      &lt;int&gt; 1, 1, 2, 1, 2, 1, 2, 3, 4, 1, 1, 1, 1, 2, 1, 2, 3, 1…
+## $ NumberOfReturns   &lt;int&gt; 2, 3, 3, 3, 3, 5, 5, 5, 5, 1, 1, 2, 3, 3, 3, 3, 3, 2…
 ## $ ScanDirectionFlag &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
 ## $ EdgeOfFlightline  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
-## $ Classification    &lt;int&gt; 5, 5, 5, 5, 5, 5, 5, 5, 1, 5, 5, 5, 5, 5, 5, 5, 5, 5…
+## $ Classification    &lt;int&gt; 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5…
 ## $ Synthetic_flag    &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Keypoint_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Withheld_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
-## $ ScanAngleRank     &lt;int&gt; 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, …
-## $ UserData          &lt;int&gt; 93, 84, 70, 86, 68, 61, 61, 60, 19, 76, 86, 76, 75, …
-## $ PointSourceID     &lt;int&gt; 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, …
-## $ tree_index        &lt;int&gt; 56, 56, 56, 56, 56, 56, 56, 56, 56, 60, 59, 59, 59, …</code></pre>
+## $ ScanAngleRank     &lt;int&gt; -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, …
+## $ UserData          &lt;int&gt; 62, 74, 61, 76, 60, 102, 85, 76, 60, 103, 115, 32, 8…
+## $ PointSourceID     &lt;int&gt; 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9…
+## $ tree_index        &lt;int&gt; 64, 64, 64, 67, 67, 67, 67, 67, 67, 67, 67, 68, 68, …</code></pre>
 <p>plot the las data colored by <code>tree_index</code></p>
 <div class="sourceCode" id="cb90"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb90-1"><a href="s01.html#cb90-1" tabindex="-1"></a>crowns_nlas_temp <span class="sc">%&gt;%</span> </span>
 <span id="cb90-2"><a href="s01.html#cb90-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(</span>
@@ -1298,27 +1306,27 @@ height
 <span id="cb93-25"><a href="s01.html#cb93-25" tabindex="-1"></a>  )</span>
 <span id="cb93-26"><a href="s01.html#cb93-26" tabindex="-1"></a><span class="co"># a df, ok</span></span>
 <span id="cb93-27"><a href="s01.html#cb93-27" tabindex="-1"></a>crowns_metrics_df <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 225
+<pre><code>## Rows: 89
 ## Columns: 19
-## $ tree_index    &lt;int&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1…
-## $ Z             &lt;dbl&gt; 11.655, 8.379, 9.148, 8.524, 9.758, 6.065, 3.821, 9.723,…
-## $ npoints       &lt;int&gt; 206, 58, 57, 31, 89, 12, 6, 78, 272, 12, 4, 236, 15, 191…
-## $ convhull_area &lt;dbl&gt; 6.093, 1.682, 0.936, 0.942, 2.463, 0.311, 0.101, 2.789, …
+## $ tree_index    &lt;int&gt; 2, 3, 5, 6, 7, 8, 10, 12, 13, 14, 16, 18, 21, 22, 23, 24…
+## $ Z             &lt;dbl&gt; 12.866, 11.826, 8.980, 7.009, 6.352, 6.489, 7.472, 9.940…
+## $ npoints       &lt;int&gt; 108, 73, 48, 13, 11, 16, 11, 25, 118, 128, 8, 80, 21, 27…
+## $ convhull_area &lt;dbl&gt; 7.166, 8.132, 3.042, 0.853, 1.141, 1.137, 0.554, 5.327, …
 ## $ dz            &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
 ## $ th            &lt;dbl&gt; 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,…
-## $ z_max         &lt;dbl&gt; 11.655, 8.379, 9.148, 8.524, 9.758, 6.065, 3.821, 9.723,…
-## $ z_min         &lt;dbl&gt; 1.023, 1.072, 1.571, 4.280, 1.433, 3.767, 3.540, 1.237, …
-## $ z_mean        &lt;dbl&gt; 5.690553, 5.766638, 5.693877, 6.851968, 6.887000, 5.4214…
-## $ z_sd          &lt;dbl&gt; 2.4930970, 1.8853461, 1.9310041, 1.1368037, 2.2181626, 0…
-## $ z_q1          &lt;dbl&gt; 1.19515, 1.37524, 1.57492, 4.33160, 1.46556, 3.80165, 3.…
-## $ z_q5          &lt;dbl&gt; 2.05200, 1.93175, 2.70300, 4.55900, 3.00000, 3.94025, 3.…
-## $ z_q25         &lt;dbl&gt; 3.85125, 4.74875, 4.06900, 6.33800, 5.51400, 5.46575, 3.…
-## $ z_q50         &lt;dbl&gt; 5.4415, 5.8730, 6.2990, 6.6910, 7.2820, 5.6935, 3.6625, …
-## $ z_q75         &lt;dbl&gt; 7.10400, 7.24025, 7.02000, 7.82850, 8.72400, 5.81725, 3.…
-## $ z_q95         &lt;dbl&gt; 10.46950, 8.26115, 8.72020, 8.32450, 9.62420, 5.99515, 3…
-## $ crr           &lt;dbl&gt; 0.4390099, 0.6424850, 0.5441306, 0.6060244, 0.6551351, 0…
-## $ geometry      &lt;POLYGON [m]&gt; POLYGON ((458835 4450239, 4..., POLYGON ((458858…
-## $ crown_diam    &lt;dbl&gt; 2.7852915, 1.4634169, 1.0916740, 1.0951674, 1.7708724, 0…</code></pre>
+## $ z_max         &lt;dbl&gt; 12.866, 11.826, 8.980, 7.009, 6.352, 6.489, 7.472, 9.940…
+## $ z_min         &lt;dbl&gt; 1.926, 1.705, 2.469, 2.513, 1.702, 1.456, 2.428, 2.994, …
+## $ z_mean        &lt;dbl&gt; 7.870843, 8.036315, 5.881000, 4.762000, 4.380545, 4.4591…
+## $ z_sd          &lt;dbl&gt; 2.8488448, 2.2873433, 1.8985180, 1.6263112, 1.6196375, 1…
+## $ z_q1          &lt;dbl&gt; 2.02244, 3.89092, 2.54702, 2.53208, 1.71760, 1.69855, 2.…
+## $ z_q5          &lt;dbl&gt; 2.80340, 4.96060, 2.76435, 2.60840, 1.78000, 2.66875, 2.…
+## $ z_q25         &lt;dbl&gt; 5.75425, 5.91900, 4.03000, 3.00000, 3.45850, 3.41000, 3.…
+## $ z_q50         &lt;dbl&gt; 7.8825, 8.0970, 6.3520, 5.2200, 5.0770, 4.9280, 4.9980, …
+## $ z_q75         &lt;dbl&gt; 10.27750, 10.05700, 7.25700, 5.75000, 5.36450, 5.44450, …
+## $ z_q95         &lt;dbl&gt; 12.19095, 11.50240, 8.42115, 6.95260, 6.34900, 6.34575, …
+## $ crr           &lt;dbl&gt; 0.5434043, 0.6255622, 0.5240362, 0.5002224, 0.5760313, 0…
+## $ geometry      &lt;POLYGON [m]&gt; POLYGON ((453546.1 4458594,..., POLYGON ((453543…
+## $ crown_diam    &lt;dbl&gt; 3.0206017, 3.2177607, 1.9680434, 1.0421484, 1.2053076, 1…</code></pre>
 <p>what “tree-based metrics” come from the <code>.stdtreemetrics</code>? maybe maximum Z, number of points, and crown area…not sure how useful these are for defining CBH. we shall see. the “z_” metrics are neat.</p>
 <p>does every crown have some crown metrics?</p>
 <div class="sourceCode" id="cb95"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb95-1"><a href="s01.html#cb95-1" tabindex="-1"></a><span class="co"># has the same number of trees as our crown polygons?</span></span>
@@ -1345,13 +1353,13 @@ crowns_metrics_df_trees
 <tbody>
 <tr>
 <td style="text-align:right;">
-229
+107
 </td>
 <td style="text-align:right;">
-229
+107
 </td>
 <td style="text-align:right;">
-225
+89
 </td>
 </tr>
 </tbody>
@@ -1421,10 +1429,10 @@ crowns_metrics_df_trees
 <pre><code>## [1] &quot;list&quot;</code></pre>
 <div class="sourceCode" id="cb103"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb103-1"><a href="s01.html#cb103-1" tabindex="-1"></a><span class="fu">str</span>(lad_voxels)</span></code></pre></div>
 <pre><code>## List of 2
-##  $ LAD        : num [1:12, 1:11] NA 0 0.0333 0 NA ...
-##  $ coordenates:&#39;data.frame&#39;: 12 obs. of  2 variables:
-##   ..$ X: num [1:12] 458836 458838 458840 458842 458836 ...
-##   ..$ Y: num [1:12] 4450232 4450232 4450232 4450232 4450230 ...</code></pre>
+##  $ LAD        : num [1:20, 1:14] NA 0 0 0 0 ...
+##  $ coordenates:&#39;data.frame&#39;: 20 obs. of  2 variables:
+##   ..$ X: num [1:20] 453559 453561 453563 453565 453567 ...
+##   ..$ Y: num [1:20] 4458585 4458585 4458585 4458585 4458585 ...</code></pre>
 </div>
 <div id="leafrlad.profile" class="section level4 hasAnchor" number="2.3.4.2">
 <h4><span class="header-section-number">2.3.4.2</span> <code>leafR::lad.profile</code><a href="s01.html#leafrlad.profile" class="anchor-section" aria-label="Anchor link to header"></a></h4>
@@ -1435,9 +1443,9 @@ crowns_metrics_df_trees
 <span id="cb105-4"><a href="s01.html#cb105-4" tabindex="-1"></a>  <span class="fu">class</span>(lad_profile)</span></code></pre></div>
 <pre><code>## [1] &quot;data.frame&quot;</code></pre>
 <div class="sourceCode" id="cb107"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb107-1"><a href="s01.html#cb107-1" tabindex="-1"></a>  <span class="fu">str</span>(lad_profile)</span></code></pre></div>
-<pre><code>## &#39;data.frame&#39;:    11 obs. of  2 variables:
+<pre><code>## &#39;data.frame&#39;:    14 obs. of  2 variables:
 ##  $ height: num  1.5 2.5 3.5 4.5 5.5 6.5 7.5 8.5 9.5 10.5 ...
-##  $ lad   : num  0.693 0.732 0.91 0.789 0.622 ...</code></pre>
+##  $ lad   : num  0.693 0.405 0.78 0.45 0.289 ...</code></pre>
 </div>
 <div id="leafrlai" class="section level4 hasAnchor" number="2.3.4.3">
 <h4><span class="header-section-number">2.3.4.3</span> <code>leafR::lai</code><a href="s01.html#leafrlai" class="anchor-section" aria-label="Anchor link to header"></a></h4>
@@ -1447,9 +1455,9 @@ crowns_metrics_df_trees
 <span id="cb109-3"><a href="s01.html#cb109-3" tabindex="-1"></a><span class="fu">class</span>(lai_tot)</span></code></pre></div>
 <pre><code>## [1] &quot;numeric&quot;</code></pre>
 <div class="sourceCode" id="cb111"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb111-1"><a href="s01.html#cb111-1" tabindex="-1"></a><span class="fu">str</span>(lai_tot)</span></code></pre></div>
-<pre><code>##  num 4.73</code></pre>
+<pre><code>##  num 3.83</code></pre>
 <div class="sourceCode" id="cb113"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb113-1"><a href="s01.html#cb113-1" tabindex="-1"></a><span class="fu">str</span>(lai_understory)</span></code></pre></div>
-<pre><code>##  num 1.43</code></pre>
+<pre><code>##  num 1.1</code></pre>
 </div>
 <div id="leafrlahv" class="section level4 hasAnchor" number="2.3.4.4">
 <h4><span class="header-section-number">2.3.4.4</span> <code>leafR::LAHV</code><a href="s01.html#leafrlahv" class="anchor-section" aria-label="Anchor link to header"></a></h4>
@@ -1458,7 +1466,7 @@ crowns_metrics_df_trees
 <span id="cb115-2"><a href="s01.html#cb115-2" tabindex="-1"></a><span class="fu">class</span>(lahv_metric)</span></code></pre></div>
 <pre><code>## [1] &quot;numeric&quot;</code></pre>
 <div class="sourceCode" id="cb117"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb117-1"><a href="s01.html#cb117-1" tabindex="-1"></a><span class="fu">str</span>(lahv_metric)</span></code></pre></div>
-<pre><code>##  num 20.6</code></pre>
+<pre><code>##  num 18.2</code></pre>
 </div>
 <div id="huh" class="section level4 hasAnchor" number="2.3.4.5">
 <h4><span class="header-section-number">2.3.4.5</span> Bring together and clean<a href="s01.html#huh" class="anchor-section" aria-label="Anchor link to header"></a></h4>
@@ -1482,15 +1490,15 @@ crowns_metrics_df_trees
 <span id="cb119-13"><a href="s01.html#cb119-13" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(tree_index, height)</span></code></pre></div>
 <p>what is this?</p>
 <div class="sourceCode" id="cb120"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb120-1"><a href="s01.html#cb120-1" tabindex="-1"></a>leafr_df <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 11
+<pre><code>## Rows: 14
 ## Columns: 7
-## $ tree_index     &lt;int&gt; 203, 203, 203, 203, 203, 203, 203, 203, 203, 203, 203
-## $ height         &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5
-## $ lad            &lt;dbl&gt; 0.693147181, 0.732408192, 0.910126467, 0.789234597, 0.6…
-## $ lai_tot        &lt;dbl&gt; 4.725788, 4.725788, 4.725788, 4.725788, 4.725788, 4.725…
-## $ lai_understory &lt;dbl&gt; 1.425555, 1.425555, 1.425555, 1.425555, 1.425555, 1.425…
-## $ lahv           &lt;dbl&gt; 20.58276, 20.58276, 20.58276, 20.58276, 20.58276, 20.58…
-## $ vhp_n          &lt;int&gt; 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11</code></pre>
+## $ tree_index     &lt;int&gt; 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78
+## $ height         &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5…
+## $ lad            &lt;dbl&gt; 0.693147181, 0.405465108, 0.780157428, 0.449590086, 0.2…
+## $ lai_tot        &lt;dbl&gt; 3.825655, 3.825655, 3.825655, 3.825655, 3.825655, 3.825…
+## $ lai_understory &lt;dbl&gt; 1.098612, 1.098612, 1.098612, 1.098612, 1.098612, 1.098…
+## $ lahv           &lt;dbl&gt; 18.2418, 18.2418, 18.2418, 18.2418, 18.2418, 18.2418, 1…
+## $ vhp_n          &lt;int&gt; 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14</code></pre>
 <p>seems like the data used to create Figure 1 (b)</p>
 <div class="sourceCode" id="cb122"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb122-1"><a href="s01.html#cb122-1" tabindex="-1"></a>leafr_df <span class="sc">%&gt;%</span> </span>
 <span id="cb122-2"><a href="s01.html#cb122-2" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> lad, <span class="at">y =</span> height)) <span class="sc">+</span> </span>
@@ -1538,7 +1546,7 @@ crowns_metrics_df_trees
 <span id="cb124-11"><a href="s01.html#cb124-11" tabindex="-1"></a>    lidR<span class="sc">::</span><span class="fu">filter_poi</span>(tree_index <span class="sc">==</span> ti) <span class="sc">%&gt;%</span> <span class="co"># put this in a function and map over trees</span></span>
 <span id="cb124-12"><a href="s01.html#cb124-12" tabindex="-1"></a>    lidR<span class="sc">::</span><span class="fu">writeLAS</span>(<span class="at">file =</span> fn)</span>
 <span id="cb124-13"><a href="s01.html#cb124-13" tabindex="-1"></a>)</span></code></pre></div>
-<pre><code>## [1] &quot;C:\\Users\\georg\\AppData\\Local\\Temp\\RtmpYPey78/temp.las&quot;</code></pre>
+<pre><code>## [1] &quot;C:\\Users\\georg\\AppData\\Local\\Temp\\RtmpMLixba/temp.las&quot;</code></pre>
 </div>
 <div id="step-0---leafr-steps" class="section level3 hasAnchor" number="2.4.2">
 <h3><span class="header-section-number">2.4.2</span> Step 0 - <code>leafR</code> steps<a href="s01.html#step-0---leafr-steps" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1551,10 +1559,10 @@ crowns_metrics_df_trees
 <span id="cb126-2"><a href="s01.html#cb126-2" tabindex="-1"></a>lad_voxels <span class="ot">&lt;-</span> leafR<span class="sc">::</span><span class="fu">lad.voxels</span>(<span class="at">normlas.file =</span> f, <span class="at">grain.size =</span> <span class="dv">2</span>)</span>
 <span id="cb126-3"><a href="s01.html#cb126-3" tabindex="-1"></a>lad_voxels <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## List of 2
-##  $ LAD        : num [1:12, 1:11] NA 0 0.0333 0 NA ...
-##  $ coordenates:&#39;data.frame&#39;: 12 obs. of  2 variables:
-##   ..$ X: num [1:12] 458836 458838 458840 458842 458836 ...
-##   ..$ Y: num [1:12] 4450232 4450232 4450232 4450232 4450230 ...</code></pre>
+##  $ LAD        : num [1:20, 1:14] NA 0 0 0 0 ...
+##  $ coordenates:&#39;data.frame&#39;: 20 obs. of  2 variables:
+##   ..$ X: num [1:20] 453559 453561 453563 453565 453567 ...
+##   ..$ Y: num [1:20] 4458585 4458585 4458585 4458585 4458585 ...</code></pre>
 <div class="sourceCode" id="cb128"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb128-1"><a href="s01.html#cb128-1" tabindex="-1"></a><span class="do">## leafR::lad.profile</span></span>
 <span id="cb128-2"><a href="s01.html#cb128-2" tabindex="-1"></a>lad_profile <span class="ot">&lt;-</span> leafR<span class="sc">::</span><span class="fu">lad.profile</span>(lad_voxels, <span class="at">relative =</span> F)</span>
 <span id="cb128-3"><a href="s01.html#cb128-3" tabindex="-1"></a><span class="do">## add treeID column that is required by the package, though it&#39;s never stated</span></span>
@@ -1563,12 +1571,12 @@ crowns_metrics_df_trees
 <span id="cb128-6"><a href="s01.html#cb128-6" tabindex="-1"></a>  <span class="do">## !!!!! not only does the treeID column have to exist...it has to be the first column</span></span>
 <span id="cb128-7"><a href="s01.html#cb128-7" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">relocate</span>(treeID)</span>
 <span id="cb128-8"><a href="s01.html#cb128-8" tabindex="-1"></a>lad_profile <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 11
+<pre><code>## Rows: 14
 ## Columns: 4
-## $ treeID     &lt;fct&gt; 203, 203, 203, 203, 203, 203, 203, 203, 203, 203, 203
-## $ height     &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5
-## $ lad        &lt;dbl&gt; 0.693147181, 0.732408192, 0.910126467, 0.789234597, 0.62200…
-## $ tree_index &lt;int&gt; 203, 203, 203, 203, 203, 203, 203, 203, 203, 203, 203</code></pre>
+## $ treeID     &lt;fct&gt; 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78
+## $ height     &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12…
+## $ lad        &lt;dbl&gt; 0.693147181, 0.405465108, 0.780157428, 0.449590086, 0.28920…
+## $ tree_index &lt;int&gt; 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78</code></pre>
 </div>
 <div id="step-1---ladderfuelsrget_gaps_fbhs" class="section level3 hasAnchor" number="2.4.3">
 <h3><span class="header-section-number">2.4.3</span> Step 1 - <code>LadderFuelsR::get_gaps_fbhs</code><a href="s01.html#step-1---ladderfuelsrget_gaps_fbhs" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1592,26 +1600,31 @@ crowns_metrics_df_trees
 <span id="cb130-12"><a href="s01.html#cb130-12" tabindex="-1"></a>  )</span>
 <span id="cb130-13"><a href="s01.html#cb130-13" tabindex="-1"></a>gaps_fbhs <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
-## Columns: 19
-## $ treeID     &lt;fct&gt; 203
+## Columns: 24
+## $ treeID     &lt;fct&gt; 78
 ## $ cbh1       &lt;chr&gt; &quot;1.5&quot;
-## $ cbh2       &lt;chr&gt; &quot;2.5&quot;
-## $ cbh3       &lt;chr&gt; &quot;7.5&quot;
-## $ cbh4       &lt;chr&gt; &quot;8.5&quot;
-## $ gap1       &lt;chr&gt; &quot;9.5&quot;
-## $ gap2       &lt;chr&gt; &quot;11.5&quot;
+## $ cbh2       &lt;chr&gt; &quot;3.5&quot;
+## $ cbh3       &lt;chr&gt; &quot;6.5&quot;
+## $ cbh4       &lt;chr&gt; &quot;9.5&quot;
+## $ gap1       &lt;chr&gt; &quot;10.5&quot;
+## $ cbh5       &lt;chr&gt; &quot;11.5&quot;
+## $ gap2       &lt;chr&gt; &quot;12.5&quot;
+## $ gap3       &lt;chr&gt; &quot;14.5&quot;
 ## $ gap_lad1   &lt;dbl&gt; 0
 ## $ gap_lad2   &lt;dbl&gt; 0
-## $ cbh_perc1  &lt;dbl&gt; 70
-## $ cbh_perc2  &lt;dbl&gt; 80
-## $ cbh_perc3  &lt;dbl&gt; 50
-## $ cbh_perc4  &lt;dbl&gt; 30
+## $ gap_lad3   &lt;dbl&gt; 0
+## $ cbh_perc1  &lt;dbl&gt; 95
+## $ cbh_perc2  &lt;dbl&gt; 100
+## $ cbh_perc3  &lt;dbl&gt; 80
+## $ cbh_perc4  &lt;dbl&gt; 40
+## $ cbh_perc5  &lt;dbl&gt; 35
 ## $ cbh_lad1   &lt;dbl&gt; 1
-## $ cbh_lad2   &lt;dbl&gt; 2
-## $ cbh_lad3   &lt;dbl&gt; 7
-## $ cbh_lad4   &lt;dbl&gt; 8
-## $ max_height &lt;dbl&gt; 11.5
-## $ treeID1    &lt;dbl&gt; 203</code></pre>
+## $ cbh_lad2   &lt;dbl&gt; 3
+## $ cbh_lad3   &lt;dbl&gt; 6
+## $ cbh_lad4   &lt;dbl&gt; 9
+## $ cbh_lad5   &lt;dbl&gt; 11
+## $ max_height &lt;dbl&gt; 14.5
+## $ treeID1    &lt;dbl&gt; 78</code></pre>
 <div class="sourceCode" id="cb132"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb132-1"><a href="s01.html#cb132-1" tabindex="-1"></a><span class="co"># fix the columns that should be numeric</span></span>
 <span id="cb132-2"><a href="s01.html#cb132-2" tabindex="-1"></a>gaps_fbhs <span class="ot">&lt;-</span> gaps_fbhs <span class="sc">%&gt;%</span> </span>
 <span id="cb132-3"><a href="s01.html#cb132-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(dplyr<span class="sc">::</span><span class="fu">across</span>(</span>
@@ -1627,7 +1640,7 @@ crowns_metrics_df_trees
 <span id="cb133-3"><a href="s01.html#cb133-3" tabindex="-1"></a>  , <span class="at">gap_cbh_metrics =</span> gaps_fbhs</span>
 <span id="cb133-4"><a href="s01.html#cb133-4" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">1.5</span></span>
 <span id="cb133-5"><a href="s01.html#cb133-5" tabindex="-1"></a>)</span></code></pre></div>
-<pre><code>## $`203`</code></pre>
+<pre><code>## $`78`</code></pre>
 <p><img src="uas_sfm_tree_detection_files/figure-html/unnamed-chunk-83-1.png" width="1008" /></p>
 <p>in RED are the GAPS and in GREEN the FBHs</p>
 <p>can we re-create this?</p>
@@ -1677,15 +1690,15 @@ crowns_metrics_df_trees
 <span id="cb136-4"><a href="s01.html#cb136-4" tabindex="-1"></a>  <span class="at">LAD_profiles =</span> lad_profile <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">select</span>(<span class="sc">-</span>tree_index)</span>
 <span id="cb136-5"><a href="s01.html#cb136-5" tabindex="-1"></a>  , <span class="at">min_height=</span><span class="fl">1.5</span></span>
 <span id="cb136-6"><a href="s01.html#cb136-6" tabindex="-1"></a>)</span></code></pre></div>
-<pre><code>## [1] &quot;treeID: 203&quot;</code></pre>
+<pre><code>## [1] &quot;treeID: 78&quot;</code></pre>
 <div class="sourceCode" id="cb138"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb138-1"><a href="s01.html#cb138-1" tabindex="-1"></a>gaps_perc <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 11
+<pre><code>## Rows: 14
 ## Columns: 5
-## $ treeID          &lt;fct&gt; 203, 203, 203, 203, 203, 203, 203, 203, 203, 203, 203
-## $ height          &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5
-## $ lad             &lt;dbl&gt; 0.693147181, 0.732408192, 0.910126467, 0.789234597, 0.…
-## $ critical_points &lt;dbl&gt; 0.0000119390, -0.0284850400, -0.1019781452, -0.0840132…
-## $ percentil       &lt;dbl&gt; 70, 80, 100, 90, 60, 40, 50, 30, 20, 10, 5</code></pre>
+## $ treeID          &lt;fct&gt; 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78, 78
+## $ height          &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.…
+## $ lad             &lt;dbl&gt; 0.693147181, 0.405465108, 0.780157428, 0.449590086, 0.…
+## $ critical_points &lt;dbl&gt; -0.0000002167, 0.0000920681, -0.0000699130, 0.00015765…
+## $ percentil       &lt;dbl&gt; 95, 70, 100, 85, 65, 80, 55, 50, 40, 25, 35, 20, 10, 5</code></pre>
 </div>
 <div id="step-3---ladderfuelsrget_distance" class="section level3 hasAnchor" number="2.4.5">
 <h3><span class="header-section-number">2.4.5</span> Step 3 - <code>LadderFuelsR::get_distance</code><a href="s01.html#step-3---ladderfuelsrget_distance" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1702,24 +1715,28 @@ crowns_metrics_df_trees
 <span id="cb140-6"><a href="s01.html#cb140-6" tabindex="-1"></a>)</span>
 <span id="cb140-7"><a href="s01.html#cb140-7" tabindex="-1"></a>metrics_distance <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
-## Columns: 17
-## $ treeID     &lt;fct&gt; 203
-## $ treeID1    &lt;fct&gt; 203
+## Columns: 21
+## $ treeID1    &lt;fct&gt; 78
+## $ treeID     &lt;fct&gt; 78
 ## $ cbh1       &lt;dbl&gt; 1.5
-## $ cbh2       &lt;dbl&gt; 2.5
-## $ cbh3       &lt;dbl&gt; 7.5
-## $ cbh4       &lt;dbl&gt; 8.5
-## $ gap1       &lt;dbl&gt; 9.5
-## $ gap2       &lt;dbl&gt; 11.5
-## $ Hdist1     &lt;dbl&gt; 1.5
+## $ cbh2       &lt;dbl&gt; 3.5
+## $ cbh3       &lt;dbl&gt; 6.5
+## $ cbh4       &lt;dbl&gt; 9.5
+## $ gap1       &lt;dbl&gt; 10.5
+## $ cbh5       &lt;dbl&gt; 11.5
+## $ gap2       &lt;dbl&gt; 12.5
+## $ gap3       &lt;dbl&gt; 14.5
+## $ dist5      &lt;dbl&gt; 1
 ## $ dist1      &lt;dbl&gt; 0
-## $ Hdist2     &lt;dbl&gt; 0
+## $ max_height &lt;dbl&gt; 14.5
 ## $ dist2      &lt;dbl&gt; 0
-## $ Hdist3     &lt;dbl&gt; 0
 ## $ dist3      &lt;dbl&gt; 0
-## $ Hdist4     &lt;dbl&gt; 0
 ## $ dist4      &lt;dbl&gt; 0
-## $ max_height &lt;dbl&gt; 11.5</code></pre>
+## $ Hdist5     &lt;dbl&gt; 10.5
+## $ Hdist1     &lt;dbl&gt; 1.5
+## $ Hdist2     &lt;dbl&gt; 0
+## $ Hdist3     &lt;dbl&gt; 0
+## $ Hdist4     &lt;dbl&gt; 0</code></pre>
 </div>
 <div id="step-4---ladderfuelsrget_depths" class="section level3 hasAnchor" number="2.4.6">
 <h3><span class="header-section-number">2.4.6</span> Step 4 - <code>LadderFuelsR::get_depths</code><a href="s01.html#step-4---ladderfuelsrget_depths" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1736,15 +1753,20 @@ crowns_metrics_df_trees
 <span id="cb142-6"><a href="s01.html#cb142-6" tabindex="-1"></a>)</span>
 <span id="cb142-7"><a href="s01.html#cb142-7" tabindex="-1"></a>metrics_depth <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
-## Columns: 8
-## $ treeID     &lt;fct&gt; 203
-## $ treeID1    &lt;fct&gt; 203
-## $ Hdepth1    &lt;dbl&gt; 8.5
+## Columns: 13
+## $ treeID     &lt;fct&gt; 78
+## $ treeID1    &lt;fct&gt; 78
+## $ Hdepth1    &lt;dbl&gt; 9.5
+## $ Hdepth2    &lt;dbl&gt; 11.5
 ## $ dist1      &lt;dbl&gt; 1.5
+## $ dist2      &lt;dbl&gt; 1
 ## $ Hdist1     &lt;dbl&gt; 1.5
-## $ depth1     &lt;dbl&gt; 7
+## $ Hdist2     &lt;dbl&gt; 10.5
+## $ depth1     &lt;dbl&gt; 8
+## $ depth2     &lt;dbl&gt; 1
 ## $ cbh1       &lt;dbl&gt; 1.5
-## $ max_height &lt;dbl&gt; 11.5</code></pre>
+## $ cbh2       &lt;dbl&gt; 11.5
+## $ max_height &lt;dbl&gt; 14.5</code></pre>
 </div>
 <div id="step-5---ladderfuelsrget_real_fbh" class="section level3 hasAnchor" number="2.4.7">
 <h3><span class="header-section-number">2.4.7</span> Step 5 - <code>LadderFuelsR::get_real_fbh</code><a href="s01.html#step-5---ladderfuelsrget_real_fbh" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1760,15 +1782,20 @@ crowns_metrics_df_trees
 <span id="cb144-5"><a href="s01.html#cb144-5" tabindex="-1"></a>)</span>
 <span id="cb144-6"><a href="s01.html#cb144-6" tabindex="-1"></a>real_fbh <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
-## Columns: 8
-## $ treeID1    &lt;dbl&gt; 203
-## $ Hdepth1    &lt;dbl&gt; 8.5
+## Columns: 13
+## $ treeID1    &lt;dbl&gt; 78
+## $ Hdepth1    &lt;dbl&gt; 9.5
 ## $ dist1      &lt;dbl&gt; 1.5
 ## $ Hdist1     &lt;dbl&gt; 1.5
-## $ depth1     &lt;dbl&gt; 7
+## $ depth1     &lt;dbl&gt; 8
 ## $ Hcbh1      &lt;dbl&gt; 1.5
-## $ treeID     &lt;fct&gt; 203
-## $ max_height &lt;dbl&gt; 11.5</code></pre>
+## $ Hdepth2    &lt;dbl&gt; 11.5
+## $ dist2      &lt;dbl&gt; 1
+## $ Hdist2     &lt;dbl&gt; 10.5
+## $ depth2     &lt;dbl&gt; 1
+## $ Hcbh2      &lt;dbl&gt; 1.5
+## $ treeID     &lt;fct&gt; 78
+## $ max_height &lt;dbl&gt; 14.5</code></pre>
 </div>
 <div id="step-6---ladderfuelsrget_real_depths" class="section level3 hasAnchor" number="2.4.8">
 <h3><span class="header-section-number">2.4.8</span> Step 6 - <code>LadderFuelsR::get_real_depths</code><a href="s01.html#step-6---ladderfuelsrget_real_depths" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1782,14 +1809,14 @@ crowns_metrics_df_trees
 <span id="cb146-3"><a href="s01.html#cb146-3" tabindex="-1"></a>real_depth <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
 ## Columns: 8
-## $ treeID     &lt;fct&gt; 203
-## $ treeID1    &lt;dbl&gt; 203
-## $ Hdptf1     &lt;dbl&gt; 8.5
+## $ treeID     &lt;fct&gt; 78
+## $ treeID1    &lt;dbl&gt; 78
+## $ Hdptf1     &lt;dbl&gt; 11.5
 ## $ dist1      &lt;dbl&gt; 0
-## $ dptf1      &lt;dbl&gt; 7
+## $ dptf1      &lt;dbl&gt; 10
 ## $ Hcbh1      &lt;dbl&gt; 1.5
 ## $ Hdist1     &lt;dbl&gt; 1.5
-## $ max_height &lt;dbl&gt; 11.5</code></pre>
+## $ max_height &lt;dbl&gt; 14.5</code></pre>
 </div>
 <div id="step-7---ladderfuelsrget_effective_gap" class="section level3 hasAnchor" number="2.4.9">
 <h3><span class="header-section-number">2.4.9</span> Step 7 - <code>LadderFuelsR::get_effective_gap</code><a href="s01.html#step-7---ladderfuelsrget_effective_gap" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1806,15 +1833,15 @@ crowns_metrics_df_trees
 <span id="cb148-6"><a href="s01.html#cb148-6" tabindex="-1"></a>eff_gap <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
 ## Columns: 9
-## $ treeID     &lt;fct&gt; 203
-## $ treeID1    &lt;dbl&gt; 203
+## $ treeID     &lt;fct&gt; 78
+## $ treeID1    &lt;dbl&gt; 78
 ## $ dist1      &lt;dbl&gt; 0
-## $ dptf1      &lt;dbl&gt; 7
+## $ dptf1      &lt;dbl&gt; 10
 ## $ effdist1   &lt;dbl&gt; 0
 ## $ Hcbh1      &lt;dbl&gt; 1.5
 ## $ Hdist1     &lt;dbl&gt; 1.5
-## $ Hdptf1     &lt;dbl&gt; 8.5
-## $ max_height &lt;dbl&gt; 11.5</code></pre>
+## $ Hdptf1     &lt;dbl&gt; 11.5
+## $ max_height &lt;dbl&gt; 14.5</code></pre>
 </div>
 <div id="step-8---ladderfuelsrget_layers_lad" class="section level3 hasAnchor" number="2.4.10">
 <h3><span class="header-section-number">2.4.10</span> Step 8 - <code>LadderFuelsR::get_layers_lad</code><a href="s01.html#step-8---ladderfuelsrget_layers_lad" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1832,37 +1859,37 @@ crowns_metrics_df_trees
 <span id="cb150-7"><a href="s01.html#cb150-7" tabindex="-1"></a>layers_lad_df <span class="sc">%&gt;%</span> <span class="fu">str</span>()</span></code></pre></div>
 <pre><code>## List of 2
 ##  $ df1:&#39;data.frame&#39;: 1 obs. of  12 variables:
-##   ..$ treeID1     : num 203
-##   ..$ treeID      : Factor w/ 1 level &quot;203&quot;: 1
+##   ..$ treeID1     : num 78
+##   ..$ treeID      : Factor w/ 1 level &quot;78&quot;: 1
 ##   ..$ dist1       : num 0
-##   ..$ dptf1       : num 7
+##   ..$ dptf1       : num 10
 ##   ..$ effdist1    : num 0
 ##   ..$ Hcbh1       : num 1.5
 ##   ..$ Hdist1      : num 1.5
-##   ..$ Hdptf1      : num 8.5
-##   ..$ max1        : num 11.5
-##   ..$ Hcbh1_Hdptf1: num 98.8
-##   ..$ max_height  : num 11.5
+##   ..$ Hdptf1      : num 11.5
+##   ..$ max1        : num 14.5
+##   ..$ Hcbh1_Hdptf1: num 99.5
+##   ..$ max_height  : num 14.5
 ##   ..$ nlayers     : int 1
 ##  $ df2:&#39;data.frame&#39;: 1 obs. of  11 variables:
-##   ..$ treeID1     : num 203
-##   ..$ treeID      : Factor w/ 1 level &quot;203&quot;: 1
-##   ..$ dptf1       : num 7
+##   ..$ treeID1     : num 78
+##   ..$ treeID      : Factor w/ 1 level &quot;78&quot;: 1
+##   ..$ dptf1       : num 10
 ##   ..$ effdist1    : num 0
 ##   ..$ Hcbh1       : num 1.5
 ##   ..$ Hdist1      : num 1.5
-##   ..$ Hdptf1      : num 8.5
-##   ..$ max1        : num 11.5
-##   ..$ max_height  : num 11.5
-##   ..$ Hcbh1_Hdptf1: num 98.8
+##   ..$ Hdptf1      : num 11.5
+##   ..$ max1        : num 14.5
+##   ..$ max_height  : num 14.5
+##   ..$ Hcbh1_Hdptf1: num 99.5
 ##   ..$ nlayers     : int 1</code></pre>
 <p>idk why it is a list of 2 with the same data just the order of the <code>max_height</code> and <code>Hcbh1_Hdptf1</code> columns are switched. do you spot another difference??</p>
 <p>looking through the befuddling README it looks like the authors only keep the second data frame in the list</p>
 <div class="sourceCode" id="cb152"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb152-1"><a href="s01.html#cb152-1" tabindex="-1"></a>(layers_lad_df <span class="ot">&lt;-</span> layers_lad_df[[<span class="dv">2</span>]])</span></code></pre></div>
 <pre><code>##   treeID1 treeID dptf1 effdist1 Hcbh1 Hdist1 Hdptf1 max1 max_height
-## 1     203    203     7        0   1.5    1.5    8.5 11.5       11.5
+## 1      78     78    10        0   1.5    1.5   11.5 14.5       14.5
 ##   Hcbh1_Hdptf1 nlayers
-## 1     98.77835       1</code></pre>
+## 1     99.47572       1</code></pre>
 <p>is CBH in here? did we do it?</p>
 <ul>
 <li>treeID: tree ID with strings and numeric values</li>
@@ -1883,7 +1910,7 @@ crowns_metrics_df_trees
 <span id="cb154-3"><a href="s01.html#cb154-3" tabindex="-1"></a>  , <span class="at">effective_LAD =</span> layers_lad_df</span>
 <span id="cb154-4"><a href="s01.html#cb154-4" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">1.5</span></span>
 <span id="cb154-5"><a href="s01.html#cb154-5" tabindex="-1"></a>)</span></code></pre></div>
-<pre><code>## $`203`</code></pre>
+<pre><code>## $`78`</code></pre>
 <p><img src="uas_sfm_tree_detection_files/figure-html/unnamed-chunk-93-1.png" width="1008" /></p>
 <p>maybe we’ll try to recreate this plot at some point</p>
 <div class="sourceCode" id="cb156"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb156-1"><a href="s01.html#cb156-1" tabindex="-1"></a><span class="co"># wanna recreate this?</span></span></code></pre></div>
@@ -1901,35 +1928,35 @@ crowns_metrics_df_trees
 <span id="cb157-3"><a href="s01.html#cb157-3" tabindex="-1"></a>cbh_metrics <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
 ## Columns: 29
-## $ treeID1        &lt;dbl&gt; 203
-## $ dptf1          &lt;dbl&gt; 7
+## $ treeID1        &lt;dbl&gt; 78
+## $ dptf1          &lt;dbl&gt; 10
 ## $ effdist1       &lt;dbl&gt; 0
 ## $ Hcbh1          &lt;dbl&gt; 1.5
 ## $ Hdist1         &lt;dbl&gt; 1.5
-## $ Hdptf1         &lt;dbl&gt; 8.5
-## $ max1           &lt;dbl&gt; 11.5
-## $ Hcbh1_Hdptf1   &lt;dbl&gt; 98.77835
-## $ treeID         &lt;fct&gt; 203
-## $ max_height     &lt;dbl&gt; 11.5
+## $ Hdptf1         &lt;dbl&gt; 11.5
+## $ max1           &lt;dbl&gt; 14.5
+## $ Hcbh1_Hdptf1   &lt;dbl&gt; 99.47572
+## $ treeID         &lt;fct&gt; 78
+## $ max_height     &lt;dbl&gt; 14.5
 ## $ nlayers        &lt;int&gt; 1
 ## $ maxlad_Hcbh    &lt;dbl&gt; 1.5
 ## $ maxlad_Hdist   &lt;dbl&gt; 1.5
-## $ maxlad_Hdptf   &lt;dbl&gt; 8.5
-## $ maxlad_dptf    &lt;dbl&gt; 7
+## $ maxlad_Hdptf   &lt;dbl&gt; 11.5
+## $ maxlad_dptf    &lt;dbl&gt; 10
 ## $ maxlad_effdist &lt;dbl&gt; 0
-## $ maxlad_lad     &lt;dbl&gt; 98.77835
+## $ maxlad_lad     &lt;dbl&gt; 99.47572
 ## $ max_Hcbh       &lt;dbl&gt; 1.5
 ## $ max_Hdist      &lt;dbl&gt; 1.5
-## $ max_Hdptf      &lt;dbl&gt; 8.5
-## $ max_dptf       &lt;dbl&gt; 7
+## $ max_Hdptf      &lt;dbl&gt; 11.5
+## $ max_dptf       &lt;dbl&gt; 10
 ## $ max_effdist    &lt;dbl&gt; 0
-## $ max_lad        &lt;dbl&gt; 98.77835
+## $ max_lad        &lt;dbl&gt; 99.47572
 ## $ last_Hcbh      &lt;dbl&gt; 1.5
 ## $ last_Hdist     &lt;dbl&gt; 1.5
-## $ last_Hdptf     &lt;dbl&gt; 8.5
-## $ last_dptf      &lt;dbl&gt; 7
+## $ last_Hdptf     &lt;dbl&gt; 11.5
+## $ last_dptf      &lt;dbl&gt; 10
 ## $ last_effdist   &lt;dbl&gt; 0
-## $ last_lad       &lt;dbl&gt; 98.77835</code></pre>
+## $ last_lad       &lt;dbl&gt; 99.47572</code></pre>
 <p>what are these?</p>
 <ul>
 <li>treeID: tree ID with strings and numeric values</li>
