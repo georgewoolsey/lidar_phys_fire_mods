@@ -1,6 +1,9 @@
+tab:unnamed-chunk-131
 tab:unnamed-chunk-132
-tab:unnamed-chunk-133
-tab:unnamed-chunk-135
+tab:unnamed-chunk-134
+tab:unnamed-chunk-145
+tab:unnamed-chunk-146
+tab:unnamed-chunk-147
 introduction
 objective
 data
@@ -39,6 +42,10 @@ define-ladderfuelsr-processing-function
 return-cbh-metrics
 cbh-on-the-point-cloud
 function-to-cbh-a-tree-list
-test-the-cbh-function
+test_l
 comparison-to-ladderfuelsr-defaults
 test-cbh-based-on-parameterization-of-ladderfuelsr
+test-cbh-process---uas
+cloud2trees-that-uas-data
+extract-cbh-example
+test-cbh-based-on-parameterization-of-ladderfuelsr-1

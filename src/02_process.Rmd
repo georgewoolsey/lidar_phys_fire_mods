@@ -198,18 +198,20 @@ gc()
 extract trees from the lidar data using `cloud2trees` to create some example tree-level point cloud data to test the `LadderFuelsR` function we define below with
 
 ```{r}
-if(F){
+if(F){ # lidar data
   cloud2trees_ans <- cloud2trees::cloud2trees(
     input_las_dir = dl_fn_ans[13]
     , output_dir = "../data"
     , estimate_tree_dbh = T
     , keep_intrmdt = T
   )
-}else{
+  norm_las_dir <- "../data/point_cloud_processing_temp/02_normalize/"
+}else{ # lidar
   cloud2trees_ans <- list(
     crowns_sf = sf::st_read("../data/point_cloud_processing_delivery/final_detected_crowns.gpkg", quiet=T)
     , treetops_sf = sf::st_read("../data/point_cloud_processing_delivery/final_detected_tree_tops.gpkg", quiet=T)
   )
+  norm_las_dir <- "../data/point_cloud_processing_temp/02_normalize/"
 }
 ```
 
@@ -249,7 +251,7 @@ read in normalized las files and filter one for testing
 
 ```{r}
 # read in catalog
-crowns_nlas_ctg <- lidR::readLAScatalog("../data/point_cloud_processing_temp/02_normalize/")
+crowns_nlas_ctg <- lidR::readLAScatalog(norm_las_dir)
 # filter for single tree point cloud
 one_tree_sf <- crowns_sf_poly %>% 
   # get one of the taller trees
@@ -763,7 +765,7 @@ gc()
 
 ## Function to CBH a tree list
 
-first, an intermediate function to clip the point cloud to a polygon and run it through the `ladderfuelsr_cbh()` function wew defined above
+first, an intermediate function to clip the point cloud to a polygon and run it through the `ladderfuelsr_cbh()` function we defined above
 
 ```{r}
 call_ladderfuelsr_cbh <- function(
@@ -1219,7 +1221,7 @@ trees_cbh <- function(
 }
 ```
 
-### Test the CBH function
+## Test CBH process - lidar{#test_l}
 
 Test it and set the parameters based on recommendations from the literature (alternatively, we could keep the default parameter settings)
 
@@ -1246,7 +1248,7 @@ We'll leave all of the other values at their default
 ```{r}
 trees_cbh_ans <- trees_cbh(
   trees_poly = cloud2trees_ans$crowns_sf
-  , norm_las = "../data/point_cloud_processing_temp/02_normalize/" # pull this from create_project_structure.R
+  , norm_las = norm_las_dir # pull this from create_project_structure.R
   , tree_sample_prop = .5
   , estimate_missing_cbh = T
   , which_cbh = "lowest"
@@ -1302,7 +1304,7 @@ We just calculated the estimates of CBH using custom parameter values for the `L
 # compare to default values from LadderFuelsR
 trees_cbh_ans2 <- trees_cbh(
   trees_poly = cloud2trees_ans$crowns_sf
-  , norm_las = "../data/point_cloud_processing_temp/02_normalize/"
+  , norm_las = norm_las_dir
   , tree_sample_prop = .5
   , estimate_missing_cbh = T
   , which_cbh = "lowest"
@@ -1431,11 +1433,13 @@ trees_cbh_ans %>%
   theme(legend.position = "top")
 ```
 
-### test CBH based on parameterization of `LadderFuelsR`
+### test CBH based on parameterization of `LadderFuelsR`{#test_l2}
 
 let's build a test for different levels of the `min_fuel_layer_ht_m` and `dist_btwn_bins_m` parameters
 
-we'll increase the sample proportion of data to attempt to extract a CBH from the point cloud for this exercise to the full data for this exercise. we'll also put in a timer to see how long this generally takes.
+we'll increase the sample proportion of data to attempt to extract a CBH from the point cloud for this exercise (`tree_sample_prop = 0.9` in `trees_cbh()`) for this exercise. we'll also hold the minimum number of vertical height profile records constant (`min_vhp_n = 2` in `trees_cbh()`). 
+
+we'll also put in a timer to see how long this generally takes.
 
 ```{r doing-tha-cbh-test}
 # build a data frame of potential values
@@ -1454,7 +1458,7 @@ dta_temp <- tidyr::crossing(
   #   & (min_fuel_layer_ht_m != 1 & dist_btwn_bins_m != 2)
   # )
 # tester function
-test_cbh_fn <- function(i) {
+test_cbh_fn <- function(i, my_min_vhp_n = 4, my_tree_sample_prop = 1) {
   # parameters
   my_min_fuel_layer_ht_m <- dta_temp %>% 
     dplyr::filter(dplyr::row_number()==i) %>% 
@@ -1467,9 +1471,10 @@ test_cbh_fn <- function(i) {
   st <- Sys.time()
   trees_cbh_ans <- safe_trees_cbh(
     trees_poly = cloud2trees_ans$crowns_sf
-    , norm_las = "../data/point_cloud_processing_temp/02_normalize/"
-    , tree_sample_prop = 1
+    , norm_las = norm_las_dir
+    , tree_sample_prop = my_tree_sample_prop
     , estimate_missing_cbh = T
+    , min_vhp_n = my_min_vhp_n
     , which_cbh = "lowest"
     # we can leave all other parameters at defaults
     , min_fuel_layer_ht_m = my_min_fuel_layer_ht_m # default = 1.5
@@ -1500,14 +1505,18 @@ test_cbh_fn <- function(i) {
       , my_min_fuel_layer_ht_m
       , "; my_dist_btwn_bins_m="
       , my_dist_btwn_bins_m
+      # , "\n"
+      # , trees_cbh_ans$error
+      # , "\n"
     ))
+    message()
     return(NULL)
   }
 }
 # run it
 test_cbh_dta <- 
   1:nrow(dta_temp) %>% 
-  purrr::map(test_cbh_fn) %>% 
+  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.9)) %>% 
   dplyr::bind_rows()
 ```
 
@@ -1515,25 +1524,25 @@ which combinations caused errors?
 
 ```{r}
 # which combinations caused errors?
-dta_temp %>% 
-  dplyr::anti_join(
-    test_cbh_dta
-    , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
-  ) %>% 
-  kableExtra::kbl(caption = "these combintations resulted in ERROR!") %>% 
-  kableExtra::kable_styling()
+  dta_temp %>% 
+    dplyr::anti_join(
+      test_cbh_dta
+      , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+    ) %>% 
+    kableExtra::kbl(caption = "lidar: these combintations resulted in ERROR!") %>% 
+    kableExtra::kable_styling()
 ```
 
 which combinations resulted in success?
 
 ```{r}
-# which combinations caused errors?
+# which combinations caused success?
 dta_temp %>% 
   dplyr::inner_join(
     test_cbh_dta %>% dplyr::distinct(min_fuel_layer_ht_m, dist_btwn_bins_m)
     , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
   ) %>% 
-  kableExtra::kbl(caption = "these combintations resulted in SUCCESS!") %>% 
+  kableExtra::kbl(caption = "lidar: these combintations resulted in SUCCESS!") %>% 
   kableExtra::kable_styling()
 ```
 
@@ -1612,6 +1621,218 @@ that's not too shabby but let's remember that this is a lower density point clou
 this is also based on the point density of this test data:
 
 ```{r, message=TRUE}
-lidR::readLAScatalog("../data/point_cloud_processing_temp/02_normalize/")
+lidR::readLAScatalog(norm_las_dir)
 ```
 
+## Test CBH process - UAS
+
+In the [analysis above](#test_l) we tested extracting CBH from lidar point cloud data. Let's test the process for UAS data
+
+### `cloud2trees` that UAS data
+
+extract trees from the UAS data using `cloud2trees` to create some example tree-level point cloud data to test the `LadderFuelsR` process
+
+```{r}
+if(F){
+  cloud2trees_ans <- cloud2trees::cloud2trees(
+    input_las_dir = "../data/uas"
+    , output_dir = "../data/uas"
+    , estimate_tree_dbh = T
+    , keep_intrmdt = T
+  )
+  norm_las_dir <- "../data/uas/point_cloud_processing_temp/02_normalize/"
+}else{
+  cloud2trees_ans <- list(
+    crowns_sf = sf::st_read("../data/uas/point_cloud_processing_delivery/final_detected_crowns.gpkg", quiet=T)
+    , treetops_sf = sf::st_read("../data/uas/point_cloud_processing_delivery/final_detected_tree_tops.gpkg", quiet=T)
+  )
+  norm_las_dir <- "../data/uas/point_cloud_processing_temp/02_normalize/"
+}
+```
+
+look at that point density
+
+```{r}
+lidR::readLAScatalog(
+  list.files("../data/uas", pattern = ".*\\.(laz|las)$", full.names = TRUE)[1]
+)
+```
+
+
+how many trees did we get?
+
+```{r}
+cloud2trees_ans$crowns_sf %>% nrow()
+```
+
+we'll reduce our sample to estimate cbh from
+
+### Extract CBH example
+
+here, we'll use the parameter settings in the `LadderFuelsR` process that we [found worked the best](#test_l2) for lidar point cloud data and we'll decrease the 
+
+```{r}
+trees_cbh_ans <- trees_cbh(
+  trees_poly = cloud2trees_ans$crowns_sf
+  , norm_las = norm_las_dir # pull this from create_project_structure.R
+  , tree_sample_prop = .3
+  , estimate_missing_cbh = T
+  , which_cbh = "lowest"
+  , min_vhp_n = 4 # = 2.5m with min_fuel_layer_ht_m=1 and dist_btwn_bins_m = 0.5
+  , min_fuel_layer_ht_m = 1 # default = 1.5
+  , dist_btwn_bins_m = 0.5 # default = 1
+)
+```
+
+what?
+
+```{r}
+trees_cbh_ans %>% dplyr::glimpse()
+```
+
+let's view the height versus CBH relationship by training data
+
+```{r}
+trees_cbh_ans %>% 
+  ggplot(aes(x = tree_height_m, y = tree_cbh_m, color = is_training_cbh)) +
+  geom_point(size = 3, alpha = 0.8) +
+  harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
+  scale_y_continuous(breaks = scales::breaks_extended(12)) +
+  scale_x_continuous(breaks = scales::breaks_extended(12)) +
+  labs(y = "CBH (m)", x = "Height (m)", color = "is training data") +
+  theme_light() +
+  theme(legend.position = "top")
+```
+
+check out the CBH spatially
+
+```{r}
+trees_cbh_ans %>% 
+  ggplot(aes(color = is_training_cbh, fill = tree_cbh_m)) +
+  geom_sf(lwd = 0.8) +
+  harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
+  harrypotter::scale_fill_hp("always") +
+  labs(fill = "CBH (m)", color = "is training data") +
+  theme_light() +
+  theme(legend.position = "top", axis.text = element_blank()) +
+  guides(
+    color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA))
+  )
+```
+
+### test CBH based on parameterization of `LadderFuelsR`
+
+Above, we [tested different parameterization settings](#test_l2) for the lidar data. Let's do the same for UAS data to test for different levels of the `min_fuel_layer_ht_m` and `dist_btwn_bins_m` parameters
+
+Notice here that we adjusted the `min_vhp_n` and `tree_sample_prop` in the `trees_cbh()` function compared to the lidar data test
+
+```{r doing-tha-uas-cbh-test}
+# run it
+test_cbh_dta_u <- 
+  1:nrow(dta_temp) %>% 
+  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.25)) %>% 
+  dplyr::bind_rows()
+```
+
+which combinations caused errors?
+
+```{r}
+# which combinations caused errors?
+dta_temp %>% 
+  dplyr::anti_join(
+    test_cbh_dta_u
+    , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+  ) %>% 
+  kableExtra::kbl(caption = "uas: these combintations resulted in ERROR!") %>% 
+  kableExtra::kable_styling()
+```
+
+which combinations resulted in success?
+
+```{r}
+# which combinations caused success?
+dta_temp %>% 
+  dplyr::inner_join(
+    test_cbh_dta_u %>% dplyr::distinct(min_fuel_layer_ht_m, dist_btwn_bins_m)
+    , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+  ) %>% 
+  kableExtra::kbl(caption = "uas: these combintations resulted in SUCCESS!") %>% 
+  kableExtra::kable_styling()
+```
+
+which combinations caused errors IN BOTH LIDAR AND UAS DATA?
+
+```{r}
+# which combinations caused errors?
+  # UAS ERRORS
+  dta_temp %>% 
+  dplyr::anti_join(
+    test_cbh_dta_u
+    , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+  ) %>% 
+  dplyr::inner_join(
+    # lidar ERRORS
+    dta_temp %>% 
+    dplyr::anti_join(
+      test_cbh_dta
+      , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+    ) 
+    , by = dplyr::join_by(min_fuel_layer_ht_m, dist_btwn_bins_m)
+  ) %>% 
+  kableExtra::kbl(caption = "lidar AND uas: these combintations resulted in ERROR!") %>% 
+  kableExtra::kable_styling()
+```
+
+is there a pattern??
+
+* ERROR if : min_fuel_layer_ht_m == dist_btwn_bins_m (except 0.5,1.5,2.5)??
+* ERROR if : dist_btwn_bins_m - min_fuel_layer_ht_m >= 1.5
+
+perhaps the pattern is driven by the interaction with another parameter that we did't adjust
+
+anyway.....
+
+let's check those CBH values
+
+```{r}
+test_cbh_dta_u %>% 
+  dplyr::mutate(
+    is_default = min_fuel_layer_ht_m == 1.5 &
+      dist_btwn_bins_m == 1
+    , minHT_step = forcats::fct_cross(
+      factor(min_fuel_layer_ht_m), factor(dist_btwn_bins_m)
+      , keep_empty = F
+    ) %>% 
+    forcats::fct_reorder(
+      .x = tree_cbh_m
+      , .fun = median
+    ) %>% 
+    forcats::fct_rev()
+  ) %>% 
+  ggplot(aes(y = minHT_step, x = tree_cbh_m, fill = is_default)) +
+  geom_boxplot(width = 0.7, outliers = F) +
+  harrypotter::scale_fill_hp_d("dracomalfoy", begin = 0.8, end = 0.2) +
+  scale_x_continuous(breaks = scales::breaks_extended(12)) +
+  labs(y = "min_fuel_layer_ht_m : dist_btwn_bins_m", x = "CBH (m)", fill = "is the default") +
+  theme_light() +
+  theme(legend.position = "top")
+  
+```
+
+is this interesting?
+
+we need to perform a study measuring the accuracy of the CBH estimated from the point cloud versus field validation data to properly determine what parameter settings to use in the `LadderFuelsR` process
+
+let's check out the timer on a per tree basis
+
+```{r}
+secs_per_tree <- test_cbh_dta_u %>% 
+  dplyr::count(min_fuel_layer_ht_m, dist_btwn_bins_m, timer_secs) %>% 
+  dplyr::mutate(
+    secs_per_tree = timer_secs/n
+  ) %>% 
+  dplyr::pull(secs_per_tree)
+secs_per_tree %>% summary()
+```
+
+the estimate is that for every 1,000 trees the CBH extraction from the point cloud would take `r round((median(secs_per_tree)*1000)/60,1)` minutes. how does that sound?
