@@ -4,10 +4,6 @@ In this section we'll use the benchmark data made available in the [`NeonTreeEva
 
 The majority of research on classifying individual trees into different species categories using point cloud data from lidar or structure from motion data follows a similar process. This process generally involves segmenting individual trees and extracting key features from each tree using the point cloud, selecting the most relevant features, and training a machine learning model on a training dataset of trees with known species identities to classify tree species ([Seidel et al. 2021](https://doi.org/10.3389/fpls.2021.635440); [Meng et al. 2024](https://doi.org/10.3390/f15122110)). Such a process would require training data that may not be available in an easily accessible format over a broad extent (excepting FIA data, maybe?) which would be required for a general purpose process which we aim to define in the present research study. Instead, we will use a more simplistic process which uses the USFS Forest Type Groups of the Continental United States dataset ([Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379)) to attach the tree species group to individual trees detected from the point cloud data based on spatial location. The Forest Type Groups dataset provides a broad classification of forest types at a 250-meter resolution and is available at [https://data.fs.usda.gov/geodata/rastergateway/forest_type/](https://data.fs.usda.gov/geodata/rastergateway/forest_type/).
 
-Wilson, B. T. (2021). Available online at: https://di-usfsdata.img.arcgis.com/arcgis/rest/services/CONUS_forest_type_group_2018_masked_202105122120120/ImageServer (accessed June 29, 2021).
-
-https://di-usfsdata.img.arcgis.com/arcgis/rest/directories/arcgisoutput/CONUS_forest_type_group_2018_masked_202105122120120_ImageServer/_ags_79b93b7a_f987_4158_80f8_bb4815cb8460.tif
-
 Here, we'll outline the process to attach forest type group to the tree list based on the Forest Type Groups dataset. As a second option, we could utilize the TreeMap FIA data from [Riley et al. (2021)](https://doi.org/10.2737/RDS-2021-0074) to build a [softmax regression (i.e. multinomial logistic regression)](https://bookdown.org/content/3686/nominal-predicted-variable.html) to predict the nominal variable tree species using the predictors tree height and location extracted from the point cloud data. This option roughly follows the process most represented in the existing literature as detailed above. Note that to predict the nominal variable tree species we could also use a random forest classifier as in [Meng et al. (2024)](https://doi.org/10.3390/f15122110). The ultimate goal is to incorporate this process in the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package (Woolsey and Tinkham, 2024).
 
 First, load the standard libraries
@@ -160,7 +156,53 @@ Here, we'll outline the process to attach forest type group to the tree list bas
 
 define a function to download the data
 
-```{r}
+```{r, include=FALSE, eval=FALSE}
+# math to set the size parameter
+# map_ext <- c(-1.4469E7,2480613,-7114771,6868893)
+# (w <- map_ext[3]-map_ext[1])
+# (h <- map_ext[4]-map_ext[2])
+# c(w,h) %>% `*`(.001137) %>% round() %>% paste(collapse = ",") # this returns the w,h to enter for size
+# max_area <- c(w,h) %>% `*`(.001137) %>% round() %>% prod() 
+# # chunk this
+# # x combinations
+#   x_l <- dplyr::tibble(
+#       xmin = seq(from = map_ext[1], to = map_ext[3], length.out = 20)
+#     ) %>% 
+#     dplyr::mutate(xmax = dplyr::lead(xmin, n = 1)) %>% 
+#     dplyr::filter(!is.na(xmax))
+# # y combinations
+#   y_l <- dplyr::tibble(
+#       ymin = seq(from = map_ext[2], to = map_ext[4], length.out = 20)
+#     ) %>% 
+#     dplyr::mutate(ymax = dplyr::lead(ymin, n = 1)) %>% 
+#     dplyr::filter(!is.na(ymax))
+# # combine
+# chunk_df <- tidyr::crossing(x_l,y_l) %>% 
+#   dplyr::mutate(
+#     w = xmax - xmin
+#     , h = ymax - ymin
+#   )
+# chunk_df %>% dplyr::glimpse()
+# # chunk_df %>% 
+# #   dplyr::mutate(n = dplyr::row_number()) %>% 
+# #   ggplot() + 
+# #   geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = as.factor(n)), color = "black") +
+# #   theme(legend.position = "none")
+# 
+# 
+# # get the bounding box string
+# chunk_df %>% 
+#   dplyr::select(xmin,ymin,xmax,ymax) %>% 
+#   dplyr::filter(dplyr::row_number() == 88) %>% 
+#   c() %>% unlist() %>% paste(collapse = ",")
+
+# this is for: 
+#   Wilson, B. T. (2021). 
+#   Available online at: https://di-usfsdata.img.arcgis.com/arcgis/rest/services/CONUS_forest_type_group_2018_masked_202105122120120/ImageServer 
+#   with a data overview at: https://www.arcgis.com/home/item.html?id=10760c83b9e44923bd3c18efdaa7319d
+#### !!!!! this dataset is not going to work because i couldn't figure out how to get the .tiff from
+#### !!!!! ...the image server at 30x30 resolution...the best i could do using the parameters below was 880x880 ;\
+
 get_foresttype <- function(savedir=NULL,force=F){
   #Store users timeout options
   timeout_option_backup <- getOption("timeout")
@@ -192,7 +234,14 @@ get_foresttype <- function(savedir=NULL,force=F){
   }
 
   # url
-  eval_url <- "https://di-usfsdata.img.arcgis.com/arcgis/rest/services/CONUS_forest_type_group_2018_masked_202105122120120/ImageServer/exportImage?bbox=-1.4469331213417044E7%2C2480613.6864454327%2C-7114771.213417044%2C6868893.686445433&bboxSR=&size=&imageSR=&time=&format=tiff&pixelType=U16&noData=&noDataInterpretation=esriNoDataMatchAny&interpolation=RSP_BilinearInterpolation&compression=&compressionQuality=&bandIds=&sliceId=&mosaicRule=&renderingRule=&adjustAspectRatio=true&validateExtent=false&lercVersion=1&compressionTolerance=&f=html"
+  # # math to set the size parameter
+  # map_ext <- c(-1.4469E7,2480613,-7114771,6868893)
+  # (w <- map_ext[3]-map_ext[1])
+  # (h <- map_ext[4]-map_ext[2])
+  # c(w,h) %>% `*`(.001137) %>% round() # this returns the w,h to enter for size
+
+  
+  eval_url <- "https://di-usfsdata.img.arcgis.com/arcgis/rest/services/CONUS_forest_type_group_2018_masked_202105122120120/ImageServer/exportImage?bbox=-1.4469E7%2C2480613%2C-7114771%2C6868893&bboxSR=&size=8362%2C4989&imageSR=&time=&format=tiff&pixelType=U16&noData=&noDataInterpretation=esriNoDataMatchAny&interpolation=RSP_BilinearInterpolation&compression=None&compressionQuality=&bandIds=&sliceId=&mosaicRule=&renderingRule=&adjustAspectRatio=true&validateExtent=false&lercVersion=1&compressionTolerance=&f=html"
   
   # now we have to parse the url return because this server creates a unique token for each request
   html <- rvest::read_html(x = eval_url)
@@ -212,6 +261,10 @@ get_foresttype <- function(savedir=NULL,force=F){
 ```
 
 ```{r, include=FALSE, eval=FALSE}
+# this is for: [Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379))
+# The Forest Type Groups dataset provides a broad classification of forest types at a 250-meter resolution 
+# and is available at: https://data.fs.usda.gov/geodata/rastergateway/forest_type/
+#   ...select the "Conus Forest Type"
 get_foresttype <- function(savedir=NULL,force=F){
   #Store users timeout options
   timeout_option_backup <- getOption("timeout")
@@ -289,10 +342,39 @@ list.files(file.path(savedir_temp, "foresttype"))
 let's check this data
 
 ```{r}
-foresttype <- terra::rast("../data/foresttype/foresttype.tif")
+foresttype <- 
+  # terra::rast("c:/Users/georg/Downloads/conus_forest-type/conus_foresttype.img")
+  terra::rast("../data/foresttype/foresttype.tif")
 # what?
 foresttype
+# layers?
+terra::names(foresttype)
+# resolution
+terra::res(foresttype)
+# crs?
+terra::crs(foresttype)
 ```
+
+what does this cover?
+
+```{r}
+# the projection is not carried over when going from spatextent to vector
+crs_temp <- terra::crs(foresttype, describe = T)
+epsg_temp <- paste(crs_temp$authority[1], crs_temp$code[1], sep = ":")
+# where is this?
+terra::ext(foresttype) %>% 
+  terra::vect() %>% 
+  sf::st_as_sf() %>%
+  sf::st_set_crs(epsg_temp) %>%
+  mapview::mapview()
+```
+
+quick map
+
+```{r}
+foresttype %>% terra::plot()
+```
+
 
 let's check the values
 
@@ -302,6 +384,416 @@ terra::freq(foresttype) %>%
   dplyr::slice_head(n = 12)
 ```
 
+let's create a lookup table of these forest type groups using the data table from [Woudenberg et al. (2010)](https://scholar.google.com/scholar?cluster=15231222224736651671&hl=en&as_sdt=0,6) Appendix D
+
+```{r}
+foresttype_lookup <- 
+  c(
+    100, "White / red / jack pine group",
+    101, "Jack pine",
+    102, "Red pine",
+    103, "Eastern white pine",
+    104, "Eastern white pine / eastern hemlock",
+    105, "Eastern hemlock",
+    120, "Spruce / fir group",
+    121, "Balsam fir",
+    122, "White spruce",
+    123, "Red spruce",
+    124, "Red spruce / balsam fir",
+    125, "Black spruce",
+    126, "Tamarack",
+    127, "Northern white-cedar",
+    128, "Fraser fir",
+    129, "Red spruce / Fraser fir",
+    140, "Longleaf / slash pine group",
+    141, "Longleaf pine",
+    142, "Slash pine",
+    150, "Tropical pine group",
+    151, "Tropical pines",
+    160, "Loblolly / shortleaf pine group",
+    161, "Loblolly pine",
+    162, "Shortleaf pine",
+    163, "Virginia pine",
+    164, "Sand pine",
+    165, "Table mountain pine",
+    166, "Pond pine",
+    167, "Pitch pine",
+    168, "Spruce pine",
+    170, "Other eastern softwoods group",
+    171, "Eastern redcedar",
+    172, "Florida softwoods",
+    180, "Pinyon / juniper group",
+    182, "Rocky Mountain juniper",
+    184, "Juniper woodland",
+    185, "Pinyon / juniper woodland",
+    200, "Douglas-fir group",
+    201, "Douglas-fir",
+    202, "Port-Orford-cedar",
+    203, "Bigcone Douglas-fir ",
+    220, "Ponderosa pine group",
+    221, "Ponderosa pine",
+    222, "Incense-cedar",
+    224, "Sugar pine",
+    225, "Jeffrey pine",
+    226, "Coulter pine",
+    240, "Western white pine group",
+    241, "Western white pine",
+    260, "Fir / spruce / mountain hemlock group",
+    261, "White fir",
+    262, "Red fir",
+    263, "Noble fir",
+    264, "Pacific silver fir",
+    265, "Engelmann spruce",
+    266, "Engelmann spruce / subalpine fir",
+    267, "Grand fir",
+    268, "Subalpine fir",
+    269, "Blue spruce",
+    270, "Mountain hemlock",
+    271, "Alaska-yellow-cedar",
+    280, "Lodgepole pine group",
+    281, "Lodgepole pine",
+    300, "Hemlock / Sitka spruce group",
+    301, "Western hemlock",
+    304, "Western redcedar",
+    305, "Sitka spruce",
+    320, "Western larch group",
+    321, "Western larch",
+    340, "Redwood group",
+    341, "Redwood",
+    342, "Giant sequoia",
+    360, "Other western softwoods group",
+    361, "Knobcone pine",
+    362, "Southwestern white pine",
+    363, "Bishop pine",
+    364, "Monterey pine",
+    365, "Foxtail pine / bristlecone pine",
+    366, "Limber pine",
+    367, "Whitebark pine",
+    368, "Miscellaneous western softwoods",
+    369, "Western juniper",
+    370, "California mixed conifer group",
+    371, "California mixed conifer",
+    380, "Exotic softwoods group",
+    381, "Scotch pine",
+    383, "Other exotic softwoods",
+    384, "Norway spruce",
+    385, "Introduced larch",
+    390, "Other softwoods group",
+    391, "Other softwoods",
+    400, "Oak / pine group",
+    401, "Eastern white pine / northern red oak / white ash",
+    402, "Eastern redcedar / hardwood",
+    403, "Longleaf pine / oak",
+    404, "Shortleaf pine / oak",
+    405, "Virginia pine / southern red oak",
+    406, "Loblolly pine / hardwood",
+    407, "Slash pine / hardwood",
+    409, "Other pine / hardwood",
+    500, "Oak / hickory group",
+    501, "Post oak / blackjack oak",
+    502, "Chestnut oak",
+    503, "White oak / red oak / hickory",
+    504, "White oak",
+    505, "Northern red oak",
+    506, "Yellow-poplar / white oak / northern red oak",
+    507, "Sassafras / persimmon",
+    508, "Sweetgum / yellow-poplar",
+    509, "Bur oak",
+    510, "Scarlet oak",
+    511, "Yellow-poplar",
+    512, "Black walnut",
+    513, "Black locust",
+    514, "Southern scrub oak",
+    515, "Chestnut oak / black oak / scarlet oak",
+    516, "Cherry / white ash / yellow-poplar",
+    517, "Elm / ash / black locust",
+    519, "Red maple / oak",
+    520, "Mixed upland hardwoods",
+    600, "Oak / gum / cypress group",
+    601, "Swamp chestnut oak / cherrybark oak",
+    602, "Sweetgum / Nuttall oak / willow oak",
+    605, "Overcup oak / water hickory",
+    606, "Atlantic white-cedar",
+    607, "Baldcypress / water tupelo",
+    608, "Sweetbay / swamp tupelo / red maple",
+    609, "Baldcypress / pondcypress",
+    700, "Elm / ash / cottonwood group",
+    701, "Black ash / American elm / red maple",
+    702, "River birch / sycamore",
+    703, "Cottonwood",
+    704, "Willow",
+    705, "Sycamore / pecan / American elm",
+    706, "Sugarberry / hackberry / elm / green ash",
+    707, "Silver maple / American elm",
+    708, "Red maple / lowland",
+    709, "Cottonwood / willow",
+    722, "Oregon ash",
+    800, "Maple / beech / birch group",
+    801, "Sugar maple / beech / yellow birch",
+    802, "Black cherry",
+    805, "Hard maple / basswood",
+    809, "Red maple / upland",
+    900, "Aspen / birch group",
+    901, "Aspen",
+    902, "Paper birch",
+    903, "Gray birch",
+    904, "Balsam poplar",
+    905, "Pin cherry",
+    910, "Alder / maple group",
+    911, "Red alder",
+    912, "Bigleaf maple",
+    920, "Western oak group",
+    921, "Gray pine",
+    922, "California black oak",
+    923, "Oregon white oak",
+    924, "Blue oak",
+    931, "Coast live oak",
+    933, "Canyon live oak",
+    934, "Interior live oak",
+    935, "California white oak (valley oak)",
+    940, "Tanoak / laurel group",
+    941, "Tanoak",
+    942, "California laurel",
+    943, "Giant chinkapin",
+    960, "Other hardwoods group",
+    961, "Pacific madrone",
+    962, "Other hardwoods",
+    970, "Woodland hardwoods group",
+    971, "Deciduous oak woodland",
+    972, "Evergreen oak woodland",
+    973, "Mesquite woodland",
+    974, "Cercocarpus (mountain brush) woodland",
+    975, "Intermountain maple woodland",
+    976, "Miscellaneous woodland hardwoods",
+    980, "Tropical hardwoods group",
+    982, "Mangrove",
+    983, "Palms",
+    988, "Cloud forest",
+    989, "Other tropical hardwoods",
+    990, "Exotic hardwoods group",
+    991, "Paulownia",
+    992, "Melaleuca",
+    993, "Eucalyptus",
+    995, "Other exotic hardwoods",
+    999, "Nonstocked",
+    ## this list below is from:
+    101, "Jack pine",
+    102, "Red pine",
+    103, "Eastern white pine",
+    104, "Eastern White pine / Eastern hemlock",
+    105, "Eastern hemlock",
+    121, "Balsam fir",
+    122, "White spruce",
+    123, "Red spruce",
+    124, "Red spruce / balsam fir",
+    125, "Black spruce",
+    126, "Tamarack",
+    127, "Northern white-cedar",
+    141, "Longleaf pine",
+    142, "Slash pine",
+    161, "Loblolly pine",
+    162, "Shortleaf pine",
+    163, "Virginia pine",
+    164, "Sand pine",
+    165, "Table-mountain pine",
+    166, "Pond pine",
+    167, "Pitch pine",
+    168, "Spruce pine",
+    181, "Eastern redcedar",
+    182, "Rocky Mountain juniper",
+    183, "Western juniper",
+    184, "Juniper woodland",
+    185, "Pinyon juniper woodland",
+    201, "Douglas-fir",
+    202, "Port-Orford-cedar",
+    221, "Ponderosa pine",
+    222, "Incense cedar",
+    223, "Jeffrey pine / Coulter pine / bigcone Douglas-fir",
+    224, "Sugar pine",
+    241, "Western white pine",
+    261, "White fir",
+    262, "Red fir",
+    263, "Noble fir",
+    264, "Pacific silver fir",
+    265, "Engelmann spruce",
+    266, "Engelmann spruce / subalpine fir",
+    267, "Grand fir",
+    268, "Subalpine fir",
+    269, "Blue spruce",
+    270, "Mountain hemlock",
+    271, "Alaska-yellow-cedar",
+    281, "Lodgepole pine",
+    301, "Western hemlock",
+    304, "Western redcedar",
+    305, "Sitka spruce",
+    321, "Western larch",
+    341, "Redwood",
+    342, "Giant sequoia",
+    361, "Knobcone pine",
+    362, "Southwest white pine",
+    363, "Bishop pine",
+    364, "Monterey pine",
+    365, "Foxtail pine / bristlecone pine",
+    366, "Limber pine",
+    367, "Whitebark pine",
+    368, "Misc. western softwoods",
+    371, "California mixed conifer",
+    381, "Scotch pine",
+    382, "Australian pine",
+    383, "Other exotic softwoods",
+    384, "Norway Spruce",
+    385, "Introduced larch",
+    401, "Eastern white pine / N. red oak / white ash",
+    402, "Eastern redcedar / hardwood",
+    403, "Longleaf pine / oak",
+    404, "Shortleaf pine / oak",
+    405, "Virginia pine / southern red oak",
+    406, "Loblolly pine / hardwood",
+    407, "Slash pine / hardwood",
+    409, "Other pine / hardwood",
+    501, "Post oak / blackjack oak",
+    502, "Chestnut oak",
+    503, "White oak / red oak / hickory",
+    504, "White oak",
+    505, "Northern red oak",
+    506, "Yellow-poplar / white oak / N. red oak",
+    507, "Sassafras / persimmon",
+    508, "Sweetgum / yellow-poplar",
+    509, "Bur oak",
+    510, "Scarlet oak",
+    511, "Yellow-poplar",
+    512, "Black walnut",
+    513, "Black locust",
+    514, "Southern scrub oak",
+    515, "Chestnut oak / black oak / scarlet oak",
+    519, "Red maple / oak",
+    520, "Mixed upland hardwoods",
+    601, "Swamp chestnut oak / cherrybark oak",
+    602, "Sweetgum / Nuttall oak / willow oak",
+    605, "Overcup oak / water hickory",
+    606, "Atlantic white-cedar",
+    607, "Baldcypress / water tupelo",
+    608, "Sweetbay / swamp tupelo / red maple",
+    701, "Black ash / American elm / red maple",
+    702, "River birch / sycamore",
+    703, "Cottonwood",
+    704, "Willow",
+    705, "Sycamore / pecan / American elm",
+    706, "Sugarberry / hackberry / elm / green ash",
+    707, "Silver maple / American elm",
+    708, "Red maple / lowland",
+    709, "Cottonwood / willow",
+    722, "Oregon ash",
+    801, "Sugar maple / beech / yellow birch",
+    802, "Black cherry",
+    803, "Cherry / ash / yellow-poplar",
+    805, "Hard maple / basswood",
+    807, "Elm / ash / locust",
+    809, "Red maple / upland",
+    901, "Aspen",
+    902, "Paper birch",
+    904, "Balsam poplar",
+    911, "Red alder",
+    912, "Bigleaf maple",
+    921, "Gray pine",
+    922, "California black oak",
+    923, "Oregon white oak",
+    924, "Blue oak",
+    925, "Deciduous oak woodland",
+    926, "Evergreen oak woodland",
+    931, "Coast live oak",
+    932, "Canyon live oak / interior live oak",
+    941, "Tanoak",
+    942, "Califonia laurel",
+    943, "Giant chinkapin",
+    951, "Pacific madrone",
+    952, "Mesquite Woodland",
+    953, "Cercocarpus woodland",
+    954, "Intermountain maple woodland",
+    955, "Misc. western hardwood woodlands",
+    981, "Sabal palm",
+    982, "Mangrove",
+    989, "Other tropical",
+    991, "Paulownia",
+    992, "Melaluca",
+    993, "Eucalyptus",
+    995, "Other exotic hardwoods"
+  ) %>% 
+  matrix(ncol = 2, byrow = T) %>% 
+  dplyr::as_tibble() %>% 
+  dplyr::rename(forest_type_code = 1, forest_type = 2) %>% 
+  dplyr::mutate(forest_type = stringr::str_squish(forest_type)) %>% 
+  dplyr::group_by(forest_type_code) %>% 
+  dplyr::filter(dplyr::row_number()==1) %>% 
+  dplyr::ungroup()
+# huh?
+foresttype_lookup %>% dplyr::glimpse()
+```
+
+let's create a column for the "forest type group" which is included in this data as any type code that is a multiple of 10 starting at 100...but remember we need to exclude the "999" which is "Nonstocked"
+
+```{r}
+foresttype_lookup <- 
+  foresttype_lookup %>%
+  # define forest_type_group_code as the 10's value
+  dplyr::mutate(
+    forest_type_group_code = forest_type_code %>% 
+      stringr::str_sub(end = -2) %>% # cuts off the last digit from a number as a string
+      paste0("0")
+    , forest_type_group = dplyr::case_when(
+      forest_type_group_code == forest_type_code ~ forest_type
+      , T ~ NA
+    )
+  ) %>% 
+  dplyr::arrange(as.numeric(forest_type_code)) %>% 
+  dplyr::group_by(forest_type_group_code) %>% 
+  dplyr::mutate(
+    forest_type_group = dplyr::first(forest_type_group, na_rm = T)
+    , hardwood_softwood = dplyr::case_when(
+      as.numeric(forest_type_group_code) > 370 ~ "Hardwood"
+      , as.numeric(forest_type_group_code) <= 370 ~ "Softwood"
+      , T ~ "Error"
+    )
+  ) %>% 
+  dplyr::ungroup() %>% 
+  # some type groups are missing...lump them into other
+  dplyr::mutate(
+    forest_type_group_code = dplyr::case_when(
+      is.na(forest_type_group) & as.numeric(forest_type_code) > 370 ~ "960"
+      , is.na(forest_type_group) & as.numeric(forest_type_code) <= 370 ~ "390"
+      , T ~ forest_type_group_code
+    )
+    , forest_type_group = dplyr::case_when(
+      is.na(forest_type_group) & as.numeric(forest_type_code) > 370 ~ "Other hardwoods group"
+      , is.na(forest_type_group) & as.numeric(forest_type_code) <= 370 ~ "Other softwoods group"
+      , T ~ forest_type_group
+    )
+  ) %>% 
+  # just drop the non-stocked
+  dplyr::filter(forest_type_code != "999" & tolower(forest_type) != "nonstocked")
+# huh?
+foresttype_lookup %>% dplyr::glimpse()
+foresttype_lookup %>% View()
+```
+
+let's plot the Forest Type Groups dataset for our example area using our fancy lookup data
+
+```{r}
+# aoi
+box_temp <- cloud2trees_ans$crowns_sf %>% 
+  sf::st_bbox() %>% 
+  sf::st_as_sfc() %>% 
+  sf::st_buffer(500) %>% 
+  terra::vect() %>% 
+  terra::project(terra::crs(foresttype))
+# crop it an plot it
+foresttype %>% 
+  terra::crop(box_temp) %>% 
+  terra::mask(box_temp) %>% 
+  as.data.frame(xy = T) %>% 
+  dplyr::rename(forest_type_code=3) %>% 
+  dplyr::glimpse()
+```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
