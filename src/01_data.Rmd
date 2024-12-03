@@ -998,19 +998,17 @@ f <- crowns_nlas_temp %>%
 ```
 
 ```{r, eval=FALSE, include=FALSE}
-xxx =
-  list.files(
-      file.path(system.file("extdata", package = "LadderFuelsR"))
-      , pattern = "*_CROWN.las", full.names = TRUE, ignore.case = TRUE
-    ) %>%
-    .[1] %>%
-    lidR::readLAS()
-  
-plot(xxx, color = "Z", legend = T, bg = "white")
-
-xxx@data %>% dplyr::count(treeID)
-xxx@data %>% dplyr::count(Classification)
-xxx@data %>% dplyr::select(Z) %>% summary()
+# leafR::lad.voxels requires a file location :\
+fn <- paste0(tempdir(), "/temp.las")
+# let's sample the tree with the most points
+f <- "c:/data/cloud2trees/inst/extdata/norm_las" %>% 
+    lidR::readLAScatalog() %>% 
+    lidR::clip_roi(
+      sf::st_read("c:/data/cloud2trees/inst/extdata/crowns_poly.gpkg") %>% 
+        dplyr::slice_sample(n=1)
+    ) %>% 
+    lidR::writeLAS(file = fn)
+pointsByZSlice <- leafR::pointsByZSlice()
 ```
 
 #### `leafR::lad.voxels`

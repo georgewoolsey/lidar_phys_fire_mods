@@ -1,0 +1,368 @@
+# Validate Point Cloud Processing
+
+In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package (Woolsey and Tinkham, 2024) which incorporates the process outlined in [Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) for crown base height (CBH) calculation.
+
+First, load the standard libraries
+
+```{r, warning=FALSE, message=FALSE}
+# bread-and-butter
+library(tidyverse) # the tidyverse
+library(viridis) # viridis colors
+library(harrypotter) # hp colors
+library(RColorBrewer) # brewer colors
+library(scales) # work with number and plot scales
+library(latex2exp)
+
+# visualization
+library(mapview) # interactive html maps
+library(kableExtra) # tables
+library(patchwork) # combine plots
+library(ggnewscale) # ggnewscale
+library(rgl) # rgl plotting
+
+# spatial analysis
+library(terra) # raster
+library(sf) # simple features
+library(lidR) # lidar data
+library(cloud2trees) # tha cloud2trees
+library(NeonTreeEvaluation) # benchmark data
+
+# models
+library(brms) # bayesian modelling
+```
+
+```{r, include=F, warning=F, message=F}
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  # , results = 'hide'
+  , fig.width = 10.5
+  , fig.height = 7
+)
+# option to put satellite imagery as base layer of mapview maps
+  mapview::mapviewOptions(
+    homebutton = FALSE
+    # , basemaps = c("Esri.WorldImagery","OpenStreetMap")
+    , basemaps = c("OpenStreetMap", "Esri.WorldImagery")
+  )
+# clean session
+remove(list = ls())
+gc()
+```
+
+## `NeonTreeEvaluation`{#neon2}
+
+Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) developed: 
+
+>a benchmark dataset of individual canopy crowns derived from multi-sensor imagery in the National Ecological Observatory Network (Table 1) that provides: 1) co-registered remote sensing data from multiple sensors (LiDAR, RGB imagery, and hyperspectral imagery) to allow comparisons of methods based on any single sensor (e.g., for LiDAR based methods), or any combination of sensors (e.g., combining RGB and hyperspectral), and 2) three types of evaluation data to allow assessing both 'tree detection', defined as the identifying the location of individual trees using evaluation data with a point at the crown center , and 'crown delineation' defined as identifying the boundary edge of crowns across a broad range of forest types. The benchmark is designed to allow flexibility in both workflow and sensor selection. (p. 2)
+
+**Table 1.** Summary of datasets included in the benchmark dataset. All sensor data has been cropped to the extent of NEON field sampling plots.
+
+```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold',results='asis'}
+# https://journals.plos.org/ploscompbiol/article/figure?id=10.1371/journal.pcbi.1009180.t001
+knitr::include_graphics("../data/journal.pcbi.1009180.t001.PNG")
+```
+
+The woody vegetation structure data contains information on field estimated height and maximum crown diameter for the majority of field collected stems. We annotated all trees in the 40x40 m plot, regardless of health status, provided they were visible in the image.
+
+```{r}
+NeonTreeEvaluation::field %>% 
+  dplyr::glimpse()
+```
+
+Nice, there appears to be some useful data in here: `uid`, `siteID`, `plotID`, `stemDiameter`, `height`, `maxCrownDiameter`, `ninetyCrownDiameter`, `baseCrownHeight`, `plantStatus`, `taxonID`
+
+Also, I just found that there is a hidden function in the package to filter the field tree data
+
+...except for I'm going to change the minimum diameter from 15 cm to 10 cm
+
+```{r}
+clean_field_data<-function(field){
+  field$area<-field$maxCrownDiameter*field$ninetyCrownDiameter
+  field<-field %>%  filter(!is.na(itcEasting),!stringr::str_detect(eventID,"2014"),growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling"),stemDiameter>10) %>%
+    droplevels() %>%
+    filter(height>3|is.na(height))
+
+  #Limit difference in heights
+  to_remove<-field %>% group_by(individualID) %>%
+    summarize(mean=mean(height),sum_difference = abs(sum(diff(height)))) %>%
+    filter(sum_difference > 8)
+  field<-field %>%
+    filter(!individualID %in% to_remove$individualID)
+}
+```
+
+clean this data and filter it
+
+```{r}
+# filter it
+field_trees <- NeonTreeEvaluation::field %>% 
+  clean_field_data() %>% 
+  dplyr::select(
+    uid, siteID, plotID, stemDiameter
+    , height, maxCrownDiameter, ninetyCrownDiameter
+    , baseCrownHeight, plantStatus, taxonID
+  ) %>% 
+  dplyr::filter(!is.na(maxCrownDiameter) & !is.na(height)) %>% 
+  dplyr::mutate(CrownRadius = maxCrownDiameter/2)
+# see it
+field_trees %>% dplyr::glimpse()
+```
+
+what are these data?
+
+```{r}
+field_trees %>% 
+  dplyr::select(dplyr::where(is.numeric)) %>% 
+  summary()
+```
+
+status?
+
+```{r}
+field_trees %>% 
+  dplyr::count(plantStatus)
+```
+
+taxonID?
+
+```{r}
+field_trees %>% 
+  dplyr::count(taxonID) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::slice_head(n = 20)
+```
+
+let's see the height versus diameter relationship
+
+```{r}
+field_trees %>% 
+  ggplot(mapping = aes(x = height, y = stemDiameter)) +
+  geom_point() +
+  scale_x_continuous(limits = c(0,NA)) +
+  scale_y_continuous(limits = c(0,NA)) +
+  theme_light()
+```
+
+let's get conifer trees only???
+
+....sure, i found a NEON plant list with the codes: [https://data.neonscience.org/taxonomic-lists?taxonTypeCode=PLANT](https://data.neonscience.org/taxonomic-lists?taxonTypeCode=PLANT)
+
+```{r}
+conifer_spp <-
+  readr::read_csv(
+    "../data/OS_TAXON_PLANT-20220330T142149.csv"
+    , show_col_types = F
+    , progress = F
+  ) %>% 
+  dplyr::filter(
+    tolower(family) %in% c(
+      "pinaceae", "podocarpaceae", "araucariaceae"
+      , "taxaceae", "cephalotaxaceae", "taxodiaceae", "cupressaceae"
+    )
+  ) %>% 
+  dplyr::mutate(
+    taxonID = toupper(taxonID)
+    , vernacularName = tolower(vernacularName)
+    , genus = stringr::str_to_title(genus)
+  ) %>% 
+  dplyr::distinct(taxonID, vernacularName, genus) %>% 
+  dplyr::mutate(is_conifer = 1)
+# huh?
+conifer_spp %>% dplyr::slice_sample(n = 10)
+```
+
+attach that conifer data to that field tree list
+
+```{r}
+field_trees <- field_trees %>% 
+  dplyr::left_join(conifer_spp, by = "taxonID") %>% 
+  dplyr::mutate(is_conifer = dplyr::coalesce(is_conifer, 0))
+```
+
+let's get a list of NEON sites with a majority of conifer trees
+
+```{r}
+# minimum pct conifer
+min_conifer_pct <- .75
+# data set of plots
+conifer_plots <- field_trees %>% 
+  dplyr::group_by(siteID, plotID) %>%
+  dplyr::summarise(
+    trees_n = dplyr::n()
+    , conifers_n = sum(is_conifer, na.rm = T)
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    pct_conifer = conifers_n/trees_n
+    , neon_site = forcats::fct_reorder(plotID, pct_conifer)
+    , 
+  ) %>% 
+  dplyr::filter(pct_conifer>=min_conifer_pct)
+```
+
+notice we set the minimum percent of trees in a plot needed to be classified a "conifer plot" at `r scales::percent(min_conifer_pct)`. Let's check the sites to ensure it makes sense
+
+```{r}
+conifer_plots %>% 
+  dplyr::count(siteID) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  kableExtra::kbl(col.names = c("NEON site", "conifer plots")) %>% 
+  kableExtra::kable_styling()
+```
+
+nice, now let's check which of these sites have lidar data
+
+```{r}
+?NeonTreeEvaluation::list_field_stems()
+# let's pull out all sites with `.laz` data and create a data frame for tracking purposes
+las_df <-
+  paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/") %>% 
+    list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% 
+    unique() %>% 
+    dplyr::as_tibble() %>% 
+    dplyr::rename(f_path = 1) %>% 
+    # create some other variables
+    dplyr::mutate(
+      f_nm = f_path %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")
+      , plotID = f_nm %>% # this matches the file name with the plot name 
+        toupper() %>% 
+        # here we extract the plotID from the file path
+        # and only for those plots that are conifer plots
+        stringr::str_extract(
+          pattern = conifer_plots$plotID %>% 
+            unique() %>% 
+            toupper() %>% 
+            paste(collapse = "|")
+        )
+    ) %>%
+    # join to the conifer plots
+    dplyr::inner_join(conifer_plots, by = "plotID")
+# what?
+las_df %>% dplyr::glimpse()
+```
+
+shoot, it looks like there are multiple lidar data collections for the same site. is there separate validation data for each year or should we just keep the most recent lidar acquisition data?
+
+let's test what happens if we extract some lidar data using the native `NeonTreeEvaluation::get_data()` function which returns the file path for the data. we'll try to read in lidar data for a site that has multiple acquisitions
+
+```{r}
+# first we'll safe reading the las in case it doesn't work
+safe_readLAS <- purrr::safely(lidR::readLAS, quiet = T)
+# now we'll 
+test_las_temp <- las_df %>% 
+  dplyr::group_by(plotID) %>% 
+  dplyr::mutate(n =  dplyr::n()) %>% 
+  dplyr::filter(n>1) %>% 
+  dplyr::pull(plotID) %>% 
+  sample(1) %>% 
+  NeonTreeEvaluation::get_data(type = "lidar") %>% 
+  safe_readLAS()
+# did it work????
+test_las_temp
+```
+
+it didn't work...we'll go back to our las data frame and pull only the most recent lidar data
+
+```{r}
+las_df <-
+  las_df %>% 
+  dplyr::group_by(plotID) %>% 
+  # desc(f_nm) sorts year descending if there is a year
+  dplyr::arrange(siteID, plotID, desc(f_nm)) %>% 
+  dplyr::filter(dplyr::row_number() == 1) %>% 
+  dplyr::ungroup()
+# what?
+las_df %>% dplyr::glimpse()
+```
+
+so, we have `r las_df %>% nrow()` lidar data collections over conifer plots to validate our process against
+
+let's look at one lidar data set
+
+```{r}
+test_las_temp <- las_df %>% 
+  dplyr::slice_sample(n = 1) %>% 
+  dplyr::pull(f_path) %>% 
+  lidR::readLAS()
+# what?
+test_las_temp
+```
+
+that's pretty low density (compared to UAS-SfM point cloud data). let's plot it 
+
+```{r, rgl = TRUE}
+test_las_temp %>% 
+  lidR::plot(
+    color = "Z"
+    # , breaks = "quantile"
+    , bg = "white", legend = T
+    , pal = harrypotter::hp(n=50, house = "gryffindor")
+  )
+```
+
+looks like conifers to me
+
+where in the world are these conifer plots?
+
+```{r}
+get_site_bbox <- function(site, dta = las_df) {
+# read the las files for a site  
+  las_ctg = dta %>% 
+    dplyr::filter(siteID == site) %>% 
+    dplyr::pull(f_path) %>% 
+    lidR::readLAScatalog()
+# bbox that site
+  if( is.na( sf::st_crs(las_ctg@data) ) ){
+    return(NULL)
+  }else{
+    las_ctg@data %>% 
+      sf::st_bbox() %>% 
+      sf::st_as_sfc() %>% 
+      sf::st_as_sf() %>% 
+      dplyr::mutate(neon_site = site)  %>% 
+      sf::st_set_crs(sf::st_crs(las_ctg@data)) %>% 
+      sf::st_transform(crs = paste0("EPSG:", 5070))
+  }
+}
+# take this for a spin
+las_df %>%
+  dplyr::pull(siteID) %>%
+  unique() %>%
+  purrr::map(get_site_bbox) %>% 
+  dplyr::bind_rows() %>% 
+  dplyr::left_join(
+    las_df %>% 
+      dplyr::group_by(neon_site) %>% 
+      dplyr::summarise(n = dplyr::n())
+    , by = "neon_site"
+  ) %>% 
+  st_centroid() %>% 
+  mapview::mapview(
+    zcol = "n"
+    , layer.name = "LiDAR plots"
+    , label = c("neon_site")
+    , col.regions = viridis::mako(10, direction = -1)
+  )
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+## Example validation process
+
+now that we have our lidar data that we can test our process against, let's walk through the validation for a single plot
+
+```{r}
+
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls())
+gc()
+```

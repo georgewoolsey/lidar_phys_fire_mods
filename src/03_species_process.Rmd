@@ -1,0 +1,310 @@
+# Species Process{#s03}
+
+In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to test a simple process for classifying the species of the trees extracted using lidar-based tree detection methods. 
+
+The majority of research on classifying individual trees into different species categories using point cloud data from lidar or structure from motion data follows a similar process. This process generally involves segmenting individual trees and extracting key features from each tree using the point cloud, selecting the most relevant features, and training a machine learning model on a training dataset of trees with known species identities to classify tree species ([Seidel et al. 2021](https://doi.org/10.3389/fpls.2021.635440); [Meng et al. 2024](https://doi.org/10.3390/f15122110)). Such a process would require training data that may not be available in an easily accessible format over a broad extent (excepting FIA data, maybe?) which would be required for a general purpose process which we aim to define in the present research study. Instead, we will use a more simplistic process which uses the USFS Forest Type Groups of the Continental United States dataset ([Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379)) to attach the tree species group to individual trees detected from the point cloud data based on spatial location. The Forest Type Groups dataset provides a broad classification of forest types at a 250-meter resolution and is available at [https://data.fs.usda.gov/geodata/rastergateway/forest_type/](https://data.fs.usda.gov/geodata/rastergateway/forest_type/).
+
+Wilson, B. T. (2021). Available online at: https://di-usfsdata.img.arcgis.com/arcgis/rest/services/CONUS_forest_type_group_2018_masked_202105122120120/ImageServer (accessed June 29, 2021).
+
+https://di-usfsdata.img.arcgis.com/arcgis/rest/directories/arcgisoutput/CONUS_forest_type_group_2018_masked_202105122120120_ImageServer/_ags_79b93b7a_f987_4158_80f8_bb4815cb8460.tif
+
+Here, we'll outline the process to attach forest type group to the tree list based on the Forest Type Groups dataset. As a second option, we could utilize the TreeMap FIA data from [Riley et al. (2021)](https://doi.org/10.2737/RDS-2021-0074) to build a [softmax regression (i.e. multinomial logistic regression)](https://bookdown.org/content/3686/nominal-predicted-variable.html) to predict the nominal variable tree species using the predictors tree height and location extracted from the point cloud data. This option roughly follows the process most represented in the existing literature as detailed above. Note that to predict the nominal variable tree species we could also use a random forest classifier as in [Meng et al. (2024)](https://doi.org/10.3390/f15122110). The ultimate goal is to incorporate this process in the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package (Woolsey and Tinkham, 2024).
+
+First, load the standard libraries
+
+```{r, warning=FALSE, message=FALSE}
+# bread-and-butter
+library(tidyverse) # the tidyverse
+library(viridis) # viridis colors
+library(harrypotter) # hp colors
+library(RColorBrewer) # brewer colors
+library(scales) # work with number and plot scales
+library(latex2exp)
+
+# visualization
+library(mapview) # interactive html maps
+library(kableExtra) # tables
+library(patchwork) # combine plots
+library(ggnewscale) # ggnewscale
+library(rgl) # rgl plotting
+
+# spatial analysis
+library(terra) # raster
+library(sf) # simple features
+library(lidR) # lidar data
+library(cloud2trees) # tha cloud2trees
+library(NeonTreeEvaluation) # benchmark data
+
+# models
+library(brms) # bayesian modelling
+
+# utilities
+library(rvest) # web scraping
+```
+
+```{r, include=F, warning=F, message=F}
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  # , results = 'hide'
+  , fig.width = 10.5
+  , fig.height = 7
+)
+# option to put satellite imagery as base layer of mapview maps
+  mapview::mapviewOptions(
+    homebutton = FALSE
+    # , basemaps = c("Esri.WorldImagery","OpenStreetMap")
+    , basemaps = c("Esri.WorldImagery", "OpenStreetMap")
+  )
+# clean session
+remove(list = ls())
+gc()
+```
+
+## Example Lidar Data
+
+Let's load an example lidar dataset from Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) in their `NeonTreeEvaluation` package.
+
+We'll use data from a NEON site that we know has conifers: RMNP (Rocky Mountain National Park)
+
+```{r}
+# let's see some field trees data
+NeonTreeEvaluation::field %>% 
+  dplyr::filter(siteID == "RMNP") %>% 
+  dplyr::count(taxonID) %>% 
+  dplyr::arrange(desc(n))
+```
+
+let's pick a site with the lowest proportion of POTR5
+
+```{r}
+plots_temp <- NeonTreeEvaluation::field %>% 
+  dplyr::filter(siteID == "RMNP") %>% 
+  dplyr::group_by(plotID) %>% 
+  dplyr::summarise(
+    trees = dplyr::n()
+    , conifers = sum(ifelse(taxonID=="POTR5", 0, 1))
+  ) %>% 
+  dplyr::mutate(pct_conifer = conifers/trees) %>% 
+  dplyr::filter(trees>20) %>% 
+  dplyr::arrange(desc(pct_conifer), desc(trees))
+plots_temp
+```
+
+look at the tree data for this plot
+
+```{r}
+NeonTreeEvaluation::field %>% 
+  dplyr::filter(plotID == plots_temp[1,]$plotID) %>% 
+  dplyr::count(taxonID, scientificName)
+```
+
+get the lidar data
+
+```{r}
+# get the laz file path
+las_f_path_temp <- paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/") %>% 
+    list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% 
+    unique() %>% 
+    dplyr::as_tibble() %>%
+    dplyr::rename(f_path = 1) %>% 
+    dplyr::filter(
+      stringr::str_detect(f_path,  as.character(plots_temp[1,]$plotID))
+    ) %>% 
+    .[1] %>% 
+    dplyr::pull(f_path)
+# check the data
+lidR::readLAS(las_f_path_temp)
+```
+
+### `cloud2trees` that lidar data
+
+extract trees from the lidar data using `cloud2trees`
+
+we do not need to get DBH or CBH for this testing
+
+```{r, message=FALSE, results=FALSE}
+cloud2trees_ans <- cloud2trees::cloud2trees(
+  input_las_dir = las_f_path_temp
+  , output_dir = tempdir()
+  , estimate_tree_dbh = F
+  , estimate_tree_cbh = F
+)
+```
+
+let's see what we got
+
+```{r}
+cloud2trees_ans$treetops_sf %>% dplyr::glimpse()
+```
+
+where is this?
+
+```{r}
+# where?
+cloud2trees_ans$treetops_sf %>% 
+  mapview::mapview(layer.name = "trees")
+```
+
+*zoom out if you can't see anything*
+
+## USFS National Forest Type Group dataset
+
+Download the USFS National Forest Type Group dataset ([Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379)) to attach the tree species group to individual trees detected from the point cloud data based on spatial location. The Forest Type Groups dataset provides a broad classification of forest types at a 250-meter resolution and is available at [https://data.fs.usda.gov/geodata/rastergateway/forest_type/](https://data.fs.usda.gov/geodata/rastergateway/forest_type/).
+
+Here, we'll outline the process to attach forest type group to the tree list based on the Forest Type Groups dataset.
+
+### Get the data
+
+define a function to download the data
+
+```{r}
+get_foresttype <- function(savedir=NULL,force=F){
+  #Store users timeout options
+  timeout_option_backup <- getOption("timeout")
+  options(timeout = max(3600, getOption("timeout")))
+
+  if(is.null(savedir)){
+    # create dir
+    dir.create(paste0(system.file(package = "cloud2trees"),"/extdata"), showWarnings = FALSE)
+    # names
+    dirname <- paste0(system.file(package = "cloud2trees"),"/extdata/foresttype")
+    destination <- file.path(dirname,"foresttype.tif")
+  }else{
+    dirname <- file.path(savedir,"foresttype")
+    destination <- file.path(dirname,"foresttype.tif")
+  }
+  # create dir
+  dir.create(dirname, showWarnings = FALSE)
+
+  #check if already exists.
+  f <- tolower(list.files(dirname))
+  if(length(f)==0){f <- ""}
+  if(
+    max(grepl("foresttype.tif", f))==1
+  ){
+    if(!force){
+      warning(paste("Data has already been downloaded to",dirname,", use force=T to overwrite"))
+      return(NULL)
+    }
+  }
+
+  # url
+  eval_url <- "https://di-usfsdata.img.arcgis.com/arcgis/rest/services/CONUS_forest_type_group_2018_masked_202105122120120/ImageServer/exportImage?bbox=-1.4469331213417044E7%2C2480613.6864454327%2C-7114771.213417044%2C6868893.686445433&bboxSR=&size=&imageSR=&time=&format=tiff&pixelType=U16&noData=&noDataInterpretation=esriNoDataMatchAny&interpolation=RSP_BilinearInterpolation&compression=&compressionQuality=&bandIds=&sliceId=&mosaicRule=&renderingRule=&adjustAspectRatio=true&validateExtent=false&lercVersion=1&compressionTolerance=&f=html"
+  
+  # now we have to parse the url return because this server creates a unique token for each request
+  html <- rvest::read_html(x = eval_url)
+  # get parent element
+  chrs <- html %>% rvest::html_elements("a")
+  # unnest children elements
+  iii <- chrs %>% rvest::html_text2() %>% purrr::detect_index(function(x) tolower(x) == "download image")
+  # download url
+  dl_url <- chrs[iii] %>% html_attr("href")
+  
+  # get it
+  message(paste("Downloading file to",destination))
+  download.file(dl_url, destination, mode = "wb")
+
+  options(timeout = timeout_option_backup)
+}
+```
+
+```{r, include=FALSE, eval=FALSE}
+get_foresttype <- function(savedir=NULL,force=F){
+  #Store users timeout options
+  timeout_option_backup <- getOption("timeout")
+  options(timeout = max(3600, getOption("timeout")))
+
+  if(is.null(savedir)){
+    # create dir
+    dir.create(paste0(system.file(package = "cloud2trees"),"/extdata"), showWarnings = FALSE)
+    # names
+    destination <- paste0(system.file(package = "cloud2trees"),"/extdata/foresttype.zip")
+    dirname <- paste0(system.file(package = "cloud2trees"),"/extdata/foresttype")
+  }else{
+    destination <- file.path(savedir,"foresttype.zip")
+    dirname <- file.path(savedir,"foresttype")
+  }
+  # create dir
+  dir.create(dirname, showWarnings = FALSE)
+
+  #check if already exists.
+  f_dir <- file.path(dirname(destination),"foresttype/")
+  # f_dir <- paste0(system.file("extdata", "foresttype/", package = "cloud2trees"))
+  f <- toupper(list.files(f_dir))
+  if(length(f)==0){f <- ""}
+  if(
+    max(grepl("TREEMAP2016.TIF", f))==1 & max(grepl("TREEMAP2016_TREE_TABLE.CSV", f))==1
+  ){
+    if(!force){
+      warning(paste("Data has already been downloaded to",dirname,", use force=T to overwrite"))
+      return(NULL)
+    }
+  }
+
+  # get data
+  eval_url <- "https://s3-us-west-2.amazonaws.com/fs.usda.rds/RDS-2021-0074/RDS-2021-0074_Data.zip"
+  message(paste("Downloading file to",destination))
+  download.file(eval_url, destination, mode = "wb")
+  unzip_download(destination)
+
+  options(timeout = timeout_option_backup)
+}
+## unzip function
+unzip_download <- function(destination){
+  #location of unzip
+  base_dir <- dirname(destination)
+
+  #get file names
+  unzip_folder <- unzip(destination, list = TRUE)$Name[1]
+  unzipped_folder <- file.path(base_dir,unzip_folder)
+  unzip(destination,exdir=base_dir)
+  final_name <- file.path(base_dir,"foresttype/")
+
+  #Force delete of any previous folder
+  unlink(final_name,recursive = T)
+  file.rename(unzipped_folder,final_name)
+
+  #Remove zipped files
+  unlink(destination)
+}
+```
+
+call the function to download the data
+
+```{r}
+savedir_temp <- "../data/"
+# what dirs do we have already?
+list.dirs(savedir_temp, recursive = F)
+# get the data
+get_foresttype(savedir = savedir_temp)
+# now what dirs?
+list.dirs(savedir_temp, recursive = F)
+# are there files in the foresttype dir?
+list.files(file.path(savedir_temp, "foresttype"))
+```
+
+let's check this data
+
+```{r}
+foresttype <- terra::rast("../data/foresttype/foresttype.tif")
+# what?
+foresttype
+```
+
+let's check the values
+
+```{r}
+terra::freq(foresttype) %>% 
+  dplyr::arrange(desc(count)) %>% 
+  dplyr::slice_head(n = 12)
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls())
+gc()
+```
