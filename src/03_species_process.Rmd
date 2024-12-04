@@ -59,7 +59,7 @@ remove(list = ls())
 gc()
 ```
 
-## Example Lidar Data
+## Example Lidar Data{#rmnp_ex}
 
 Let's load an example lidar dataset from Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) in their `NeonTreeEvaluation` package.
 
@@ -165,13 +165,18 @@ define a function to download the data
     + chunk 1 in the "Environments" tab change the Extent "X and Y Extent" (t,l,r,b): 6868893.686445,-14469331.213417,-10383464.5467503,2480613.686445
     + in the "Parameters" tab set the "Cell factor" to 3 with "Aggregation technique" to maximum (to prefer any data to no data which is coded as 0), everything else is default
     + run the tool (this took 71 mins across 6 parallel instances for 1 chunk)
-    + export the raster layer as a .tiff
-    + repeat for chunk 2 in the "Environments" tab change the extent (t,l,r,b): 6868893.686445,-10383464.5467503,-7114771.213417,2480613.686445
-    + mosaic the chunks
+    + export the raster layer as a .tif
+    + repeat for chunk 2 in the "Environments" tab change the Extent "X and Y Extent" (t,l,r,b): 6868893.686445,-10383464.5467503,-7114771.213417,2480613.686445
+    + Use the "Mosaic to New Raster" tool to combine the chunks using the maximum "Mosaic Operator" with a "Pixel Type" of 16-bit unsigned and 1 for "Number of Bands"
+    + export the raster layer as a .tif
     + upload to [Zenodo](https://zenodo.org/uploads/new)
 * we'll then define a download process to get our aggregated (90x90 m) forest type raster from Zenodo
 
 Even though this process is inefficient and manual (i.e. painful), it is preferable to using the the USFS Forest Type Groups of the Continental United States dataset ([Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379)) which is older, coarser in resolution (250x250 m), and uses a custom projection system that does not have a well-known EPSG available in the `terra` and `sf` packages. Endure the pain once, the grass may be greener on the other side.
+
+#### Get raw data
+
+Not used but works (see discussion above). This function pulls the data directly from the image server.
 
 ```{r, include=TRUE, eval=FALSE}
 # this is for: 
@@ -296,7 +301,11 @@ get_foresttype_raw <- function(savedir=NULL,force=F){
 }
 ```
 
-```{r, include=FALSE, eval=FALSE}
+#### Get cleaned data
+
+This function downloads the cleaned data from the Zenodo archive
+
+```{r, include=T, eval=T}
 # this is for: [Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379))
 # The Forest Type Groups dataset provides a broad classification of forest types at a 250-meter resolution 
 # and is available at: https://data.fs.usda.gov/geodata/rastergateway/forest_type/
@@ -364,20 +373,28 @@ unzip_download <- function(destination){
 call the function to download the data
 
 ```{r}
+# define dl dir
 savedir_temp <- "../data/"
+
 # what dirs do we have already?
 list.dirs(savedir_temp, recursive = F)
+
 # get the data
 get_foresttype(savedir = savedir_temp)
+## get_foresttype_raw(savedir = savedir_temp) # if want to test the raw image extraction
+
 # now what dirs?
 list.dirs(savedir_temp, recursive = F)
+
 # are there files in the foresttype dir?
 list.files(file.path(savedir_temp, "foresttype"))
 ```
 
-now we have to stitch this data together in a mosaic
+```{r, include=FALSE, eval=FALSE}
+##### if used the get_foresttype_raw() 
+##### saving to chronicle the struggle
 
-```{r}
+# now we have to stitch this data together in a mosaic
   ## read list of rasters
   rast_list_temp <- list.files(
       file.path(savedir_temp, "foresttype")
@@ -406,13 +423,15 @@ now we have to stitch this data together in a mosaic
     Sys.time()
 ```
 
+### Check the raster
+
 let's check this data
 
 ```{r}
 foresttype <- 
   # terra::rast("c:/Users/georg/Downloads/conus_forest-type/conus_foresttype.img")
   # terra::rast("../data/foresttype/foresttype.tif")
-  terra::rast("../data/foresttype/foresttype.tiff")
+  terra::rast("E:\\lidar_phys_fire_mods\\data\\foresttype.tif")
 # what?
 foresttype
 # layers?
@@ -440,9 +459,8 @@ terra::ext(foresttype) %>%
 quick map
 
 ```{r}
-foresttype %>% terra::plot()
+terra::plot(foresttype)
 ```
-
 
 let's check the values
 
@@ -451,6 +469,8 @@ terra::freq(foresttype) %>%
   dplyr::arrange(desc(count)) %>% 
   dplyr::slice_head(n = 12)
 ```
+
+### Forest type group data
 
 let's create a lookup table of these forest type groups using the data table from [Woudenberg et al. (2010)](https://scholar.google.com/scholar?cluster=15231222224736651671&hl=en&as_sdt=0,6) Appendix D
 
@@ -841,27 +861,150 @@ foresttype_lookup <-
   dplyr::filter(forest_type_code != "999" & tolower(forest_type) != "nonstocked")
 # huh?
 foresttype_lookup %>% dplyr::glimpse()
-foresttype_lookup %>% View()
 ```
 
-let's plot the Forest Type Groups dataset for our example area using our fancy lookup data
+export this for upload to [Zenodo](https://zenodo.org/uploads/new)
+
+```{r}
+foresttype_lookup %>% 
+  write.csv( 
+    file = file.path(savedir_temp, "foresttype_lookup.csv")
+    , append = F
+    , row.names = F
+  )
+```
+
+### Forest type group example
+
+let's look at the Forest Type Groups raster for our [example area](#rmnp_ex) and use our fancy lookup data to make use of the forest type group codes in the raster
 
 ```{r}
 # aoi
 box_temp <- cloud2trees_ans$crowns_sf %>% 
   sf::st_bbox() %>% 
   sf::st_as_sfc() %>% 
-  sf::st_buffer(500) %>% 
+  sf::st_buffer(200) %>% 
   terra::vect() %>% 
   terra::project(terra::crs(foresttype))
-# crop it an plot it
-foresttype %>% 
+# crop it and merge with the forest type group data
+aoi_temp <- foresttype %>% 
   terra::crop(box_temp) %>% 
   terra::mask(box_temp) %>% 
   as.data.frame(xy = T) %>% 
   dplyr::rename(forest_type_code=3) %>% 
-  dplyr::glimpse()
+  dplyr::mutate(forest_type_code = as.character(forest_type_code)) %>% 
+  dplyr::left_join(foresttype_lookup, by = "forest_type_code")
+# huh
+aoi_temp %>% dplyr::glimpse()
 ```
+
+let's plot the Forest Type Groups raster for our example area 
+
+```{r}
+# plot it
+  ggplot() +
+    geom_tile(
+      data = aoi_temp
+      , mapping = aes(x=x, y=y, fill=forest_type_group)
+      , color = NA
+      , alpha = 0.7
+    ) +
+    geom_sf(
+      data = cloud2trees_ans$crowns_sf %>% 
+        sf::st_bbox() %>% 
+        sf::st_as_sfc() %>% 
+        terra::vect() %>% 
+        terra::project(terra::crs(foresttype)) %>% 
+        sf::st_as_sf()
+      , fill = NA
+      , color = "navy"
+      , lwd = 1
+    ) +
+    labs(fill = "forest\ntype group", subtitle = "extent of lidar detected trees shown in blue") +
+    harrypotter::scale_fill_hp_d("lunalovegood", na.value = "black") +
+    theme_void()
+```
+
+this looks like the forest type we expected based on [RMNP example data](#rmnp_ex)
+
+also, note that there are raster cells that do not have a forest type. if a lidar-detected tree falls within one of these "no forest type" cells, we'll have to figure out how to fill in the forest type. perhaps we can use the majority based on the other trees that overlap cells with a forest type? but what if none of our trees overlap with an actual forest type? we'll have to figure out how to find the nearest cell with a forest type.
+
+## Forest Type to Tree List
+
+Now that we have all the data, let's define a process to attach the forest type group data to a lidar-derived tree list. Remember, there are raster cells that do not have a forest type. If a lidar-detected tree falls within one of these "no forest type" cells, we'll have to figure out how to fill in the forest type. Perhaps we can use the majority based on the other trees that overlap cells with a forest type? But what if none of our trees overlap with an actual forest type? We'll have to figure out how to find the nearest cell with a forest type.
+
+our input data is a tree list with location data
+
+```{r}
+cloud2trees_ans$treetops_sf %>% dplyr::glimpse()
+```
+
+we want to attach the forest type group data to the tree list
+
+```{r}
+foresttype
+```
+
+this is easy with `terra::extract()`
+
+```{r}
+tree_ftype_temp <- 
+  terra::extract(
+    x = foresttype
+    , y = cloud2trees_ans$treetops_sf %>%
+      terra::vect() %>% 
+      terra::project(terra::crs(foresttype)) # don't forget to reproject
+  ) 
+# huh?
+tree_ftype_temp %>% dplyr::glimpse()
+```
+
+now let's join it back with our data and check it
+
+```{r}
+treetops_sf_new <- cloud2trees_ans$treetops_sf %>% 
+  dplyr::mutate(
+    forest_type_code = tree_ftype_temp$foresttype %>% as.character()
+  ) %>% 
+  dplyr::left_join(foresttype_lookup, by = "forest_type_code")
+# huh?
+treetops_sf_new %>% dplyr::glimpse()
+```
+
+check it on the map
+
+```{r}
+# plot it
+  ggplot() +
+    geom_tile(
+      data = aoi_temp
+      , mapping = aes(x=x, y=y, fill=forest_type_group)
+      , color = NA
+      , alpha = 0.7
+    ) +
+    geom_sf(
+      data = treetops_sf_new %>% 
+        terra::vect() %>% 
+        terra::project(terra::crs(foresttype)) %>% # don't forget to reproject
+        sf::st_as_sf()
+      , mapping = aes(color = forest_type_group)
+      , show.legend = F
+    ) +
+    labs(fill = "forest\ntype group", subtitle = "lidar-detected tree points with forest type group") +
+    harrypotter::scale_fill_hp_d("lunalovegood", na.value = "black") +
+    harrypotter::scale_color_hp_d("lunalovegood", na.value = "black") +
+    theme_void()
+```
+
+looks good!
+
+now we need to figure out what to do if the tree data overlaps with raster cells with no forest type group...an idea i just had is to create a raster dataset with full coverage of forest type groups and just fill non-forest cells with the value from the nearest forest type. this "full coverage" data set could then be the master data we upload/download from Zenodo (since we're already using custom data) and apply the `terra::extract()` function
+
+
+```{r}
+
+```
+
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
