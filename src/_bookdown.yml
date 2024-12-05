@@ -1,4 +1,4 @@
-book_filename: "uas_sfm_tree_detection"
+book_filename: "lidar_phys_fire_mods"
 output_dir: "../docs"
 output: 
   bookdown::gitbook:

@@ -1218,7 +1218,7 @@ cloud2trees_ans$treetops_sf %>%
 let's define a function to put all of those steps together so that we can add it to `cloud2trees`
 
 ```{r}
-
+# do it then
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}

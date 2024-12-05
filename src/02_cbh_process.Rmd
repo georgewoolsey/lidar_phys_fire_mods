@@ -83,13 +83,13 @@ Presently, we will outline the end-to-end process for accomplishing this task gi
 
 ## Get some lidar data
 
-The USGS has a [lidar data explorer](https://apps.nationalmap.gov/lidar-explorer/#/). This data is non-standardized so it may be challenging to build any portable processes.
+```{r, include=FALSE, eval=FALSE}
+# The USGS has a [lidar data explorer](https://apps.nationalmap.gov/lidar-explorer/#/). This data is non-standardized so it may be challenging to build any portable processes.
+# 
+# I found an example area of interest and navigated to the [file storage directory](https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CO_Southwest_NRCS_2018_D18/CO_Southwest_NRCS_B3_2018/LAZ/)
+# 
+# We'll use the `rvest` package to download the las files programmatically.
 
-I found an example area of interest and navigated to the [file storage directory](https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CO_Southwest_NRCS_2018_D18/CO_Southwest_NRCS_B3_2018/LAZ/)
-
-We'll use the `rvest` package to download the las files programmatically.
-
-```{r}
 # url
 url <- "https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/CO_Southwest_NRCS_2018_D18/CO_Southwest_NRCS_B3_2018/LAZ/"
 # rvest read html
@@ -102,11 +102,10 @@ las_files <- chrs[1] %>%
   rvest::html_elements("a") %>% 
   rvest::html_text2() %>% 
   stringr::str_subset(".*\\.(laz|las)$")
-```
 
-download files
 
-```{r}
+# download files
+
 # increase the download timeout
 options(timeout = max(3600, getOption("timeout")))
 # function to download
@@ -139,17 +138,65 @@ dl_fn_ans <- las_files %>%
 # dl_fn_ans
 ```
 
+Let's load an example lidar dataset from Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) in their `NeonTreeEvaluation` package.
+
+We'll use data from a NEON site that we know has conifers: RMNP (Rocky Mountain National Park)
+
+```{r}
+# let's see some field trees data
+NeonTreeEvaluation::field %>% 
+  dplyr::filter(siteID == "RMNP") %>% 
+  dplyr::count(taxonID) %>% 
+  dplyr::arrange(desc(n))
+```
+
+let's pick a site with the lowest proportion of POTR5
+
+```{r}
+plots_temp <- NeonTreeEvaluation::field %>% 
+  dplyr::filter(siteID == "RMNP") %>% 
+  dplyr::group_by(plotID) %>% 
+  dplyr::summarise(
+    trees = dplyr::n()
+    , conifers = sum(ifelse(taxonID=="POTR5", 0, 1))
+  ) %>% 
+  dplyr::mutate(pct_conifer = conifers/trees) %>% 
+  dplyr::filter(trees>20) %>% 
+  dplyr::arrange(desc(pct_conifer), desc(trees))
+plots_temp
+```
+
+get the lidar data
+
+```{r}
+# get the laz file path
+las_f_path <- paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/") %>% 
+    list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% 
+    unique() %>% 
+    dplyr::as_tibble() %>%
+    dplyr::rename(f_path = 1) %>% 
+    dplyr::filter(
+      stringr::str_detect(f_path,  as.character(plots_temp[1,]$plotID))
+    ) %>% 
+    .[1] %>% 
+    dplyr::pull(f_path)
+# check the data
+lidR::readLAS(las_f_path)
+```
+
 where in the world is this data?
 
 ```{r}
-las_ctg <- lidR::readLAScatalog(dl_fn_ans)
+las_ctg <- lidR::readLAScatalog(las_f_path)
 mapview::mapview(las_ctg@data)
 ```
+
+*zoom out if you can't see anything*
 
 let's read one file
 
 ```{r}
-las <- lidR::readLAS(dl_fn_ans[13])
+las <- lidR::readLAS(las_f_path)
 las
 ```
 
@@ -175,12 +222,6 @@ rgl::setupKnitr(autoprint = TRUE)
 
 ```{r, rgl = TRUE}
 las %>% 
-  lidR::clip_roi(
-    las %>% 
-      sf::st_bbox() %>% 
-      sf::st_as_sfc() %>% 
-      sf::st_buffer(-400)
-  ) %>% 
   lidR::plot(
     color = "Z", breaks = "quantile", bg = "white", legend = T
    , pal = harrypotter::hp(n=50, house = "gryffindor")
@@ -198,21 +239,16 @@ gc()
 extract trees from the lidar data using `cloud2trees` to create some example tree-level point cloud data to test the `LadderFuelsR` function we define below with
 
 ```{r}
-if(F){ # lidar data
-  cloud2trees_ans <- cloud2trees::cloud2trees(
-    input_las_dir = dl_fn_ans[13]
-    , output_dir = "../data"
-    , estimate_tree_dbh = T
-    , keep_intrmdt = T
-  )
-  norm_las_dir <- "../data/point_cloud_processing_temp/02_normalize/"
-}else{ # lidar
-  cloud2trees_ans <- list(
-    crowns_sf = sf::st_read("../data/point_cloud_processing_delivery/final_detected_crowns.gpkg", quiet=T)
-    , treetops_sf = sf::st_read("../data/point_cloud_processing_delivery/final_detected_tree_tops.gpkg", quiet=T)
-  )
-  norm_las_dir <- "../data/point_cloud_processing_temp/02_normalize/"
-}
+cloud2trees_ans <- cloud2trees::cloud2trees(
+  input_las_dir = las_f_path
+  , output_dir = "../data"
+  , estimate_tree_dbh = F
+  , keep_intrmdt = T
+)
+norm_las_dir <- "../data/point_cloud_processing_temp/02_normalize/"
+# what?
+cloud2trees_ans %>% names()
+cloud2trees_ans$crowns_sf %>% dplyr::glimpse()
 ```
 
 clean it for `LadderFuelsR` to attach treeID to the point cloud
@@ -293,7 +329,7 @@ There are a few possible paths forward to get CBH from point cloud data:
 
 Let's build a function to combine the `LadderFuelsR` steps for estimating CBH from the individual tree point cloud. Our function will take a point cloud as input and return a data frame.
 
-```{r}
+```{r, eval=FALSE}
 ladderfuelsr_cbh <- function(
   las
   , treeID = NA
@@ -601,9 +637,14 @@ ladderfuelsr_cbh <- function(
 }
 ```
 
+```{r, include=FALSE, eval=TRUE}
+# pointsByZSlice from leafR causes errors
+pointsByZSlice <- leafR::pointsByZSlice
+```
+
 ```{r}
 # CALL IT
-ladderfuelsr_cbh_ans <- ladderfuelsr_cbh(
+ladderfuelsr_cbh_ans <- cloud2trees::ladderfuelsr_cbh(
   las = nlas_one_tree # %>% lidR::decimate_points(random(0.5))
 ) 
 ladderfuelsr_cbh_ans %>% names()
@@ -767,7 +808,7 @@ gc()
 
 first, an intermediate function to clip the point cloud to a polygon and run it through the `ladderfuelsr_cbh()` function we defined above
 
-```{r}
+```{r, eval=FALSE}
 call_ladderfuelsr_cbh <- function(
       id
       , poly_df
@@ -841,7 +882,7 @@ call_ladderfuelsr_cbh <- function(
 
 let's define a function for performing the CBH estimation over multiple trees and combining all of the data
 
-```{r}
+```{r, eval=FALSE}
 trees_cbh <- function(
   trees_poly
   , norm_las = NA
@@ -1246,7 +1287,7 @@ and from the package:
 We'll leave all of the other values at their default
 
 ```{r}
-trees_cbh_ans <- trees_cbh(
+trees_cbh_ans <- cloud2trees::trees_cbh(
   trees_poly = cloud2trees_ans$crowns_sf
   , norm_las = norm_las_dir # pull this from create_project_structure.R
   , tree_sample_prop = .5
@@ -1302,7 +1343,7 @@ We just calculated the estimates of CBH using custom parameter values for the `L
 
 ```{r}
 # compare to default values from LadderFuelsR
-trees_cbh_ans2 <- trees_cbh(
+trees_cbh_ans2 <- cloud2trees::trees_cbh(
   trees_poly = cloud2trees_ans$crowns_sf
   , norm_las = norm_las_dir
   , tree_sample_prop = .5
@@ -1437,7 +1478,7 @@ trees_cbh_ans %>%
 
 let's build a test for different levels of the `min_fuel_layer_ht_m` and `dist_btwn_bins_m` parameters
 
-we'll increase the sample proportion of data to attempt to extract a CBH from the point cloud for this exercise (`tree_sample_prop = 0.9` in `trees_cbh()`) for this exercise. we'll also hold the minimum number of vertical height profile records constant (`min_vhp_n = 2` in `trees_cbh()`). 
+we'll increase the sample proportion of data to attempt to extract a CBH from the point cloud for this exercise (`tree_sample_prop = 0.5` in `trees_cbh()`) for this exercise. we'll also hold the minimum number of vertical height profile records constant (`min_vhp_n = 2` in `trees_cbh()`). 
 
 we'll also put in a timer to see how long this generally takes.
 
@@ -1467,7 +1508,7 @@ test_cbh_fn <- function(i, my_min_vhp_n = 4, my_tree_sample_prop = 1) {
     dplyr::filter(dplyr::row_number()==i) %>% 
     dplyr::pull(dist_btwn_bins_m)
   # run it
-  safe_trees_cbh <- purrr::safely(trees_cbh)
+  safe_trees_cbh <- purrr::safely(cloud2trees::trees_cbh)
   st <- Sys.time()
   trees_cbh_ans <- safe_trees_cbh(
     trees_poly = cloud2trees_ans$crowns_sf
@@ -1516,11 +1557,13 @@ test_cbh_fn <- function(i, my_min_vhp_n = 4, my_tree_sample_prop = 1) {
 # run it
 test_cbh_dta <- 
   1:nrow(dta_temp) %>% 
-  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.9)) %>% 
+  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.5)) %>% 
   dplyr::bind_rows()
 ```
 
 which combinations caused errors?
+
+*Update: in the cloud2trees package I have included error handling so that the function does not return the errors that happen in the LadderfulesR package. Additionally, if no trees return CBH based on the parameters passed to the LadderfulesR package, I attempt update the parameters to settings that have previously been successful for most data sets to get a successful result in the trees_cbh() call.*
 
 ```{r}
 # which combinations caused errors?
@@ -1637,7 +1680,7 @@ if(F){
   cloud2trees_ans <- cloud2trees::cloud2trees(
     input_las_dir = "../data/uas"
     , output_dir = "../data/uas"
-    , estimate_tree_dbh = T
+    , estimate_tree_dbh = F
     , keep_intrmdt = T
   )
   norm_las_dir <- "../data/uas/point_cloud_processing_temp/02_normalize/"
@@ -1658,7 +1701,6 @@ lidR::readLAScatalog(
 )
 ```
 
-
 how many trees did we get?
 
 ```{r}
@@ -1672,10 +1714,10 @@ we'll reduce our sample to estimate cbh from
 here, we'll use the parameter settings in the `LadderFuelsR` process that we [found worked the best](#test_l2) for lidar point cloud data and we'll decrease the 
 
 ```{r}
-trees_cbh_ans <- trees_cbh(
+trees_cbh_ans <- cloud2trees::trees_cbh(
   trees_poly = cloud2trees_ans$crowns_sf
   , norm_las = norm_las_dir # pull this from create_project_structure.R
-  , tree_sample_prop = .3
+  , tree_sample_prop = .1
   , estimate_missing_cbh = T
   , which_cbh = "lowest"
   , min_vhp_n = 4 # = 2.5m with min_fuel_layer_ht_m=1 and dist_btwn_bins_m = 0.5
@@ -1730,11 +1772,13 @@ Notice here that we adjusted the `min_vhp_n` and `tree_sample_prop` in the `tree
 # run it
 test_cbh_dta_u <- 
   1:nrow(dta_temp) %>% 
-  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.25)) %>% 
+  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.1)) %>% 
   dplyr::bind_rows()
 ```
 
 which combinations caused errors?
+
+*Update: in the cloud2trees package I have included error handling so that the function does not return the errors that happen in the LadderfulesR package. Additionally, if no trees return CBH based on the parameters passed to the LadderfulesR package, I attempt update the parameters to settings that have previously been successful for most data sets to get a successful result in the trees_cbh() call.*
 
 ```{r}
 # which combinations caused errors?
