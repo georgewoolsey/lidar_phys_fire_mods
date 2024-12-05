@@ -216,7 +216,6 @@ conifer_plots %>%
 nice, now let's check which of these sites have lidar data
 
 ```{r}
-?NeonTreeEvaluation::list_field_stems()
 # let's pull out all sites with `.laz` data and create a data frame for tracking purposes
 las_df <-
   paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/") %>% 

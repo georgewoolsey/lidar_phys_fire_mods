@@ -375,7 +375,10 @@ call the function to download the data
 ```{r}
 # define dl dir
 savedir_temp <- "../data/"
+```
 
+
+```{r, eval=FALSE}
 # what dirs do we have already?
 list.dirs(savedir_temp, recursive = F)
 
@@ -933,6 +936,8 @@ also, note that there are raster cells that do not have a forest type. if a lida
 
 Now that we have all the data, let's define a process to attach the forest type group data to a lidar-derived tree list. Remember, there are raster cells that do not have a forest type. If a lidar-detected tree falls within one of these "no forest type" cells, we'll have to figure out how to fill in the forest type. Perhaps we can use the majority based on the other trees that overlap cells with a forest type? But what if none of our trees overlap with an actual forest type? We'll have to figure out how to find the nearest cell with a forest type.
 
+### Example with original forest type
+
 our input data is a tree list with location data
 
 ```{r}
@@ -998,11 +1003,108 @@ check it on the map
 
 looks good!
 
+### Get full coverage forest type
+
 now we need to figure out what to do if the tree data overlaps with raster cells with no forest type group...an idea i just had is to create a raster dataset with full coverage of forest type groups and just fill non-forest cells with the value from the nearest forest type. this "full coverage" data set could then be the master data we upload/download from Zenodo (since we're already using custom data) and apply the `terra::extract()` function
 
 
-```{r}
+first, mark all non-forest cells as "NA" in the raster
 
+```{r}
+# rcl = two column matrix ("is", "becomes") can be useful for classifying integer
+ # values. In that case, the arguments right and include.lowest are ignored.
+# unique type codes
+type_code_temp <- foresttype_lookup %>% 
+  dplyr::pull(forest_type_code) %>% 
+  as.numeric() %>% 
+  unique()
+# matrix
+rcl_temp <- c(type_code_temp, type_code_temp) %>%
+  matrix(ncol=2, byrow=F)
+# update raster to mark all non-forest cells as NA
+foresttype_fc <- foresttype %>%
+  terra::classify(
+    rcl = rcl_temp
+    , others = NA
+  ) 
+# huh?
+foresttype_fc %>% 
+  terra::freq() %>% 
+  dplyr::arrange(desc(count)) %>% 
+  dplyr::slice_head(n = 12)
+```
+
+NA vs non-NA
+
+```{r}
+# total cells
+terra::ncell(foresttype_fc)
+# na cells
+terra::global(foresttype_fc, fun = "isNA")
+```
+
+here is a toy example of what we're going to do
+
+```{r}
+# toy example
+r_temp <- terra::rast(ncols=100, nrows=100)
+r1_temp <- terra::setValues(r_temp, runif(ncell(r_temp)))
+r1_temp[500:2000] <- NA
+r1_temp
+terra::plot(r1_temp)
+# fill
+y1_temp <- terra::focal(r1_temp, w = 3, fun = "modal", na.policy = "only", na.rm = T)
+terra::plot(y1_temp, main = "first na fill")
+# fill again
+y1_temp <- terra::focal(y1_temp, w = 3, fun = "modal", na.policy = "only", na.rm = T)
+terra::plot(y1_temp, main = "second na fill")
+# ok, function to keep filling until no na
+fill_rast_na <- function(rast, my_fun = "modal") {
+  # count na's
+  na_n <- terra::global(rast, fun = "isNA")
+  while(na_n>0){
+    rast <- terra::focal(rast, w = 3, fun = my_fun, na.policy = "only", na.rm = T)
+    # counter
+    na_n <- terra::global(rast, fun = "isNA")
+  }
+  return(rast)
+}
+# apply the full fill function
+y1_temp <- fill_rast_na(rast = y1_temp)
+terra::plot(y1_temp, main = "final na fill")
+```
+
+original plot of the forest type raster
+
+```{r}
+foresttype_fc %>% terra::plot(main = "original forest type raster")
+```
+
+let's take the `fill_rast_na()` for a spin with our forest type raster...it might take a while with so many empty cells
+
+```{r}
+foresttype_fc <- fill_rast_na(foresttype_fc)
+```
+
+.....
+..................
+........................
+...and a few hours later we are back
+
+with the updated data plot
+
+```{r}
+foresttype_fc %>% terra::plot(main = "NA filled forest type raster")
+```
+
+let's save this for upload to Zenodo
+
+```{r}
+terra::writeRaster(
+  foresttype_fc
+  , filename = file.path(savedir_temp, "foresttype_full_cov.tif")
+  , overwrite = T
+)
 ```
 
 
