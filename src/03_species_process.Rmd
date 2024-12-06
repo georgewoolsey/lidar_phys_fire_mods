@@ -866,6 +866,15 @@ foresttype_lookup <-
 foresttype_lookup %>% dplyr::glimpse()
 ```
 
+let's get some examples
+
+```{r}
+foresttype_lookup %>% 
+  dplyr::count(forest_type_group_code, forest_type_group) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::slice_head(n = 12)
+```
+
 export this for upload to [Zenodo](https://zenodo.org/uploads/new)
 
 ```{r}
@@ -1120,8 +1129,8 @@ fill_rast_na <- function(rast, interp = F){
   p_temp <- terra::as.points(rast)
   # sets the search radius to the max
   r_temp <- max(
-    terra::nrow(foresttype_temp)*terra::res(foresttype_temp)[1]
-    , terra::ncol(foresttype_temp)*terra::res(foresttype_temp)[2]
+    terra::nrow(rast)*terra::res(rast)[1]
+    , terra::ncol(rast)*terra::res(rast)[2]
   )
   # nearest neighbor interpolate
   rast_fill <- terra::interpNear(
@@ -1144,6 +1153,7 @@ foresttype_temp <- fill_rast_na(foresttype_temp)
 ```
 
 ![](https://i.kym-cdn.com/photos/images/small/000/401/464/3e8.jpg)
+
 ...just kidding, but if we were to use the entire extent of the US that might be true
 
 with the updated data plot
@@ -1213,13 +1223,263 @@ cloud2trees_ans$treetops_sf %>%
   dplyr::count(forest_type_group)
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(foresttype, foresttype_lookup)
+gc()
+```
+
 ### Fill missing forest type function
 
 let's define a function to put all of those steps together so that we can add it to `cloud2trees`
 
 ```{r}
-# do it then
+trees_species <- function(
+  tree_list
+  , crs = NA
+  , study_boundary = NA
+  , input_foresttype_dir = paste0(system.file(package = "cloud2trees"),"/extdata/foresttype")
+){
+  ##################################
+  # ensure that tree data exists
+  ##################################
+  f <- tree_list %>% names()
+  if(length(f)==0){f <- ""}
+  if(
+    max(grepl("treeID", f))==0
+  ){
+    stop(paste0(
+      "`tree_list` data must contain `treeID` column."
+      , "\nProvide the `treeID` as a unique identifier of individual trees."
+    ))
+  }
+
+  ##################################
+  # convert to spatial points data
+  ##################################
+  if(inherits(tree_list, "sf")){
+    # if points, just use it
+    if( min(sf::st_is(tree_list, type = c("POINT", "MULTIPOINT"))) == 1 ){
+      tree_tops <- tree_list %>%
+        dplyr::mutate(
+          tree_x = sf::st_coordinates(.)[,1]
+          , tree_y = sf::st_coordinates(.)[,2]
+          , treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m)
+        )
+    }else{ # if spatial but not points, drop geom and set to points
+      if(
+        max(grepl("tree_x", names(tree_list)))==0
+        | max(grepl("tree_y", names(tree_list)))==0
+      ){ # doesn't contain x,y
+        tree_tops <- tree_list %>%
+          sf::st_centroid() %>%
+          dplyr::mutate(
+            tree_x = sf::st_coordinates(.)[,1]
+            , tree_y = sf::st_coordinates(.)[,2]
+            , treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m)
+          )
+      }
+      tree_tops <- tree_list %>%
+        sf::st_drop_geometry() %>%
+        sf::st_as_sf(
+          coords = c("tree_x", "tree_y"), crs = sf::st_crs(tree_list)
+          , remove = F
+        ) %>%
+        dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
+    }
+  }else{ # not spatial data
+    # convert from data.frame to spatial points
+    if(!inherits(tree_list, "data.frame")){
+      stop("must pass a data.frame or sf object to the `tree_list` parameter")
+    }
+    if(is.na(crs) | is.na(readr::parse_number(as.character(crs)))){
+      stop("must provide the EPSG code in `crs` parameter for the projection of x,y data")
+    }
+    tree_tops <- tree_list %>%
+      sf::st_as_sf(
+        coords = c("tree_x", "tree_y")
+        , crs = paste0( "EPSG:", readr::parse_number(as.character(crs)) )
+        , remove = F
+      ) %>%
+      dplyr::mutate(treeID = as.character(treeID), tree_height_m = as.numeric(tree_height_m))
+  }
+
+  # check for duplicate treeID
+  if(
+    nrow(tree_tops) != length(unique(tree_tops$treeID))
+  ){
+    stop("Duplicates found in the treeID column. Please remove duplicates and try again.")
+  }
+  # get rid of columns we'll create
+    tree_tops <- tree_tops %>%
+      # throw in hey_xxxxxxxxxx to test it works if we include non-existant columns
+      dplyr::select( -dplyr::any_of(c(
+        "hey_xxxxxxxxxx"
+        , "forest_type_group_code"
+        , "forest_type_group"
+        , "hardwood_softwood"
+      )))
+  
+  ##################################
+  # check/load foresttype data. see get_foresttype()
+  ##################################
+  f <- tolower(list.files(normalizePath(input_foresttype_dir)))
+  if(length(f)==0){f <- ""}
+  if(
+    max(grepl("foresttype.tif", f))==0 || max(grepl("foresttype_lookup.csv", f))==0
+  ){
+    stop("Forest Type data has not been downloaded to package contents. Use `get_foresttype()` first.")
+  }else{
+    # get the foresttypdata
+    foresttype <- terra::rast(
+        file.path(normalizePath(input_foresttype_dir), "foresttype.tif")
+      )
+    # get the lookup
+    foresttype_lookup <- readr::read_csv(
+        file.path(normalizePath(input_foresttype_dir), "foresttype_lookup.csv")
+        , progress = F
+        , show_col_types = F
+      ) %>% 
+      dplyr::mutate(dplyr::across(
+        dplyr::everything()
+        , as.character
+      ))
+  }
+    
+  ##################################
+  # define extent to crop forest type raster
+  ##################################
+    # get extent of trees data
+    bbox_temp <- tree_tops %>% sf::st_bbox()
+    # find largest side
+    buffer_temp <- max(
+        bbox_temp["xmax"]-bbox_temp["xmin"]
+        , bbox_temp["ymax"]-bbox_temp["ymin"]
+      ) %>% 
+      max(1000)
+    
+    # check against the study boundary
+    if(inherits(study_boundary, "sf") | inherits(study_boundary, "sfc")){
+      bbox_b_temp <- study_boundary %>%
+        sf::st_union() %>%
+        sf::st_as_sf() %>%
+        sf::st_transform(sf::st_crs(tree_tops)) %>%
+        sf::st_bbox()
+      # find largest side and compare to current setting from trees
+      buffer_b_temp <- max(
+          bbox_b_temp["xmax"]-bbox_b_temp["xmin"]
+          , bbox_b_temp["ymax"]-bbox_b_temp["ymin"]
+        )
+      # reset bbox and buffer if larger
+      if(buffer_b_temp>buffer_temp){
+        buffer_temp <- buffer_b_temp
+        bbox_temp <- bbox_b_temp
+      }
+    }
+    
+    # apply the buffer to get the extent
+    ext_temp <- bbox_temp %>% 
+      sf::st_as_sfc() %>% 
+      sf::st_buffer(buffer_temp, endCapStyle = "SQUARE") %>% 
+      terra::vect() %>% 
+      terra::project(terra::crs(foresttype))
+
+  ##################################
+  # mask the raster to this extent
+  ##################################
+    foresttype_temp <- foresttype %>% 
+      terra::crop(ext_temp) %>% # crop it first to make if faster
+      terra::mask(ext_temp)
+
+    # mark all non-forest cells as "NA" in the cropped raster
+    # rcl = two column matrix ("is", "becomes") can be useful for classifying integer
+     # values. In that case, the arguments right and include.lowest are ignored.
+    # unique type codes
+    type_code_temp <- foresttype_lookup %>% 
+      dplyr::pull(forest_type_code) %>% 
+      as.numeric() %>% 
+      unique()
+    # matrix
+    rcl_temp <- c(type_code_temp, type_code_temp) %>%
+      matrix(ncol=2, byrow=F)
+    # update raster to mark all non-forest cells as NA
+    foresttype_temp <- foresttype_temp %>%
+      terra::classify(
+        rcl = rcl_temp
+        , others = NA
+      ) 
+
+  ##################################
+  # fill na values in the raster using nearest neighbor
+  ##################################
+    foresttype_temp <- fill_rast_na(foresttype_temp)
+    
+  ##################################
+  # attach forest type to our original tree list
+  ##################################
+    # now we apply the `terra::extract()` function to attach forest type to our original tree list 
+    tree_ftype_temp <- 
+      terra::extract(
+        x = foresttype_temp
+        , y = tree_tops %>%
+          terra::vect() %>% 
+          terra::project(terra::crs(foresttype)) # don't forget to reproject
+      ) 
+    if(length(tree_ftype_temp$foresttype)==nrow(tree_tops)){
+      # now let's join it back with our data and check it
+      tree_tops <- tree_tops %>% 
+        dplyr::mutate(
+          forest_type_code = tree_ftype_temp$foresttype %>% as.character()
+        ) %>% 
+        dplyr::left_join(
+          foresttype_lookup %>% 
+            dplyr::select(
+              forest_type_code
+              , forest_type_group_code
+              , forest_type_group
+              , hardwood_softwood
+            )
+          , by = "forest_type_code"
+        ) %>% 
+        dplyr::select(-forest_type_code)
+    }else{ # if 
+      tree_tops <- tree_tops %>% 
+        dplyr::mutate(
+          forest_type_group_code = as.character(NA)
+          , forest_type_group = as.character(NA)
+          , hardwood_softwood = as.character(NA)
+        )
+      message(paste0(
+        "Unable to determine forest type for this tree list and study boundary (if provided)."
+        , "\nTry expanding the study boundary area or ensure that your tree data is in the continental US."
+      ))
+    }
+  
+  # return
+  return(tree_tops)
+}
 ```
+
+let's test this function with our example data
+
+```{r}
+trees_species_ans <- trees_species(
+  cloud2trees_ans$treetops_sf
+  , input_foresttype_dir = "E:\\lidar_phys_fire_mods\\data\\"
+)
+# ?what?
+trees_species_ans %>% dplyr::glimpse()
+```
+
+what is our forest type distribution?
+
+```{r}
+trees_species_ans %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(forest_type_group, hardwood_softwood)
+```
+
+let's put this in to `cloud2trees`
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])

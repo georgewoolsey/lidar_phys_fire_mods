@@ -1772,7 +1772,7 @@ Notice here that we adjusted the `min_vhp_n` and `tree_sample_prop` in the `tree
 # run it
 test_cbh_dta_u <- 
   1:nrow(dta_temp) %>% 
-  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.1)) %>% 
+  purrr::map(\(x) test_cbh_fn(x, my_min_vhp_n = 4, my_tree_sample_prop = 0.08)) %>% 
   dplyr::bind_rows()
 ```
 
