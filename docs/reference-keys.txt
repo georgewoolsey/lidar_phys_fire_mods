@@ -62,4 +62,6 @@ forest-type-group-example
 forest-type-to-tree-list
 example-with-original-forest-type
 fill-missing-forest-type-example
-fill-missing-forest-type-function
+fill-missing-forest-type-resilience
+find-another-way-with-huge-rasters
+get-forest-type-function
