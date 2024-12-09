@@ -169,8 +169,8 @@ define a function to download the data
     + repeat for chunk 2 in the "Environments" tab change the Extent "X and Y Extent" (t,l,r,b): 6868893.686445,-10383464.5467503,-7114771.213417,2480613.686445
     + Use the "Mosaic to New Raster" tool to combine the chunks using the maximum "Mosaic Operator" with a "Pixel Type" of 16-bit unsigned and 1 for "Number of Bands"
     + export the raster layer as a .tif
-    + upload to [Zenodo](https://zenodo.org/uploads/new)
-* we'll then define a download process to get our aggregated (90x90 m) forest type raster from Zenodo
+    + upload to [Zenodo](https://doi.org/10.5281/zenodo.14338873)
+* we'll then define a download process to get our aggregated (90x90 m) forest type raster from [Zenodo](https://doi.org/10.5281/zenodo.14338873)
 
 Even though this process is inefficient and manual (i.e. painful), it is preferable to using the the USFS Forest Type Groups of the Continental United States dataset ([Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379)) which is older, coarser in resolution (250x250 m), and uses a custom projection system that does not have a well-known EPSG available in the `terra` and `sf` packages. Endure the pain once, the grass may be greener on the other side.
 
@@ -303,38 +303,37 @@ get_foresttype_raw <- function(savedir=NULL,force=F){
 
 #### Get cleaned data
 
-This function downloads the cleaned data from the Zenodo archive
+This function downloads the cleaned data from the [Zenodo](https://doi.org/10.5281/zenodo.14338873) archive
 
 ```{r, include=T, eval=T}
-# this is for: [Ruefenacht et al. 2008](https://doi.org/10.14358/PERS.74.11.1379))
-# The Forest Type Groups dataset provides a broad classification of forest types at a 250-meter resolution 
-# and is available at: https://data.fs.usda.gov/geodata/rastergateway/forest_type/
-#   ...select the "Conus Forest Type"
+# this is for: [Wilson 2023](https://www.arcgis.com/home/item.html?id=10760c83b9e44923bd3c18efdaa7319d))
+# The Forest Type Groups dataset provides a broad classification of forest types at a 30-meter resolution 
+
 get_foresttype <- function(savedir=NULL,force=F){
   #Store users timeout options
   timeout_option_backup <- getOption("timeout")
   options(timeout = max(3600, getOption("timeout")))
-
+  
+  ## directory names
   if(is.null(savedir)){
     # create dir
     dir.create(paste0(system.file(package = "cloud2trees"),"/extdata"), showWarnings = FALSE)
     # names
-    destination <- paste0(system.file(package = "cloud2trees"),"/extdata/foresttype.zip")
     dirname <- paste0(system.file(package = "cloud2trees"),"/extdata/foresttype")
+    destination <- file.path(dirname,"foresttype.zip")
   }else{
-    destination <- file.path(savedir,"foresttype.zip")
     dirname <- file.path(savedir,"foresttype")
+    destination <- file.path(dirname,"foresttype.zip")
   }
   # create dir
   dir.create(dirname, showWarnings = FALSE)
-
   #check if already exists.
-  f_dir <- file.path(dirname(destination),"foresttype/")
+  f_dir <- file.path(dirname(destination))
   # f_dir <- paste0(system.file("extdata", "foresttype/", package = "cloud2trees"))
-  f <- toupper(list.files(f_dir))
+  f <- tolower(list.files(f_dir))
   if(length(f)==0){f <- ""}
   if(
-    max(grepl("TREEMAP2016.TIF", f))==1 & max(grepl("TREEMAP2016_TREE_TABLE.CSV", f))==1
+    max(grepl("foresttype_lookup.csv", f))==1 && max(grepl("foresttype.tif", f))==1
   ){
     if(!force){
       warning(paste("Data has already been downloaded to",dirname,", use force=T to overwrite"))
@@ -343,9 +342,17 @@ get_foresttype <- function(savedir=NULL,force=F){
   }
 
   # get data
-  eval_url <- "https://s3-us-west-2.amazonaws.com/fs.usda.rds/RDS-2021-0074/RDS-2021-0074_Data.zip"
+    # published to zenodo here:
+      # https://doi.org/10.5281/zenodo.14338873
+      
+    # download link
+      # https://zenodo.org/records/14338874/files/foresttype.zip?download=1
+      # https://zenodo.org/records/14343811/files/foresttype.zip?download=1
+  eval_url <- "https://zenodo.org/records/14343811/files/foresttype.zip?download=1"
   message(paste("Downloading file to",destination))
   download.file(eval_url, destination, mode = "wb")
+  
+  # unzip
   unzip_download(destination)
 
   options(timeout = timeout_option_backup)
@@ -354,19 +361,12 @@ get_foresttype <- function(savedir=NULL,force=F){
 unzip_download <- function(destination){
   #location of unzip
   base_dir <- dirname(destination)
-
+  
   #get file names
-  unzip_folder <- unzip(destination, list = TRUE)$Name[1]
-  unzipped_folder <- file.path(base_dir,unzip_folder)
-  unzip(destination,exdir=base_dir)
-  final_name <- file.path(base_dir,"foresttype/")
+  unzip(destination, exdir=base_dir)
 
   #Force delete of any previous folder
-  unlink(final_name,recursive = T)
-  file.rename(unzipped_folder,final_name)
-
-  #Remove zipped files
-  unlink(destination)
+  unlink(destination,recursive = T)
 }
 ```
 
@@ -378,7 +378,7 @@ savedir_temp <- "../data/"
 ```
 
 
-```{r, eval=FALSE}
+```{r}
 # what dirs do we have already?
 list.dirs(savedir_temp, recursive = F)
 
@@ -431,10 +431,9 @@ list.files(file.path(savedir_temp, "foresttype"))
 let's check this data
 
 ```{r}
-foresttype <- 
-  # terra::rast("c:/Users/georg/Downloads/conus_forest-type/conus_foresttype.img")
-  # terra::rast("../data/foresttype/foresttype.tif")
-  terra::rast("E:\\lidar_phys_fire_mods\\data\\foresttype.tif")
+foresttype <- terra::rast(
+  file.path(savedir_temp, "foresttype", "foresttype.tif")
+)
 # what?
 foresttype
 # layers?
@@ -475,7 +474,7 @@ terra::freq(foresttype) %>%
 
 ### Forest type group data
 
-let's create a lookup table of these forest type groups using the data table from [Woudenberg et al. (2010)](https://scholar.google.com/scholar?cluster=15231222224736651671&hl=en&as_sdt=0,6) Appendix D
+let's create a lookup table of these forest type groups using the data table from [Woudenberg et al. (2010; Appendix D)](https://scholar.google.com/scholar?cluster=15231222224736651671&hl=en&as_sdt=0,6) 
 
 ```{r}
 foresttype_lookup <- 
@@ -841,8 +840,8 @@ foresttype_lookup <-
   dplyr::mutate(
     forest_type_group = dplyr::first(forest_type_group, na_rm = T)
     , hardwood_softwood = dplyr::case_when(
-      as.numeric(forest_type_group_code) > 370 ~ "Hardwood"
-      , as.numeric(forest_type_group_code) <= 370 ~ "Softwood"
+      as.numeric(forest_type_group_code) > 399 ~ "Hardwood"
+      , as.numeric(forest_type_group_code) <= 399 ~ "Softwood"
       , T ~ "Error"
     )
   ) %>% 
@@ -850,13 +849,13 @@ foresttype_lookup <-
   # some type groups are missing...lump them into other
   dplyr::mutate(
     forest_type_group_code = dplyr::case_when(
-      is.na(forest_type_group) & as.numeric(forest_type_code) > 370 ~ "960"
-      , is.na(forest_type_group) & as.numeric(forest_type_code) <= 370 ~ "390"
+      is.na(forest_type_group) & as.numeric(forest_type_code) > 399 ~ "960"
+      , is.na(forest_type_group) & as.numeric(forest_type_code) <= 399 ~ "390"
       , T ~ forest_type_group_code
     )
     , forest_type_group = dplyr::case_when(
-      is.na(forest_type_group) & as.numeric(forest_type_code) > 370 ~ "Other hardwoods group"
-      , is.na(forest_type_group) & as.numeric(forest_type_code) <= 370 ~ "Other softwoods group"
+      is.na(forest_type_group) & as.numeric(forest_type_code) > 399 ~ "Other hardwoods group"
+      , is.na(forest_type_group) & as.numeric(forest_type_code) <= 399 ~ "Other softwoods group"
       , T ~ forest_type_group
     )
   ) %>% 
@@ -1047,7 +1046,7 @@ ext_temp <- bbox_temp %>%
 
 mask the raster to this extent
 
-```{r}
+```{r, results = F, echo = F}
 foresttype_temp <- foresttype %>% 
   terra::crop(ext_temp) %>% # crop it first to make if faster
   terra::mask(ext_temp)
@@ -1055,7 +1054,7 @@ foresttype_temp <- foresttype %>%
 
 mark all non-forest cells as "NA" in the cropped raster
 
-```{r}
+```{r, results = F, echo = F}
 # rcl = two column matrix ("is", "becomes") can be useful for classifying integer
  # values. In that case, the arguments right and include.lowest are ignored.
 # unique type codes
@@ -1121,7 +1120,7 @@ p1_temp
 
 in this example we don't happen to have an NA cells that overlap with our tree data, but that's ok as we are just demonstrating the process
 
-lets's make a quick function to fill the NA raster cells using nearest neighbor interpolation
+lets's make a quick function to fill the NA raster cells using nearest neighbor interpolation implemented via `terra::voronoi()`
 
 ```{r}
 fill_rast_na <- function(rast){
@@ -1345,7 +1344,7 @@ ext_temp <- bbox_temp %>%
 
 mask the raster to this extent
 
-```{r}
+```{r, results = F, echo = F}
 foresttype_temp <- foresttype %>% 
   terra::crop(ext_temp) %>% # crop it first to make if faster
   terra::mask(ext_temp)
@@ -1353,7 +1352,7 @@ foresttype_temp <- foresttype %>%
 
 mark all non-forest cells as "NA" in the cropped raster
 
-```{r}
+```{r, results = F, echo = F}
 # rcl = two column matrix ("is", "becomes") can be useful for classifying integer
  # values. In that case, the arguments right and include.lowest are ignored.
 # unique type codes
@@ -1416,7 +1415,7 @@ let's try a different approach whereby we:
 * fill NA cells of our reduced resolution raster using the same `fill_rast_na()` process
 * update only the original resolution NA cells using the cell value of the NA-filled lower resolution raster
 
-```{r}
+```{r, results = F, echo = F}
 #  check if huge
 area_m2_temp <- bbox_temp %>% 
     sf::st_as_sfc() %>% 
@@ -1766,7 +1765,7 @@ trees_species <- function(
         
       }else{
         # `fill_rast_na()` process
-        fill_rast_na_ans <- safe_fill_rast_na(agg_foresttype_temp)
+        fill_rast_na_ans <- safe_fill_rast_na(foresttype_temp)
         
         # if no error keep going
         if(is.null(fill_rast_na_ans$error)){
@@ -1826,7 +1825,10 @@ trees_species <- function(
     }
   
   # return
-  return(tree_tops)
+  return(list(
+    tree_list = tree_tops
+    , foresttype_rast = foresttype_temp
+  ))
 }
 #######################################################
 # intermediate function 1
@@ -1877,21 +1879,23 @@ trees_species <- function(
 #######################################################
   # determine factor to fill
   get_fact_fn <- function(a_m2) {
-    dplyr::case_when(
-      # 150M = 2; 200M = 2;...;500M = 5; 550M = 6;...; 900M = 9
-      a_m2>150e+9 ~ round(a_m2*1e-11)
-      , T ~ 1
-    )
+    # 150M = 2; 200M = 2;...;500M = 5; 550M = 6;...; 900M = 9
+      max(round(a_m2*1e-11), 1)
   }
 ```
 
 let's test this function with our example data
 
-```{r}
+```{r, results=F, echo = F}
 trees_species_ans <- trees_species(
   cloud2trees_ans$treetops_sf
   , input_foresttype_dir = "E:\\lidar_phys_fire_mods\\data\\"
 )
+```
+
+what did we get back?
+
+```{r}
 # ?what?
 trees_species_ans %>% dplyr::glimpse()
 ```
@@ -1899,12 +1903,94 @@ trees_species_ans %>% dplyr::glimpse()
 what is our forest type distribution?
 
 ```{r}
-trees_species_ans %>% 
+trees_species_ans$tree_list %>% 
   sf::st_drop_geometry() %>% 
   dplyr::count(forest_type_group, hardwood_softwood)
 ```
 
-let's put this in to `cloud2trees`
+let's test with an area that we know doesn't have any trees near the southeast corner of Colorado
+
+```{r}
+tl_temp <- 
+  dplyr::tibble(x = "-102.0418" %>% paste0(c(1:9)) %>% as.numeric()) %>% 
+  tidyr::crossing(
+    dplyr::tibble(y = "36.9924" %>% paste0(c(1:9)) %>% as.numeric())
+  ) %>% 
+  dplyr::distinct() %>% 
+  sf::st_as_sf(coords = c("x", "y"), crs = sf::st_crs(4326), remove = F) %>% 
+  # reproject to get horizontal units in meters
+    # "NAD83 / Conus Albers"
+  sf::st_transform(sf::st_crs(5070)) %>% 
+  dplyr::mutate(treeID = dplyr::row_number())
+```
+
+where is this?
+
+```{r}
+mapview::mapview(tl_temp, zcol = "treeID", legend = F, layer.name = "trees")
+```
+*zoom out if you can't see anything*
+
+let's test the `trees_species()` function with these trees that aren't anywhere near a forest and expand the `max_search_dist_m` parameter to allow for species very far away to be attached to this tree list
+
+```{r, results=F, echo=FALSE}
+trees_species_ans <- trees_species(
+  tl_temp
+  , input_foresttype_dir = "E:\\lidar_phys_fire_mods\\data\\"
+  , max_search_dist_m = 1000*50
+)
+```
+
+what is our forest type distribution?
+
+```{r}
+trees_species_ans$tree_list %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(forest_type_group, hardwood_softwood)
+```
+
+let's check the points with our `foresttype_rast` layer that we got back from the `trees_species()` function
+
+```{r}
+trees_species_ans$foresttype_rast %>% 
+  terra::aggregate(fact = 3, fun = "modal", cores = lasR::half_cores()) %>% 
+  as.data.frame(xy = T) %>% 
+  dplyr::rename(f=3) %>% 
+  ggplot() +
+    geom_tile(mapping = aes(x=x, y=y, fill=as.factor(f)), color = NA) +
+    geom_sf(
+      data = trees_species_ans$tree_list %>% 
+        # change projection to match 
+        sf::st_transform(
+          trees_species_ans$foresttype_rast %>% 
+            terra::crs(describe = T) %>% 
+            dplyr::pull(code) %>% 
+            as.numeric() %>% 
+            sf::st_crs()
+        )
+      , mapping = aes(color = forest_type_group)
+      , size = 4
+    ) +
+    scale_fill_viridis_d(begin = 0.2, alpha = 0.7) +
+    scale_color_viridis_d(begin = 0.2) +
+    labs(fill = "raster\nforest type code", color = "trees\nforest type") +
+    theme_void()
+```
+
+what does this raster extent include on the map?
+
+```{r}
+trees_species_ans$foresttype_rast %>% 
+  terra::ext() %>% 
+  terra::vect() %>% 
+  terra::set.crs(terra::crs(trees_species_ans$foresttype_rast)) %>% 
+  sf::st_as_sf() %>% 
+  mapview::mapview()
+```
+
+visual inspection of the satellite imagery indicates that there might be bands of pinyon-juniper in the central and southeast section of this search area
+
+let's put the `trees_species()` function in to `cloud2trees`
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
