@@ -1,0 +1,351 @@
+# Height to Maximum Diameter Process{#s04}
+
+In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to test a process for extracting the height of the maximum canopy diameter (HMD) using point cloud data. Our process will use individual trees and tree crowns detected from the point cloud, find the maximum width of point within the individual tree point cloud, and extract the height of those points. In short, we will determine HMD can by analyzing the vertical profile of the tree crown and identifying the height at which the crown diameter is maximum. The ultimate goal is to incorporate this process in the [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package (Woolsey and Tinkham, 2024).
+
+An early version of this process was developed by [Andrew Sanchez Meador](https://github.com/bi0m3trics).
+
+First, load the standard libraries
+
+```{r, warning=FALSE, message=FALSE}
+# bread-and-butter
+library(tidyverse) # the tidyverse
+library(viridis) # viridis colors
+library(harrypotter) # hp colors
+library(RColorBrewer) # brewer colors
+library(scales) # work with number and plot scales
+library(latex2exp)
+
+# visualization
+library(mapview) # interactive html maps
+library(kableExtra) # tables
+library(patchwork) # combine plots
+library(ggnewscale) # ggnewscale
+library(rgl) # rgl plotting
+
+# spatial analysis
+library(terra) # raster
+library(sf) # simple features
+library(lidR) # lidar data
+library(cloud2trees) # tha cloud2trees
+library(NeonTreeEvaluation) # benchmark data
+
+```
+
+```{r, include=F, warning=F, message=F}
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  # , results = 'hide'
+  , fig.width = 10.5
+  , fig.height = 7
+)
+# option to put satellite imagery as base layer of mapview maps
+  mapview::mapviewOptions(
+    homebutton = FALSE
+    # , basemaps = c("Esri.WorldImagery","OpenStreetMap")
+    , basemaps = c("Esri.WorldImagery", "OpenStreetMap")
+  )
+# clean session
+remove(list = ls())
+gc()
+```
+
+## Example Lidar Data{#rmnp_ex}
+
+Let's load an example lidar dataset from Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) in their `NeonTreeEvaluation` package.
+
+We'll use data from a NEON site that we know has conifers: RMNP (Rocky Mountain National Park)
+
+```{r}
+# let's see some field trees data
+NeonTreeEvaluation::field %>% 
+  dplyr::filter(siteID == "RMNP") %>% 
+  dplyr::count(taxonID) %>% 
+  dplyr::arrange(desc(n))
+```
+
+let's pick a site with the lowest proportion of POTR5
+
+```{r}
+plots_temp <- NeonTreeEvaluation::field %>% 
+  dplyr::filter(siteID == "RMNP") %>% 
+  dplyr::group_by(plotID) %>% 
+  dplyr::summarise(
+    trees = dplyr::n()
+    , conifers = sum(ifelse(taxonID=="POTR5", 0, 1))
+  ) %>% 
+  dplyr::mutate(pct_conifer = conifers/trees) %>% 
+  dplyr::filter(trees>20) %>% 
+  dplyr::arrange(desc(pct_conifer), desc(trees))
+plots_temp
+```
+
+get the lidar data
+
+```{r}
+# get the laz file path
+las_f_path_temp <- paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/") %>% 
+    list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% 
+    unique() %>% 
+    dplyr::as_tibble() %>%
+    dplyr::rename(f_path = 1) %>% 
+    dplyr::filter(
+      stringr::str_detect(f_path,  as.character(plots_temp[1,]$plotID))
+    ) %>% 
+    .[1] %>% # pulls the plot with the highest conifer proportion
+    dplyr::pull(f_path)
+# check the data
+lidR::readLAS(las_f_path_temp)
+```
+
+### `cloud2trees` that lidar data
+
+extract trees from the lidar data using `cloud2trees`
+
+we do not need to get DBH or CBH for this testing
+
+```{r, message=FALSE, results=FALSE}
+# save our output_dir
+od <- tempdir()
+# cloud2trees
+cloud2trees_ans <- cloud2trees::cloud2trees(
+  input_las_dir = las_f_path_temp
+  , output_dir = od
+  , keep_intrmdt = T
+)
+```
+
+let's see what we got
+
+```{r}
+cloud2trees_ans$treetops_sf %>% dplyr::glimpse()
+```
+
+where is this?
+
+```{r}
+# where?
+cloud2trees_ans$treetops_sf %>% 
+  mapview::mapview(layer.name = "trees")
+```
+
+*zoom out if you can't see anything*
+
+## Height to Max Crown Diameter
+
+First, let's attach the `treeID` column to the normalized point cloud using `lidR::merge_spatial()`. This function allows for only polygons so we need to get rid of the multipolygons in the crown data. We'll define a function to keep the largest part of the multipolygon as the smaller part is usually a residual pixel from the CHM.
+
+`simplify_multipolygon_crowns()` function
+
+```{r}
+simplify_multipolygon_crowns <- function(tree_list) {
+  if(!inherits(tree_list, "sf")){
+    stop("must pass an sf object to the `tree_list` parameter")
+  }
+  
+  # check if not polygon
+  if( min(sf::st_is(tree_list, type = c("POLYGON", "MULTIPOLYGON"))) == 0 ){
+    warning(paste0(
+      "data passed to `tree_list` is not polygon or multipolygon data"
+      , "\n see sf::st_geometry_type...returning original data"
+    ))
+    return(tree_list)
+  }
+  
+  # return data as-is if no multipolygon
+  if( max(sf::st_is(tree_list, type = c("MULTIPOLYGON"))) == 0 ){
+    return(tree_list)
+  }
+  
+  # check if has a treeID
+  if(
+    (names(tree_list) %>% stringr::str_detect("treeID") %>% max())==0
+  ){
+    stop(paste0(
+      "`tree_list` data must contain `treeID` column."
+      , "\nProvide the `treeID` as a unique identifier of individual trees."
+    ))
+  }
+  
+  # simplify the multipolygons
+    df <-
+      # start with only polygons
+      tree_list %>% 
+      dplyr::filter(sf::st_geometry_type(geometry)=="POLYGON") %>%
+      # union on cleaned multipolygons
+      dplyr::bind_rows(
+        tree_list %>% 
+          dplyr::filter(sf::st_geometry_type(geometry)=="MULTIPOLYGON") %>%
+          sf::st_cast(to = "POLYGON", do_split = T, warn = F) %>% 
+          dplyr::mutate(axxx = sf::st_area(geometry)) %>% # axxx is so we don't overwrite a column
+          dplyr::group_by(treeID) %>% 
+          dplyr::filter(axxx == max(axxx)) %>% # keep the biggest crown polygon by treeID
+          dplyr::ungroup() %>% 
+          dplyr::select(-axxx)
+      ) %>% 
+      dplyr::ungroup()
+  
+  # return
+  return(df)
+}
+```
+
+original crown data
+
+```{r}
+# original crown data
+cloud2trees_ans$crowns_sf %>% 
+  sf::st_geometry_type() %>% 
+  table()
+```
+
+crown data after `simplify_multipolygon_crowns()`
+
+```{r}
+crowns_sf_poly <- simplify_multipolygon_crowns(cloud2trees_ans$crowns_sf)
+# simplified crown data
+crowns_sf_poly %>% 
+  sf::st_geometry_type() %>% 
+  table()
+```
+
+now we'll attach the `treeID` column to the normalized las file and keep only the points that fall within a tree crown.
+
+let's check the normalized point cloud. for that we'll dig in the output directory from the `cloud2trees::cloud2trees()` function (see that `output_dir` parameter).
+
+```{r}
+(n_f_temp <- list.files(
+  file.path(od, "point_cloud_processing_temp", "02_normalize")
+  , pattern = ".las"
+  , full.names = T
+))
+# read in the lascatalog
+nlas_temp <- lidR::readLAScatalog(n_f_temp)
+# is there a treeID column?
+nlas_temp@data %>% names() %>% stringr::str_detect("treeID") %>% max() %>% as.logical()
+# attach treeID
+nlas_temp <- lidR::catalog_apply(
+  ctg = nlas_temp
+  , FUN = lidR::merge_spatial
+  , source = crowns_sf_poly
+  , attribute = "treeID"
+)
+# is there a treeID column?
+nlas_temp@data %>% names() %>% stringr::str_detect("treeID") %>% max() %>% as.logical()
+```
+
+plot the las data colored by `tree_index`
+
+```{r, rgl = TRUE}
+crowns_nlas_temp %>% 
+  lidR::plot(
+    color = "tree_index", bg = "white", legend = F
+    , pal = viridis::turbo(
+    n = crowns_nlas_temp@data$tree_index %>% # this whole thing gets n unique colors 
+          unique() %>% 
+          length() %>% 
+          `*`(2) # with some separation between the hues
+      ) %>% 
+      sample(
+        crowns_nlas_temp@data$tree_index %>% 
+          unique() %>% 
+          length()
+      )
+  )
+```
+
+### One Tree Example
+
+Walk through an example to get the height to maximum crown diameter (HMD)
+
+```{r}
+
+# Define the myTreeMetrics function
+myTreeMetrics <- function(x, y, z, i, treeID) {
+  i = which.max(z)
+  xcenter = x[i]
+  ycenter = y[i]
+  A = lidR:::polygon_area(x, y)
+  n = length(x)
+  xbar = mean(x)
+  ybar = mean(y)
+  height_tot = z[i]
+  
+  # Calculate the convex hull of the crown points
+  hull_indices <- chull(x, y)
+  hull_x <- x[hull_indices]
+  hull_y <- y[hull_indices]
+  
+  # Calculate the distances from the center to the hull points
+  distances <- sqrt((hull_x - xcenter)^2 + (hull_y - ycenter)^2)
+  
+  # Find the maximum distance and its corresponding height
+  max_distance_index <- which.max(distances)
+  max_crown_diameter_height <- z[hull_indices[max_distance_index]]
+  
+  metrics = list(
+    npts = n,
+    x = xcenter,
+    y = ycenter,
+    x_mean = xbar,
+    y_mean = ybar,
+    area_sqm = A,
+    ht_m = height_tot,
+    max_crown_diameter_height = max_crown_diameter_height
+  )
+  
+  return(metrics)
+}
+
+# Example usage
+LASfile <- system.file("extdata", "Megaplot.laz", package="lidR")
+las = readLAS(LASfile)
+las = segment_trees(las, li2012(R = 3, speed_up = 5))
+tmetrics <- crown_metrics(las, ~myTreeMetrics(X, Y, Z, Intensity, treeID), geom = "point")
+
+#===============================================================================
+# Extract point data for 10 random trees and plot them
+#===============================================================================
+random_tree_ids <- sample(unique(las@data$treeID), 10)
+tree_points <- las@data %>% filter(treeID %in% random_tree_ids)
+
+# Calculate distances from the center for each tree
+tree_points <- tree_points %>%
+  group_by(treeID) %>%
+  mutate(
+    xcenter = mean(X[which.max(Z)]),
+    ycenter = mean(Y[which.max(Z)]),
+    distance = sqrt((X - xcenter)^2 + (Y - ycenter)^2)
+  ) %>%
+  ungroup()
+
+# Calculate max_crown_diameter_height for each tree
+max_crown_diameter_heights <- tree_points %>%
+  group_by(treeID) %>%
+  summarize(max_crown_diameter_height = max(Z[which.max(distance)]))
+
+# Create ggplot
+ggplot(tree_points, aes(x = distance, y = Z, color = Z)) +
+  geom_point() +
+  geom_hline(data = max_crown_diameter_heights, 
+             aes(yintercept = max_crown_diameter_height), linetype = "dashed", color = "red") +
+  scale_color_gradient(low = "blue", high = "green") +
+  labs(title = "Random Trees",
+       x = "Distance from Center",
+       y = "Height (Z)",
+       color = "Height (Z)") +
+  facet_wrap(~ treeID, ncol = 5) +
+  coord_equal() +
+  theme_minimal()
+```
+
+
+let's put the `trees_species()` function in to `cloud2trees`
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls())
+gc()
+```

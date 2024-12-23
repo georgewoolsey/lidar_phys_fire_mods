@@ -1018,6 +1018,7 @@ now we need to figure out what to do if the tree data overlaps with raster cells
 I originally tried to create a raster dataset with full coverage of forest type groups and just fill non-forest cells with the value from the nearest forest type. this "full coverage" data set could then be the master data we upload/download from Zenodo (since we're already using custom data) and apply the `terra::extract()` function. This option is not going to work because 1) there are too many blank cells to fill (~80% of the original raster); 2) we want to give a feasible answer and if there is a great distance between the tree data and the nearest forest type then the answer could be misleading (we'll just return no answer, but what is a "great distance"?)
 
 The process we'll use to fill NA cell values is:
+
 * create a bounding box around the tree point data
 * expand the extent by the greater of double the bounding box or 1 km
   + outside of this would be a "great distance" to interpolate forest type
