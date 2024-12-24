@@ -100,6 +100,13 @@ las_f_path_temp <- paste0(system.file(package = "NeonTreeEvaluation"),"/extdata/
 lidR::readLAS(las_f_path_temp)
 ```
 
+```{r, include=FALSE, eval=FALSE}
+las_xxx <- lidR::readLAS(las_f_path_temp)
+epsg_xxx <- lidR::epsg(las_xxx)
+wkt_xxx <- lidR::wkt(las_xxx)
+crs_xxx <- lidR::crs(las_xxx)
+```
+
 ### `cloud2trees` that lidar data
 
 extract trees from the lidar data using `cloud2trees`
@@ -115,6 +122,23 @@ cloud2trees_ans <- cloud2trees::cloud2trees(
   , output_dir = od
   , keep_intrmdt = T
 )
+```
+
+```{r, include=FALSE, eval=FALSE}
+las_zzz <- lidR::readLAS(
+  list.files(
+    file.path(od, "point_cloud_processing_temp", "02_normalize")
+    , pattern = ".las"
+    , full.names = T
+  )[1]
+)
+epsg_zzz <- lidR::epsg(las_zzz)
+wkt_zzz <- lidR::wkt(las_zzz)
+crs_zzz <- lidR::crs(las_zzz)
+# equality
+identical(epsg_xxx, epsg_zzz)
+identical(wkt_xxx, wkt_zzz)
+identical(crs_xxx, crs_zzz)
 ```
 
 let's see what we got
@@ -135,130 +159,136 @@ cloud2trees_ans$treetops_sf %>%
 
 ## Height to Max Crown Diameter
 
-First, let's attach the `treeID` column to the normalized point cloud using `lidR::merge_spatial()`. This function allows for only polygons so we need to get rid of the multipolygons in the crown data. We'll define a function to keep the largest part of the multipolygon as the smaller part is usually a residual pixel from the CHM.
+The height of the maximum crown diameter (HMD) can be determined by analyzing the vertical profile of the tree crown and identifying the height at which the crown diameter is maximum. This can be achieved using techniques like profile analysis or by fitting parametric models to the crown shape. We'll use a simplified technique developed by [Andrew Sanchez Meador](https://github.com/bi0m3trics)
 
-`simplify_multipolygon_crowns()` function
+### One Tree Example
 
-```{r}
-simplify_multipolygon_crowns <- function(tree_list) {
-  if(!inherits(tree_list, "sf")){
-    stop("must pass an sf object to the `tree_list` parameter")
-  }
-  
-  # check if not polygon
-  if( min(sf::st_is(tree_list, type = c("POLYGON", "MULTIPOLYGON"))) == 0 ){
-    warning(paste0(
-      "data passed to `tree_list` is not polygon or multipolygon data"
-      , "\n see sf::st_geometry_type...returning original data"
-    ))
-    return(tree_list)
-  }
-  
-  # return data as-is if no multipolygon
-  if( max(sf::st_is(tree_list, type = c("MULTIPOLYGON"))) == 0 ){
-    return(tree_list)
-  }
-  
-  # check if has a treeID
-  if(
-    (names(tree_list) %>% stringr::str_detect("treeID") %>% max())==0
-  ){
-    stop(paste0(
-      "`tree_list` data must contain `treeID` column."
-      , "\nProvide the `treeID` as a unique identifier of individual trees."
-    ))
-  }
-  
-  # simplify the multipolygons
-    df <-
-      # start with only polygons
-      tree_list %>% 
-      dplyr::filter(sf::st_geometry_type(geometry)=="POLYGON") %>%
-      # union on cleaned multipolygons
-      dplyr::bind_rows(
-        tree_list %>% 
-          dplyr::filter(sf::st_geometry_type(geometry)=="MULTIPOLYGON") %>%
-          sf::st_cast(to = "POLYGON", do_split = T, warn = F) %>% 
-          dplyr::mutate(axxx = sf::st_area(geometry)) %>% # axxx is so we don't overwrite a column
-          dplyr::group_by(treeID) %>% 
-          dplyr::filter(axxx == max(axxx)) %>% # keep the biggest crown polygon by treeID
-          dplyr::ungroup() %>% 
-          dplyr::select(-axxx)
-      ) %>% 
-      dplyr::ungroup()
-  
-  # return
-  return(df)
-}
-```
-
-original crown data
-
-```{r}
-# original crown data
-cloud2trees_ans$crowns_sf %>% 
-  sf::st_geometry_type() %>% 
-  table()
-```
-
-crown data after `simplify_multipolygon_crowns()`
-
-```{r}
-crowns_sf_poly <- simplify_multipolygon_crowns(cloud2trees_ans$crowns_sf)
-# simplified crown data
-crowns_sf_poly %>% 
-  sf::st_geometry_type() %>% 
-  table()
-```
-
-now we'll attach the `treeID` column to the normalized las file and keep only the points that fall within a tree crown.
-
-let's check the normalized point cloud. for that we'll dig in the output directory from the `cloud2trees::cloud2trees()` function (see that `output_dir` parameter).
+First, let's use our normalized point cloud for one tree which was dropped off in the output directory from the `cloud2trees::cloud2trees()` function (see that `output_dir` parameter).
 
 ```{r}
 (n_f_temp <- list.files(
   file.path(od, "point_cloud_processing_temp", "02_normalize")
-  , pattern = ".las"
+  , pattern = "(.las|.laz)"
   , full.names = T
 ))
 # read in the lascatalog
-nlas_temp <- lidR::readLAScatalog(n_f_temp)
+nlas <- lidR::readLAScatalog(n_f_temp)
+# we can set the options for reading from the catalog up-front
+lidR::opt_progress(nlas) <- F
+lidR::opt_filter(nlas) <- "-drop_duplicates -drop_class 2 9 18" ## class 2 = ground; 9 = water; 18 = noise
+lidR::opt_select(nlas) <- "xyz"
 # is there a treeID column?
-nlas_temp@data %>% names() %>% stringr::str_detect("treeID") %>% max() %>% as.logical()
-# attach treeID
-nlas_temp <- lidR::catalog_apply(
-  ctg = nlas_temp
-  , FUN = lidR::merge_spatial
-  , source = crowns_sf_poly
-  , attribute = "treeID"
-)
-# is there a treeID column?
-nlas_temp@data %>% names() %>% stringr::str_detect("treeID") %>% max() %>% as.logical()
+nlas@data %>% names() %>% stringr::str_detect("treeID") %>% max() %>% as.logical()
 ```
 
-plot the las data colored by `tree_index`
+clip the point cloud to one tree crown polygon
 
-```{r, rgl = TRUE}
-crowns_nlas_temp %>% 
-  lidR::plot(
-    color = "tree_index", bg = "white", legend = F
-    , pal = viridis::turbo(
-    n = crowns_nlas_temp@data$tree_index %>% # this whole thing gets n unique colors 
-          unique() %>% 
-          length() %>% 
-          `*`(2) # with some separation between the hues
-      ) %>% 
-      sample(
-        crowns_nlas_temp@data$tree_index %>% 
-          unique() %>% 
-          length()
-      )
+```{r}
+# get id of tallest tree
+id <- cloud2trees_ans$crowns_sf %>% dplyr::arrange(desc(tree_height_m)) %>% dplyr::slice_head(n=1) %>% dplyr::pull(treeID)
+# keep only the one tree polygon
+one_tree_sf <- cloud2trees_ans$crowns_sf %>% dplyr::filter(treeID==id)
+# flter the point cloud and add the treeID
+nlas_one_tree <- lidR::clip_roi(las = nlas, geometry = one_tree_sf) %>%
+  lidR::add_attribute(x = id, name = "treeID")
+```
+
+plot the individual tree point cloud
+
+```{r, include=FALSE, eval=FALSE}
+# make a matrix to represent the cbh
+x_temp <- seq(
+    min(nlas_one_tree@data$X)
+    , max(nlas_one_tree@data$X)
+    , length.out = 2
   )
+y_temp <- seq(
+    min(nlas_one_tree@data$Y)
+    , max(nlas_one_tree@data$Y)
+    , length.out = 2
+  )
+xy_temp <- expand.grid(x = x_temp, y = y_temp)
+z_temp <- matrix(
+  rep(
+    ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh
+    , nrow(xy_temp)
+  )
+  , nrow = length(x_temp), ncol = length(y_temp)
+)
+# plot it
+plot3D::scatter3D(
+  x = nlas_one_tree@data$X
+  , y = nlas_one_tree@data$Y
+  , z = nlas_one_tree@data$Z
+  , colvar = nlas_one_tree@data$Z
+  , cex = 0.3, pch = 19
+  , colkey = T
+  , phi = -6
+  , col = harrypotter::hp(n=50, house = "gryffindor")
+  , main ="CBH shown in black"
+  , surf = list(
+    x = x_temp
+    , y = y_temp
+    , z = z_temp
+    , facets = NA
+    , border = "black"
+    , lwd = 2
+  )
+)
 ```
 
-### One Tree Example
+```{r}
+# plot it
+plot3D::scatter3D(
+  x = nlas_one_tree@data$X
+  , y = nlas_one_tree@data$Y
+  , z = nlas_one_tree@data$Z
+  , colvar = nlas_one_tree@data$Z
+  , cex = 0.3, pch = 19
+  , colkey = T
+  , phi = -6
+  , col = harrypotter::hp(n=50, house = "gryffindor")
+)
+```
 
 Walk through an example to get the height to maximum crown diameter (HMD)
+
+```{r}
+# # Example convex hull usage from graphics package
+# X <- matrix(stats::rnorm(2000), ncol = 2)
+# plot(X, cex = 0.5)
+# (hpts <- grDevices::chull(X))
+# (hpts <- c(hpts, hpts[1]))
+# lines(X[hpts, ])
+
+
+z <- nlas_one_tree$Z
+x <- nlas_one_tree$X
+y <- nlas_one_tree$Y
+
+(i = base::which.max(z))
+(xcenter = x[i])
+(ycenter = y[i])
+
+(A = lidR:::polygon_area(x, y)) ## internal lidR function
+(n = length(x))
+(xbar = mean(x))
+(ybar = mean(y))
+(height_tot = z[i])
+  
+# Calculate the convex hull of the crown points
+(hull_indices <- grDevices::chull(x, y))
+(hull_x <- x[hull_indices])
+(hull_y <- y[hull_indices])
+  
+# Calculate the distances from the center to the hull points
+(distances <- sqrt((hull_x - xcenter)^2 + (hull_y - ycenter)^2))
+  
+# Find the maximum distance and its corresponding height
+(max_distance_index <- which.max(distances))
+(max_crown_diameter_height <- z[hull_indices[max_distance_index]])
+```
+
 
 ```{r}
 
