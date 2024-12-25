@@ -254,44 +254,161 @@ plot3D::scatter3D(
 Walk through an example to get the height to maximum crown diameter (HMD)
 
 ```{r}
-# # Example convex hull usage from graphics package
-# X <- matrix(stats::rnorm(2000), ncol = 2)
-# plot(X, cex = 0.5)
-# (hpts <- grDevices::chull(X))
-# (hpts <- c(hpts, hpts[1]))
-# lines(X[hpts, ])
-
-
+# inputs
 z <- nlas_one_tree$Z
 x <- nlas_one_tree$X
 y <- nlas_one_tree$Y
-
-(i = base::which.max(z))
-(xcenter = x[i])
-(ycenter = y[i])
-
-(A = lidR:::polygon_area(x, y)) ## internal lidR function
-(n = length(x))
-(xbar = mean(x))
-(ybar = mean(y))
-(height_tot = z[i])
-  
+# find the highest point in the tree as the tree "center"
+highest_pt_index = base::which.max(z)
+xcenter = x[highest_pt_index]
+ycenter = y[highest_pt_index]
 # Calculate the convex hull of the crown points
-(hull_indices <- grDevices::chull(x, y))
-(hull_x <- x[hull_indices])
-(hull_y <- y[hull_indices])
-  
+hull_indices <- grDevices::chull(x, y)
+hull_x <- x[hull_indices]
+hull_y <- y[hull_indices]
 # Calculate the distances from the center to the hull points
-(distances <- sqrt((hull_x - xcenter)^2 + (hull_y - ycenter)^2))
-  
-# Find the maximum distance and its corresponding height
-(max_distance_index <- which.max(distances))
-(max_crown_diameter_height <- z[hull_indices[max_distance_index]])
+distances <- sqrt((hull_x - xcenter)^2 + (hull_y - ycenter)^2)
+# the index of the hull point with the max dist in the hull data
+max_dist_hull_index <- base::which.max(distances)
+# the index of the hull point with the max dist in the full data
+max_dist_dta_index <- hull_indices[max_dist_hull_index]
+# the corresponding height of the hull point with the max dist
+max_crown_diameter_height <- z[max_dist_dta_index]
 ```
 
+let's plot all of that in 2-D space as if we are looking down at the tree from above
 
 ```{r}
+ggplot(data = nlas_one_tree@data, mapping = aes(x=X, y=Y, color=Z)) +
+  # draw the convex hull first
+  geom_polygon(
+    data = nlas_one_tree@data %>% dplyr::slice(hull_indices)
+    , fill = NA
+    , color = "gray"
+    , lwd = 1.5
+  ) +
+  # the points colored by height Z
+  geom_point(mapping = aes(color=Z)) +
+  # draw the tree "center" point
+  geom_point(
+    data = nlas_one_tree@data %>% dplyr::slice(highest_pt_index)
+    , mapping = aes(shape = "tree center")
+    # , shape = 0
+    , color = "black", size = 3
+  ) +
+  # draw the hull point with the max distance
+  geom_point(
+    data = nlas_one_tree@data %>% dplyr::slice(max_dist_dta_index)
+    , mapping = aes(
+      shape = paste0(
+        "pt farthest\nfrom center\nht = "
+        , round(max_crown_diameter_height,1)
+        , " (m)"
+      )
+    )
+    # , shape = 0
+    , color = "black", size = 3
+  ) +
+  harrypotter::scale_color_hp("gryffindor", name = "Z (ht m)") +
+  scale_shape_manual(values = c(0, 2), name = "") +
+  labs(title = "single tree point cloud HMD process") +
+  theme_light() +
+  theme(axis.text = element_blank())
+```
 
+let's make a `tidy` data process using the data frame of the point cloud by grouped by `treeID`
+
+```{r}
+pts_temp <- nlas_one_tree@data %>% 
+  dplyr::rename_with(.cols = -c(treeID), .fn = tolower) %>% 
+  dplyr::group_by(treeID) %>% # this is key
+  dplyr::mutate(
+    # find the highest point in the tree as the tree "center"
+    is_tree_center = z==max(z)
+    , tree_center_x = dplyr::first(ifelse(is_tree_center, x, NA), na_rm = T) # first in case many points are center
+    , tree_center_y = dplyr::first(ifelse(is_tree_center, y, NA), na_rm = T) # first in case many points are center
+    # Calculate the distance from the center to the point
+    , dist_to_center = sqrt((x - tree_center_x)^2 + (y - tree_center_y)^2)
+    , is_max_dist_to_center = dist_to_center == max(dist_to_center)
+    , grp_pt = dplyr::case_when(
+        is_tree_center ~ 0
+        , is_max_dist_to_center ~ 1
+        , T ~ 2
+      ) %>% 
+      factor(
+        ordered = T
+        , levels = 0:2
+        , labels = c("tree center", "farthest point", "other")
+      )
+  ) %>% 
+  dplyr::ungroup()
+```
+
+let's plot all of that in 2-D space as if we are looking down at the tree from above
+
+```{r}
+# plot
+ggplot(data = pts_temp, mapping = aes(x=x,y=y,color=z, shape = grp_pt)) +
+  geom_point(
+    mapping = aes(
+      size = ifelse(is_tree_center | is_max_dist_to_center, 1.5, 1)
+    )
+  ) +
+  harrypotter::scale_color_hp("gryffindor", name = "Z (ht m)") +
+  scale_shape_manual(values = c(17, 15, 16), name = "") +
+  labs(title = "single tree point cloud HMD process") +
+  theme_light() +
+  theme(axis.text = element_blank()) +
+  guides(size = "none")
+```
+
+let's make a function to ingest LAS class data or a data frame with `x`, `y`, `z` and `treeID` columns and return the data aggregated to the tree level with the HMD value. We will cut out all of the columns we used specifically for plotting and use `dplyr::summarise()` to aggregate to the tree level in the function (process not shown above).
+
+```{r}
+calc_tree_hmd <- function(las) {
+  # !!!!!!!!! need to put test for las or data frame pass to `las` parameter
+  dta <- las@data 
+  
+  # classify points
+  pts_temp <- dta %>% 
+    dplyr::rename_with(.cols = -c(treeID), .fn = tolower) %>% 
+    dplyr::filter(!is.na(x) & !is.na(y) & !is.na(z)) %>% 
+    dplyr::group_by(treeID) %>% # this is key
+    dplyr::mutate(
+      # find the highest point in the tree as the tree "center"
+      is_tree_center = z==max(z)
+      , tree_center_x = dplyr::first(ifelse(is_tree_center, x, NA), na_rm = T) # first in case many points are center
+      , tree_center_y = dplyr::first(ifelse(is_tree_center, y, NA), na_rm = T) # first in case many points are center
+      # Calculate the distance from the center to the point
+      , dist_to_center = sqrt((x - tree_center_x)^2 + (y - tree_center_y)^2)
+      , is_max_dist_to_center = dist_to_center == max(dist_to_center)
+    ) %>% 
+    dplyr::ungroup()
+  
+  # aggregate to treeID level
+  df_r <- pts_temp %>% 
+    dplyr::group_by(treeID) %>% 
+    dplyr::filter(is_max_dist_to_center) %>% 
+    # min to be conservative for fire models
+    # "conservative" = fire models will say that fire is "worse" than could be
+    dplyr::summarise(max_crown_diam_height_m = min(z, na.rm = T)) %>% 
+    dplyr::ungroup()
+  
+  # return
+  return(df_r)
+}
+```
+
+test this function
+
+```{r}
+calc_tree_hmd(nlas_one_tree)
+```
+
+looks good. now the challenge is attaching `treeID` to the normalized point cloud if we assume that we are starting with tree crown polygons and normalized point clouds without tree classification. which process is going to be most efficient planning for data sets with thousands (hundreds of thousands?) of trees and [BIG DATA](https://media.makeameme.org/created/big-data-big-ce2802fe07.jpg) point cloud data?
+
+```{r, include=FALSE, eval=FALSE}
+# original from [Andrew Sanchez Meador](https://github.com/bi0m3trics).
 # Define the myTreeMetrics function
 myTreeMetrics <- function(x, y, z, i, treeID) {
   i = which.max(z)
@@ -331,30 +448,31 @@ myTreeMetrics <- function(x, y, z, i, treeID) {
 
 # Example usage
 LASfile <- system.file("extdata", "Megaplot.laz", package="lidR")
-las = readLAS(LASfile)
-las = segment_trees(las, li2012(R = 3, speed_up = 5))
-tmetrics <- crown_metrics(las, ~myTreeMetrics(X, Y, Z, Intensity, treeID), geom = "point")
+las = lidR::readLAS(LASfile)
+las = lidR::segment_trees(las, lidR::li2012(R = 3, speed_up = 5))
+tmetrics <- lidR::crown_metrics(las, ~myTreeMetrics(X, Y, Z, Intensity, treeID), geom = "point")
 
 #===============================================================================
 # Extract point data for 10 random trees and plot them
 #===============================================================================
 random_tree_ids <- sample(unique(las@data$treeID), 10)
-tree_points <- las@data %>% filter(treeID %in% random_tree_ids)
+library(tidyverse)
+tree_points <- las@data %>% dplyr::filter(treeID %in% random_tree_ids)
 
 # Calculate distances from the center for each tree
 tree_points <- tree_points %>%
-  group_by(treeID) %>%
-  mutate(
+  dplyr::group_by(treeID) %>%
+  dplyr::mutate(
     xcenter = mean(X[which.max(Z)]),
     ycenter = mean(Y[which.max(Z)]),
     distance = sqrt((X - xcenter)^2 + (Y - ycenter)^2)
   ) %>%
-  ungroup()
+  dplyr::ungroup()
 
 # Calculate max_crown_diameter_height for each tree
 max_crown_diameter_heights <- tree_points %>%
-  group_by(treeID) %>%
-  summarize(max_crown_diameter_height = max(Z[which.max(distance)]))
+  dplyr::group_by(treeID) %>%
+  dplyr::summarize(max_crown_diameter_height = max(Z[which.max(distance)]))
 
 # Create ggplot
 ggplot(tree_points, aes(x = distance, y = Z, color = Z)) +
@@ -371,8 +489,7 @@ ggplot(tree_points, aes(x = distance, y = Z, color = Z)) +
   theme_minimal()
 ```
 
-
-let's put the `trees_species()` function in to `cloud2trees`
+let's put the `trees_hmd()` function in to `cloud2trees`
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
