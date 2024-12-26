@@ -172,13 +172,13 @@ First, let's use our normalized point cloud for one tree which was dropped off i
   , full.names = T
 ))
 # read in the lascatalog
-nlas <- lidR::readLAScatalog(n_f_temp)
+nlas_ctg <- lidR::readLAScatalog(n_f_temp)
 # we can set the options for reading from the catalog up-front
-lidR::opt_progress(nlas) <- F
-lidR::opt_filter(nlas) <- "-drop_duplicates -drop_class 2 9 18" ## class 2 = ground; 9 = water; 18 = noise
-lidR::opt_select(nlas) <- "xyz"
+lidR::opt_progress(nlas_ctg) <- F
+lidR::opt_filter(nlas_ctg) <- "-drop_duplicates -drop_class 2 9 18" ## class 2 = ground; 9 = water; 18 = noise
+lidR::opt_select(nlas_ctg) <- "xyz"
 # is there a treeID column?
-nlas@data %>% names() %>% stringr::str_detect("treeID") %>% max() %>% as.logical()
+nlas_ctg@data %>% names() %>% stringr::str_detect("treeID") %>% max() %>% as.logical()
 ```
 
 clip the point cloud to one tree crown polygon
@@ -189,7 +189,7 @@ id <- cloud2trees_ans$crowns_sf %>% dplyr::arrange(desc(tree_height_m)) %>% dply
 # keep only the one tree polygon
 one_tree_sf <- cloud2trees_ans$crowns_sf %>% dplyr::filter(treeID==id)
 # flter the point cloud and add the treeID
-nlas_one_tree <- lidR::clip_roi(las = nlas, geometry = one_tree_sf) %>%
+nlas_one_tree <- lidR::clip_roi(las = nlas_ctg, geometry = one_tree_sf) %>%
   lidR::add_attribute(x = id, name = "treeID")
 ```
 
@@ -251,7 +251,7 @@ plot3D::scatter3D(
 )
 ```
 
-Walk through an example to get the height to maximum crown diameter (HMD)
+Walk through an example to get the height to maximum crown diameter (HMD) using the process developed by [Andrew Sanchez Meador](https://github.com/bi0m3trics)
 
 ```{r}
 # inputs
@@ -259,9 +259,9 @@ z <- nlas_one_tree$Z
 x <- nlas_one_tree$X
 y <- nlas_one_tree$Y
 # find the highest point in the tree as the tree "center"
-highest_pt_index = base::which.max(z)
-xcenter = x[highest_pt_index]
-ycenter = y[highest_pt_index]
+highest_pt_index <- base::which.max(z)
+xcenter <- x[highest_pt_index]
+ycenter <- y[highest_pt_index]
 # Calculate the convex hull of the crown points
 hull_indices <- grDevices::chull(x, y)
 hull_x <- x[hull_indices]
@@ -300,20 +300,32 @@ ggplot(data = nlas_one_tree@data, mapping = aes(x=X, y=Y, color=Z)) +
   geom_point(
     data = nlas_one_tree@data %>% dplyr::slice(max_dist_dta_index)
     , mapping = aes(
-      shape = paste0(
-        "pt farthest\nfrom center\nht = "
-        , round(max_crown_diameter_height,1)
-        , " (m)"
-      )
+      shape = "farthest point\nfrom center"
     )
     # , shape = 0
     , color = "black", size = 3
   ) +
   harrypotter::scale_color_hp("gryffindor", name = "Z (ht m)") +
   scale_shape_manual(values = c(0, 2), name = "") +
-  labs(title = "single tree point cloud HMD process") +
+  labs(
+    title = "single tree point cloud HMD process"
+    , caption = paste0(
+      "HMD = ", round(max_crown_diameter_height,1), " m"
+      , "\n(ht of point farthest from center)"
+    )
+  ) +
   theme_light() +
   theme(axis.text = element_blank())
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(
+  z,x,y,highest_pt_index,xcenter,ycenter,hull_indices,hull_x,hull_y
+  ,distances,max_dist_hull_index,max_dist_dta_index
+  ,max_crown_diameter_height
+)
+gc()
 ```
 
 let's make a `tidy` data process using the data frame of the point cloud by grouped by `treeID`
@@ -330,6 +342,7 @@ pts_temp <- nlas_one_tree@data %>%
     # Calculate the distance from the center to the point
     , dist_to_center = sqrt((x - tree_center_x)^2 + (y - tree_center_y)^2)
     , is_max_dist_to_center = dist_to_center == max(dist_to_center)
+    # classify points for plotting
     , grp_pt = dplyr::case_when(
         is_tree_center ~ 0
         , is_max_dist_to_center ~ 1
@@ -338,7 +351,7 @@ pts_temp <- nlas_one_tree@data %>%
       factor(
         ordered = T
         , levels = 0:2
-        , labels = c("tree center", "farthest point", "other")
+        , labels = c("tree center", "farthest point\nfrom center", "other")
       )
   ) %>% 
   dplyr::ungroup()
@@ -356,7 +369,21 @@ ggplot(data = pts_temp, mapping = aes(x=x,y=y,color=z, shape = grp_pt)) +
   ) +
   harrypotter::scale_color_hp("gryffindor", name = "Z (ht m)") +
   scale_shape_manual(values = c(17, 15, 16), name = "") +
-  labs(title = "single tree point cloud HMD process") +
+  labs(
+    title = "single tree point cloud HMD process"
+    , caption = paste0(
+      "HMD = "
+      , round(
+        pts_temp %>% 
+          dplyr::filter(is_max_dist_to_center) %>% 
+          dplyr::slice_head(n=1) %>% 
+          dplyr::pull(z)
+        , 1
+      )
+      , " m"
+      , "\n(ht of point farthest from center)"
+    )
+  ) +
   theme_light() +
   theme(axis.text = element_blank()) +
   guides(size = "none")
@@ -365,30 +392,93 @@ ggplot(data = pts_temp, mapping = aes(x=x,y=y,color=z, shape = grp_pt)) +
 let's make a function to ingest LAS class data or a data frame with `x`, `y`, `z` and `treeID` columns and return the data aggregated to the tree level with the HMD value. We will cut out all of the columns we used specifically for plotting and use `dplyr::summarise()` to aggregate to the tree level in the function (process not shown above).
 
 ```{r}
-calc_tree_hmd <- function(las) {
-  # !!!!!!!!! need to put test for las or data frame pass to `las` parameter
-  dta <- las@data 
+calc_tree_hmd <- function(las, id=NULL) {
+  #######################
+  # check data type
+  #######################
+    las_msg <- paste0(
+      "`las` must contain a data frame -or- an object of class `LAS`"
+      , "\nPlease update the `las` parameter."
+    )
+    # check
+    if(inherits(las, "LAS")){
+      dta <- las@data
+    }else if(inherits(las,"data.frame")){
+      dta <- las
+    }else{stop(las_msg)}
   
+  #######################
+  # check columns
+  #######################
+  # overwrite treeID if id is filled
+  if(!is.null(id)){
+    dta <- dta %>% dplyr::mutate(treeID = id)
+  }
+  # names
+  nms <- names(dta) %>% dplyr::coalesce("")
+  # check for treeID column
+  if(
+    max(stringr::str_equal(nms, "treeID"))==0
+  ){
+    stop("the `las` data does not contain the column `treeID`, ensure this column exists or set the `id` parameter")
+  }
+  # check for xyz
+  has_xyz <- c("x", "y", "z") %>% 
+    purrr::map(function(x){
+      stringr::str_equal(tolower(nms), x) %>% 
+      max() # do any columns match, T=1
+    }) %>% 
+    unlist() %>% 
+    min()
+  if(has_xyz==0){
+    stop("the `las` data does not contain the columns `x`, `y`, and `z`, ensure columns exist")
+  }
+  
+  #######################
+  # find the center and farthest point
+  #######################
   # classify points
   pts_temp <- dta %>% 
     dplyr::rename_with(.cols = -c(treeID), .fn = tolower) %>% 
+    dplyr::mutate(dplyr::across(
+      .cols = c(x,y,z)
+      , .fns = as.numeric
+    )) %>% 
     dplyr::filter(!is.na(x) & !is.na(y) & !is.na(z)) %>% 
     dplyr::group_by(treeID) %>% # this is key
+    # first, let's arrange the points by distance from x,y center
+    dplyr::mutate(
+      x_mean = mean(x, na.rm = T)
+      , y_mean = mean(y, na.rm = T)
+      , dist_mean = sqrt((x - x_mean)^2 + (y - y_mean)^2)
+    ) %>% 
+    # now find the point farthest from the tree center as defined by the max z point
     dplyr::mutate(
       # find the highest point in the tree as the tree "center"
       is_tree_center = z==max(z)
-      , tree_center_x = dplyr::first(ifelse(is_tree_center, x, NA), na_rm = T) # first in case many points are center
-      , tree_center_y = dplyr::first(ifelse(is_tree_center, y, NA), na_rm = T) # first in case many points are center
+      # first in case many points have max z
+      , tree_center_x = dplyr::first(
+        ifelse(is_tree_center, x, NA)
+        , order_by = dist_mean # tie breaker is point closest to xy center
+        , na_rm = T
+      )
+      # first in case many points have max z
+      , tree_center_y = dplyr::first(
+        ifelse(is_tree_center, y, NA)
+        , order_by = dist_mean # tie breaker is point closest to xy center
+        , na_rm = T
+      )
       # Calculate the distance from the center to the point
       , dist_to_center = sqrt((x - tree_center_x)^2 + (y - tree_center_y)^2)
       , is_max_dist_to_center = dist_to_center == max(dist_to_center)
+      , n_pts = dplyr::n()
     ) %>% 
     dplyr::ungroup()
   
   # aggregate to treeID level
   df_r <- pts_temp %>% 
-    dplyr::group_by(treeID) %>% 
     dplyr::filter(is_max_dist_to_center) %>% 
+    dplyr::group_by(treeID, n_pts) %>% 
     # min to be conservative for fire models
     # "conservative" = fire models will say that fire is "worse" than could be
     dplyr::summarise(max_crown_diam_height_m = min(z, na.rm = T)) %>% 
@@ -405,7 +495,589 @@ test this function
 calc_tree_hmd(nlas_one_tree)
 ```
 
-looks good. now the challenge is attaching `treeID` to the normalized point cloud if we assume that we are starting with tree crown polygons and normalized point clouds without tree classification. which process is going to be most efficient planning for data sets with thousands (hundreds of thousands?) of trees and [BIG DATA](https://media.makeameme.org/created/big-data-big-ce2802fe07.jpg) point cloud data?
+looks good. 
+
+### Process for entire LAScatalog
+
+now the challenge is attaching `treeID` to the normalized point cloud if we assume that we are starting with tree crown polygons and normalized point clouds (i.e. a "LAScatalog") without tree classification. which process is going to be most efficient planning for data sets with thousands (hundreds of thousands?) of trees and [BIG DATA](https://media.makeameme.org/created/big-data-big-ce2802fe07.jpg) point cloud data?
+
+check our LAScatalog
+
+```{r}
+nlas_ctg
+```
+
+#### Filter the LAScatalog one tree at a time
+
+the first option is to filter the LAScatalog one tree crown at a time and apply the `calc_tree_hmd()` function one tree at a time
+
+```{r}
+## function to clip the point cloud to a polygon and run it through the `calc_tree_hmd()` function we defined above
+## not going to add all the data checks to this function because it will be internal 
+call_calc_tree_hmd <- function(
+    id
+    , poly_df
+    , nlas
+  ){
+  ##################################
+  # filter sf
+  ##################################
+  one_tree_sf <- poly_df %>% dplyr::filter(treeID==id)
+  ##################################
+  # clip the point cloud
+  ##################################
+  nlas_one_tree <- lidR::clip_roi(las = nlas, geometry = one_tree_sf) %>%
+    lidR::add_attribute(x = id, name = "treeID")
+  ##################################
+  # check for points
+  ##################################
+  if(nrow(nlas_one_tree@data)>2){
+    # CALL calc_tree_hmd
+    calc_tree_hmd_ans <- calc_tree_hmd(las = nlas_one_tree)
+  }else{ # < 10 points
+    calc_tree_hmd_ans <- NULL
+  }
+
+  # build return data
+  if(is.null(calc_tree_hmd_ans)){
+    # blank the cbh columns
+    df <- one_tree_sf %>%
+      dplyr::mutate(
+        max_crown_diam_height_m = as.numeric(NA)
+      )
+  }else{
+    df <- one_tree_sf %>%
+      dplyr::mutate(
+        max_crown_diam_height_m = calc_tree_hmd_ans$max_crown_diam_height_m[1]
+      )
+  }
+  return(df)
+}
+```
+
+let's apply this intermediate `call_calc_tree_hmd()` function for a spin
+
+```{r}
+# try it
+st_temp <- Sys.time()
+hmd_df <- cloud2trees_ans$crowns_sf$treeID %>%
+  unique() %>% 
+  purrr::map(\(x) call_calc_tree_hmd(
+      id = x
+      , poly_df = cloud2trees_ans$crowns_sf
+      , nlas = nlas_ctg
+    )
+    , .progress = "extracting HMD"
+  ) %>%
+  dplyr::bind_rows() %>%
+  sf::st_drop_geometry()
+timer_mins <- difftime(Sys.time(), st_temp, units = "mins") %>% as.numeric()
+```
+
+what did we get?
+
+```{r}
+hmd_df %>% dplyr::glimpse()
+```
+
+let's check the `max_crown_diam_height_m` column which has the HMD value
+
+```{r}
+hmd_df$max_crown_diam_height_m %>% summary()
+```
+
+notice that there are missing values since we required there to be at least three points in the tree point cloud to calculate HMD. we will need to deal with these missing values when implementing in `cloud2trees` by using this "training data" to model the missing values based on tree height and spatial location
+
+let's plot the `max_crown_diam_height_m` column which has the HMD value
+
+```{r}
+p1_temp <- ggplot(data = hmd_df, mapping = aes(x = tree_height_m, y = max_crown_diam_height_m)) +
+  geom_point() +
+  labs(title = "HMD vs. Tree Height", x = "tree ht (m)", y = "HMD (m)") +
+  theme_light()
+p2_temp <- ggplot(data = hmd_df, mapping = aes(x = crown_area_m2, y = max_crown_diam_height_m)) +
+  geom_point() +
+  labs(title = "HMD vs. Tree Crown Area", x = "crown area (m2)", y = "HMD (m)") +
+  theme_light()
+# patchwork
+p1_temp+p2_temp
+```
+
+did you notice we timed the process to calculate HMD? Filtering the point cloud and extracting HMD one tree at a time took **`r round(timer_mins,2)`** minutes for this data set with **`r nrow(cloud2trees_ans$crowns_sf)`** trees
+
+#### Attach `treeID` attribute to the LAScatalog
+
+the second option is to attach the `treeID` column to the point cloud in the LAScatalog and apply the `calc_tree_hmd()` function to all trees at one time. the challenge with this option is that one tree could be spread across multiple las "tiles" and we would need to account for this to ensure trees are not duplicated and are not missing points
+
+first, we'll define the function `simplify_multipolygon_crowns()` to simplify MULTIPOLYGON to POLYGON geometry in an `sf` class object as the function we'll use to attach `treeID` to the point cloud, `lidR::merge_spatial()`, requires only POLYGON data
+
+```{r}
+simplify_multipolygon_crowns <- function(trees_poly) {
+  if(!inherits(trees_poly, "sf")){
+    stop("must pass an sf object to the `trees_poly` parameter")
+  }
+
+  # check if not polygon
+  if( min(sf::st_is(trees_poly, type = c("POLYGON", "MULTIPOLYGON"))) == 0 ){
+    warning(paste0(
+      "data passed to `trees_poly` is not polygon or multipolygon data"
+      , "\n see sf::st_geometry_type...returning original data"
+    ))
+    return(trees_poly)
+  }
+
+  # return data as-is if no multipolygon
+  if( max(sf::st_is(trees_poly, type = c("MULTIPOLYGON"))) == 0 ){
+    return(trees_poly)
+  }
+
+  # check if has a treeID
+  if(
+    (names(trees_poly) %>% stringr::str_detect("treeID") %>% max())==0
+  ){
+    stop(paste0(
+      "`trees_poly` data must contain `treeID` column."
+      , "\nProvide the `treeID` as a unique identifier of individual trees."
+    ))
+  }
+
+  # simplify the multipolygons
+  df <-
+    # start with only polygons
+    trees_poly %>%
+    dplyr::filter(sf::st_geometry_type(.)=="POLYGON") %>%
+    # union on cleaned multipolygons
+    dplyr::bind_rows(
+      trees_poly %>%
+        dplyr::filter(sf::st_geometry_type(.)=="MULTIPOLYGON") %>%
+        sf::st_cast(to = "POLYGON", do_split = T, warn = F) %>%
+        dplyr::mutate(axxx = sf::st_area(.)) %>% # axxx is so we don't overwrite a column
+        dplyr::group_by(treeID) %>%
+        dplyr::filter(axxx == max(axxx)) %>% # keep the biggest crown polygon by treeID
+        dplyr::ungroup() %>%
+        dplyr::select(-axxx)
+    ) %>%
+    dplyr::ungroup()
+
+  # return
+  return(df)
+}
+
+```
+
+
+```{r}
+ctg_calc_tree_hmd <- function(chunk, poly_df, force_crs = F){
+  las <- readLAS(chunk)
+  if (is.empty(las)) return(NULL)
+  # make sure same crs
+  if(
+    force_crs &&
+    !identical(lidR::st_crs(las), sf::st_crs(poly_df))
+  ){
+    lidR::st_crs(las) <- sf::st_crs(poly_df)
+  }
+  # attach treeID
+  nlas_tree <- lidR::merge_spatial(
+    las = las
+    , source = poly_df
+    , attribute = "treeID"
+  )
+  # calc_tree_hmd()
+  df <- calc_tree_hmd(nlas_tree)
+  # return
+  # return(nlas_tree)
+  return(df)
+}
+
+# set the lascatalog options
+lidR::opt_progress(nlas_ctg) <- F
+lidR::opt_filter(nlas_ctg) <- "-drop_duplicates -drop_class 2 9 18" ## class 2 = ground; 9 = water; 18 = noise
+lidR::opt_select(nlas_ctg) <- "xyz"
+lidR::opt_output_files(nlas_ctg) <- paste0(tempdir(), "/{*}_treed")
+
+st_temp <- Sys.time()
+# apply the ctg_calc_tree_hmd function
+output_temp <- lidR::catalog_apply(
+  ctg = nlas_ctg
+  , FUN = ctg_calc_tree_hmd
+  , .options = list(automerge = TRUE)
+  # ctg_calc_tree_hmd options
+  , poly_df = simplify_multipolygon_crowns(cloud2trees_ans$crowns_sf)
+  , force_crs = T
+)
+timer_mins2 <- difftime(Sys.time(), st_temp, units = "mins") %>% as.numeric()
+```
+
+what did we get back?
+
+```{r}
+output_temp
+```
+
+`lidR::catalog_apply()` wrote a single .txt file...let's open up this present
+
+```{r}
+hmd_df2 <- readr::read_delim(output_temp, progress = F, show_col_types = F)
+# check it
+hmd_df2 %>% dplyr::glimpse()
+```
+
+let's join this back to our original data and NA the values where a tree had less than 3 points
+
+```{r}
+hmd_df2 <- cloud2trees_ans$crowns_sf %>% 
+  dplyr::left_join(
+    hmd_df2 %>% 
+      dplyr::mutate(
+        max_crown_diam_height_m = ifelse(n_pts<3, as.numeric(NA), max_crown_diam_height_m)
+      ) %>% 
+      dplyr::select(-n_pts)
+    , by = "treeID"
+  )
+```
+
+```{r, include=FALSE, eval=FALSE}
+# let's compare the two methods
+comp_temp <- 
+  hmd_df2 %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::select(treeID, max_crown_diam_height_m) %>% 
+  dplyr::left_join(
+    hmd_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::select(treeID, max_crown_diam_height_m) %>% 
+      dplyr::rename(m = max_crown_diam_height_m)
+    , by = "treeID"
+  ) %>% 
+  dplyr::mutate(is_same_hmd = m == max_crown_diam_height_m)
+# count
+comp_temp %>% 
+  dplyr::count(is_same_hmd)
+
+# what are the differences?
+comp_temp %>% dplyr::filter(is_same_hmd==F)
+# ... likely due to the simplification of multipolygon data
+```
+
+let's make the same scatter plots as above and plot the `max_crown_diam_height_m` column which has the HMD value
+
+```{r}
+p1_temp <- ggplot(data = hmd_df2, mapping = aes(x = tree_height_m, y = max_crown_diam_height_m)) +
+  geom_point() +
+  labs(title = "HMD vs. Tree Height", x = "tree ht (m)", y = "HMD (m)") +
+  theme_light()
+p2_temp <- ggplot(data = hmd_df2, mapping = aes(x = crown_area_m2, y = max_crown_diam_height_m)) +
+  geom_point() +
+  labs(title = "HMD vs. Tree Crown Area", x = "crown area (m2)", y = "HMD (m)") +
+  theme_light()
+# patchwork
+p1_temp+p2_temp
+```
+
+did you notice we timed the process to calculate HMD? Filtering the point cloud and extracting HMD one tree at a time took **`r round(timer_mins,2)`** minutes for this data set with **`r nrow(cloud2trees_ans$crowns_sf)`** trees...by comparison, the LAScatalog approach took **`r round(timer_mins2,2)`**...the winner is clear.
+
+## Function for `cloud2trees`
+
+the function will take an input normalized las catalog and tree crown polygons and return the tree list with the HMD value
+
+```{r}
+#### intermediate functions are
+  # calc_tree_hmd
+  # ctg_calc_tree_hmd
+trees_hmd <- function(
+  trees_poly
+  , norm_las = NA
+){
+  ##################################
+  # ensure that norm las data exists
+  ##################################
+  nlas_msg <- paste0(
+    "`norm_las` must contain a directory with nomalized las files, the path of a .laz|.las file"
+    , "\n, -or- an object of class `LASc`. Please update the `norm_las` parameter."
+  )
+  if(is.na(norm_las)){stop(nlas_msg)}
+  if(inherits(norm_las, "character")){
+    if(!stringr::str_ends(norm_las, ".*\\.(laz|las)$")){
+      # try to read directory for las files
+      fls <- list.files(normalizePath(norm_las), pattern = ".*\\.(laz|las)$", full.names = TRUE)
+      # stop it if no files
+      if(length(fls)<1){stop(nlas_msg)}
+      # read it
+      nlas_ctg <- lidR::readLAScatalog(fls)
+    }else if(stringr::str_ends(norm_las, ".*\\.(laz|las)$")){
+      # read it
+      nlas_ctg <- lidR::readLAScatalog(norm_las)
+    }else{
+      stop(nlas_msg)
+    }
+  }else if(inherits(nlas_ctg, "LAScatalog")){
+    nlas_ctg <- norm_las
+  }else{
+    stop(nlas_msg)
+  }
+  # set the lascatalog options
+  lidR::opt_progress(nlas_ctg) <- F
+  lidR::opt_filter(nlas_ctg) <- "-drop_duplicates -drop_class 2 9 18" ## class 2 = ground; 9 = water; 18 = noise
+  lidR::opt_select(nlas_ctg) <- "xyz"
+  lidR::opt_output_files(nlas_ctg) <- paste0(tempdir(), "/{*}_treed")
+  
+  ##################################
+  # ensure that treeID data exists
+  ##################################
+  f <- trees_poly %>% names()
+  if(length(f)==0){f <- ""}
+  if(
+    max(grepl("treeID", f))==0
+  ){
+    stop(paste0(
+      "`trees_poly` data must contain `treeID` column to estimate missing HMD values."
+      , "\nProvide the `treeID` as a unique identifier of individual trees."
+    ))
+  }else{
+    # check for duplicate treeID
+    if(
+      nrow(trees_poly) != length(unique(trees_poly$treeID))
+    ){
+      stop("Duplicates found in the treeID column. Please remove duplicates and try again.")
+    }
+  }
+
+  ##################################
+  # ensure spatial polygon data
+  ##################################
+  sf_msg <- paste0(
+      "`trees_poly` data must be an object of class `sf` with only POLYGON type."
+      , "\nProvide an `sf` object and see `sf::st_geometry_type()`."
+    )
+  if(!inherits(trees_poly, "sf")){stop(sf_msg)}
+  if( min(sf::st_is(trees_poly, type = c("POLYGON", "MULTIPOLYGON"))) == 0 ){stop(sf_msg)}
+  
+  ##################################
+  # apply the ctg_calc_tree_hmd function
+  ##################################
+  # simplify the polygons so that lidR::merge_spatial can be used
+  simp_trees_poly <- simplify_multipolygon_crowns(trees_poly)
+  # apply it
+  output_temp <- lidR::catalog_apply(
+    ctg = nlas_ctg
+    , FUN = ctg_calc_tree_hmd
+    , .options = list(automerge = TRUE)
+    # ctg_calc_tree_hmd options
+    , poly_df = 
+    , force_crs = T
+  )
+  
+  ##################################
+  # # build return data
+  ##################################
+  if(stringr::str_ends(output_temp, ".*\\.(txt|csv)$")){
+    # read the output file
+    hmd_df <- readr::read_delim(output_temp, progress = F, show_col_types = F)
+    # join to original data
+    df <- trees_poly %>% 
+      dplyr::left_join(
+        hmd_df2 %>% 
+          dplyr::mutate(
+            max_crown_diam_height_m = ifelse(n_pts<3, as.numeric(NA), max_crown_diam_height_m)
+          ) %>% 
+          dplyr::select(-n_pts)
+        , by = "treeID"
+      )
+  }else{
+    # blank the cbh columns
+    df <- trees_poly %>%
+      dplyr::mutate(
+        max_crown_diam_height_m = as.numeric(NA)
+      )
+  }
+  
+  # if(
+  #   estimate_missing_cbh==T
+  #   & n_cbh > 10
+  #   & max(grepl("tree_height_m", f))==1
+  # ){
+  #   # add x,y to data
+  #   mod_df <- trees_poly %>%
+  #     dplyr::left_join(
+  #       cbh_df %>%
+  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+  #       , by = "treeID"
+  #     ) %>%
+  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F)) %>%
+  #     dplyr::select(treeID, tree_height_m, tree_cbh_m, is_training_cbh) %>%
+  #     sf::st_centroid() %>%
+  #     dplyr::mutate(
+  #       tree_xxx = sf::st_coordinates(.)[,1]
+  #       , tree_yyy = sf::st_coordinates(.)[,2]
+  #       , crown_area_zzz = sf::st_area(.) %>% as.numeric()
+  #       , tree_height_m = as.numeric(tree_height_m)
+  #       , tree_cbh_m = as.numeric(tree_cbh_m)
+  #     ) %>%
+  #     sf::st_drop_geometry()
+  #   # training versus predict data
+  #   training_df <- mod_df %>% dplyr::filter(is_training_cbh==T) %>% dplyr::select(-is_training_cbh)
+  #   predict_df <- mod_df %>% dplyr::filter(is_training_cbh==F) %>% dplyr::select(-is_training_cbh)
+  # 
+  #   ### tuning RF model
+  #     # If we are interested with just starting out and tuning the mtry parameter
+  #     # we can use randomForest::tuneRF for a quick and easy tuning assessment.
+  #     # tuneRf will start at a value of mtry that you supply and increase by a
+  #     # certain step factor until the OOB error stops improving be a specified amount.
+  #     # quiet this
+  #     quiet_tuneRF <- purrr::quietly(randomForest::tuneRF)
+  #     # run it
+  #     rf_tune_temp <- quiet_tuneRF(
+  #       # randomForest::tuneRF(
+  #       y = training_df$tree_cbh_m
+  #       , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+  #       , stepFactor = 0.5
+  #       , ntreeTry = 200
+  #       , mtryStart = 0.5
+  #       , improve = 0.01
+  #       , plot = F
+  #       , trace = F
+  #     )
+  #     # just get the result
+  #     rf_tune_temp <- rf_tune_temp$result
+  # 
+  #     # Extract the optimal mtry value
+  #     optimal_mtry <- rf_tune_temp %>%
+  #       dplyr::as_tibble() %>%
+  #       dplyr::filter(OOBError==min(OOBError)) %>%
+  #       dplyr::filter(dplyr::row_number() == 1) %>%
+  #       dplyr::pull(mtry)
+  #     # ensure that the mtry value is not greater than the number of predictors
+  #     optimal_mtry <- min(
+  #       optimal_mtry
+  #       , ncol(
+  #         training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+  #       )
+  #     )
+  # 
+  #     ### Run a randomForest model to predict CBH using various crown predictors
+  #     # quiet this
+  #     quiet_rf <- purrr::quietly(randomForest::randomForest)
+  #     # run it
+  #     cbh_mod <- quiet_rf(
+  #       y = training_df$tree_cbh_m
+  #       , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+  #       , mtry = optimal_mtry
+  #       , na.action = na.omit
+  #     )
+  #     # just get the result
+  #     cbh_mod <- cbh_mod$result
+  # 
+  #   # # model
+  #   # cbh_mod <- stats::lm(
+  #   #   formula = tree_cbh_m ~ tree_xxx + tree_yyy + tree_xxx:tree_yyy + tree_height_m + crown_area_zzz
+  #   #   , data = training_df
+  #   # )
+  # 
+  #   # predict missing
+  #   predicted_cbh_temp <- predict(
+  #       cbh_mod
+  #       , predict_df %>% dplyr::select(-c(treeID,tree_cbh_m))
+  #     ) %>%
+  #     dplyr::as_tibble() %>%
+  #     dplyr::pull(1)
+  # 
+  #   ## combine predicted data with training data for full data set
+  #   trees_poly <- trees_poly %>%
+  #     # join with training data estimates
+  #     dplyr::left_join(
+  #       cbh_df %>%
+  #         dplyr::filter(is_training_cbh==T) %>%
+  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+  #       , by = "treeID"
+  #     ) %>%
+  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F)) %>%
+  #     # join with predicted data estimates
+  #     dplyr::left_join(
+  #       predict_df %>%
+  #         dplyr::mutate(
+  #           predicted_cbh = predicted_cbh_temp
+  #         ) %>%
+  #         dplyr::select(treeID, predicted_cbh)
+  #       , by = dplyr::join_by("treeID")
+  #     ) %>%
+  #     # clean up data
+  #     dplyr::mutate(
+  #       tree_cbh_m = dplyr::coalesce(tree_cbh_m, predicted_cbh)
+  #     ) %>%
+  #     dplyr::select(-predicted_cbh)
+  # 
+  #   ## prevent the CBH from being > the tree height
+  #     # find the 95th percentile of height-cbh ratio
+  #     max_ratio <- cbh_df %>%
+  #       dplyr::filter(
+  #         is_training_cbh==T
+  #         & tree_cbh_m < tree_height_m
+  #       ) %>%
+  #       dplyr::mutate(ratio = tree_cbh_m/tree_height_m) %>%
+  #       dplyr::pull(ratio) %>%
+  #       stats::quantile(probs = 0.95)
+  #     # update values
+  #     trees_poly <- trees_poly %>%
+  #       dplyr::mutate(
+  #         # update training data where tree_cbh_m > tree_height_m
+  #         is_training_cbh = dplyr::case_when(
+  #           is_training_cbh==T & tree_cbh_m >= tree_height_m ~ FALSE
+  #           , T ~ is_training_cbh
+  #         )
+  #         # update tree_cbh_m
+  #         , tree_cbh_m = dplyr::case_when(
+  #           is_training_cbh==F & tree_cbh_m/tree_height_m > max_ratio ~ max_ratio*tree_height_m
+  #           , T ~ tree_cbh_m
+  #         )
+  #       )
+  # 
+  # }else if(estimate_missing_cbh==T){
+  #   if(max(grepl("tree_height_m", f))==0){
+  #     message(paste0(
+  #       "`trees_poly` data must contain `tree_height_m` column to estimate CBH."
+  #       , "\nSetting `estimate_missing_cbh=TRUE` requires this data."
+  #       , "\nReturning CBH values extracted from cloud only."
+  #     ))
+  #   }else{
+  #     message(paste0(
+  #       "Insufficient data available to estimate missing CBH values."
+  #       , "\nReturning CBH values extracted from cloud only."
+  #     ))
+  #   }
+  #   ## combine predicted data with training data for full data set
+  #   trees_poly <- trees_poly %>%
+  #     # join with training data estimates
+  #     dplyr::left_join(
+  #       cbh_df %>%
+  #         dplyr::filter(is_training_cbh==T) %>%
+  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+  #       , by = "treeID"
+  #     ) %>%
+  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
+  # }else{
+  #   ## combine predicted data with training data for full data set
+  #   trees_poly <- trees_poly %>%
+  #     # join with training data estimates
+  #     dplyr::left_join(
+  #       cbh_df %>%
+  #         dplyr::filter(is_training_cbh==T) %>%
+  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
+  #       , by = "treeID"
+  #     ) %>%
+  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
+  # }
+  # # return
+  # return(trees_poly)
+  
+  # return
+  return(df)
+  
+}
+
+
+```
+
 
 ```{r, include=FALSE, eval=FALSE}
 # original from [Andrew Sanchez Meador](https://github.com/bi0m3trics).
