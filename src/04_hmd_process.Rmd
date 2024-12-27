@@ -28,7 +28,6 @@ library(sf) # simple features
 library(lidR) # lidar data
 library(cloud2trees) # tha cloud2trees
 library(NeonTreeEvaluation) # benchmark data
-
 ```
 
 ```{r, include=F, warning=F, message=F}
@@ -455,7 +454,8 @@ calc_tree_hmd <- function(las, id=NULL) {
     # now find the point farthest from the tree center as defined by the max z point
     dplyr::mutate(
       # find the highest point in the tree as the tree "center"
-      is_tree_center = z==max(z)
+      max_z = max(z, na.rm = T)
+      , is_tree_center = z==max_z
       # first in case many points have max z
       , tree_center_x = dplyr::first(
         ifelse(is_tree_center, x, NA)
@@ -478,12 +478,17 @@ calc_tree_hmd <- function(las, id=NULL) {
   # aggregate to treeID level
   df_r <- pts_temp %>% 
     dplyr::filter(is_max_dist_to_center) %>% 
-    dplyr::group_by(treeID, n_pts) %>% 
+    dplyr::group_by(treeID) %>% 
     # min to be conservative for fire models
     # "conservative" = fire models will say that fire is "worse" than could be
-    dplyr::summarise(max_crown_diam_height_m = min(z, na.rm = T)) %>% 
+    dplyr::summarise(
+      calc_tree_hmd_max_z = dplyr::first(max_z, na_rm = T) # already aggregated, could go in group_by
+      , calc_tree_hmd_n_pts = dplyr::first(n_pts, na_rm = T) # already aggregated, could go in group_by
+      , max_crown_diam_height_m = min(z, na.rm = T)
+    ) %>% 
     dplyr::ungroup()
   
+  # ensure that max_crown_diam_height_m<=max_z
   # return
   return(df_r)
 }
@@ -668,14 +673,19 @@ simplify_multipolygon_crowns <- function(trees_poly) {
 
 ```{r}
 ctg_calc_tree_hmd <- function(chunk, poly_df, force_crs = F){
-  las <- readLAS(chunk)
-  if (is.empty(las)) return(NULL)
+  las <- lidR::readLAS(chunk)
+  if (lidR::is.empty(las)) return(NULL)
   # make sure same crs
   if(
     force_crs &&
     !identical(lidR::st_crs(las), sf::st_crs(poly_df))
   ){
     lidR::st_crs(las) <- sf::st_crs(poly_df)
+  }else if(!identical(lidR::st_crs(las), sf::st_crs(poly_df))){
+    stop(paste0(
+      "lidR::st_crs(las) != sf::st_crs(poly_df) ensure data are same projection -or-"
+      , "\nturn on the force same crs parameter if confident that data are in same projection"
+    ))
   }
   # attach treeID
   nlas_tree <- lidR::merge_spatial(
@@ -715,10 +725,24 @@ what did we get back?
 output_temp
 ```
 
-`lidR::catalog_apply()` wrote a single .txt file...let's open up this present
+`lidR::catalog_apply()` saved the output to .txt file(s)...let's open up this present
 
 ```{r}
-hmd_df2 <- readr::read_delim(output_temp, progress = F, show_col_types = F)
+hmd_df2 <- output_temp %>%
+  purrr::map(\(x) readr::read_delim(
+    file = x, progress = F, show_col_types = F
+  )) %>% 
+  dplyr::bind_rows() %>%
+  # for trees on many tiles keep row with most points
+  dplyr::group_by(treeID) %>% 
+  dplyr::filter(calc_tree_hmd_n_pts == max(calc_tree_hmd_n_pts)) %>% 
+  dplyr::summarise(
+    calc_tree_hmd_n_pts = max(calc_tree_hmd_n_pts, na.rm = T)
+    , calc_tree_hmd_max_z = max(calc_tree_hmd_max_z, na.rm = T)
+    # favor lower hmd if still duplicates
+    , max_crown_diam_height_m = min(max_crown_diam_height_m, na.rm = T)
+  ) %>% 
+  dplyr::ungroup()
 # check it
 hmd_df2 %>% dplyr::glimpse()
 ```
@@ -730,9 +754,9 @@ hmd_df2 <- cloud2trees_ans$crowns_sf %>%
   dplyr::left_join(
     hmd_df2 %>% 
       dplyr::mutate(
-        max_crown_diam_height_m = ifelse(n_pts<3, as.numeric(NA), max_crown_diam_height_m)
+        max_crown_diam_height_m = ifelse(calc_tree_hmd_n_pts<3, as.numeric(NA), max_crown_diam_height_m)
       ) %>% 
-      dplyr::select(-n_pts)
+      dplyr::select(-calc_tree_hmd_n_pts)
     , by = "treeID"
   )
 ```
@@ -758,6 +782,19 @@ comp_temp %>%
 # what are the differences?
 comp_temp %>% dplyr::filter(is_same_hmd==F)
 # ... likely due to the simplification of multipolygon data
+
+# check the height real quick
+hmd_df2 %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(!is.na(max_crown_diam_height_m)) %>% 
+  dplyr::mutate(ht_lt_hmd = tree_height_m<max_crown_diam_height_m) %>% 
+  dplyr::count(ht_lt_hmd)
+
+# hmd_df2 %>% 
+#   sf::st_drop_geometry() %>% 
+#   dplyr::filter(!is.na(max_crown_diam_height_m)) %>% 
+#   dplyr::mutate(ht_lt_hmd = calc_tree_hmd_max_z<max_crown_diam_height_m) %>% 
+#   dplyr::count(ht_lt_hmd)
 ```
 
 let's make the same scatter plots as above and plot the `max_crown_diam_height_m` column which has the HMD value
@@ -775,7 +812,29 @@ p2_temp <- ggplot(data = hmd_df2, mapping = aes(x = crown_area_m2, y = max_crown
 p1_temp+p2_temp
 ```
 
+to this point there is nothing in our HMD estimation process that ensures that the tree height is not below the HMD. we should implement a check and force height>=HMD.
+
+let's check for records where height<HMD
+
+```{r}
+# check the height real quick
+hmd_df2 %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(!is.na(max_crown_diam_height_m)) %>% 
+  dplyr::mutate(ht_lt_hmd = tree_height_m<max_crown_diam_height_m) %>% 
+  dplyr::count(ht_lt_hmd)
+```
+
 did you notice we timed the process to calculate HMD? Filtering the point cloud and extracting HMD one tree at a time took **`r round(timer_mins,2)`** minutes for this data set with **`r nrow(cloud2trees_ans$crowns_sf)`** trees...by comparison, the LAScatalog approach took **`r round(timer_mins2,2)`**...the winner is clear.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(
+  hmd_df, hmd_df2, nlas_one_tree, one_tree_sf
+  , call_calc_tree_hmd, timer_mins, timer_mins2
+)
+gc()
+```
 
 ## Function for `cloud2trees`
 
@@ -787,8 +846,12 @@ the function will take an input normalized las catalog and tree crown polygons a
   # ctg_calc_tree_hmd
 trees_hmd <- function(
   trees_poly
-  , norm_las = NA
+  , norm_las = NULL
+  , estimate_missing_hmd = F
+  , force_same_crs = F
 ){
+  # could move to parameters
+  force_hmd_lte_ht = T
   ##################################
   # ensure that norm las data exists
   ##################################
@@ -796,7 +859,7 @@ trees_hmd <- function(
     "`norm_las` must contain a directory with nomalized las files, the path of a .laz|.las file"
     , "\n, -or- an object of class `LASc`. Please update the `norm_las` parameter."
   )
-  if(is.na(norm_las)){stop(nlas_msg)}
+  if(is.null(norm_las)){stop(nlas_msg)}
   if(inherits(norm_las, "character")){
     if(!stringr::str_ends(norm_las, ".*\\.(laz|las)$")){
       # try to read directory for las files
@@ -823,6 +886,16 @@ trees_hmd <- function(
   lidR::opt_output_files(nlas_ctg) <- paste0(tempdir(), "/{*}_treed")
   
   ##################################
+  # ensure spatial polygon data
+  ##################################
+  sf_msg <- paste0(
+      "`trees_poly` data must be an object of class `sf` with only POLYGON type."
+      , "\nProvide an `sf` object and see `sf::st_geometry_type()`."
+    )
+  if(!inherits(trees_poly, "sf")){stop(sf_msg)}
+  if( min(sf::st_is(trees_poly, type = c("POLYGON", "MULTIPOLYGON"))) == 0 ){stop(sf_msg)}
+  
+  ##################################
   # ensure that treeID data exists
   ##################################
   f <- trees_poly %>% names()
@@ -831,7 +904,7 @@ trees_hmd <- function(
     max(grepl("treeID", f))==0
   ){
     stop(paste0(
-      "`trees_poly` data must contain `treeID` column to estimate missing HMD values."
+      "`trees_poly` data must contain `treeID` column to estimate HMD."
       , "\nProvide the `treeID` as a unique identifier of individual trees."
     ))
   }else{
@@ -842,16 +915,24 @@ trees_hmd <- function(
       stop("Duplicates found in the treeID column. Please remove duplicates and try again.")
     }
   }
-
-  ##################################
-  # ensure spatial polygon data
-  ##################################
-  sf_msg <- paste0(
-      "`trees_poly` data must be an object of class `sf` with only POLYGON type."
-      , "\nProvide an `sf` object and see `sf::st_geometry_type()`."
-    )
-  if(!inherits(trees_poly, "sf")){stop(sf_msg)}
-  if( min(sf::st_is(trees_poly, type = c("POLYGON", "MULTIPOLYGON"))) == 0 ){stop(sf_msg)}
+  # check for tree_height_m
+  if(
+    max(grepl("tree_height_m", f))==0
+  ){
+    stop(paste0(
+      "`trees_poly` data must contain `tree_height_m` column to estimate HMD."
+      , "\nRename the height column if it exists and ensure it is in meters."
+    ))
+  }
+  
+  # get rid of columns we'll create
+    trees_poly <- trees_poly %>%
+      # throw in hey_xxxxxxxxxx to test it works if we include non-existant columns
+      dplyr::select( -dplyr::any_of(c(
+        "hey_xxxxxxxxxx"
+        , "max_crown_diam_height_m"
+        , "is_training_hmd"
+      )))
   
   ##################################
   # apply the ctg_calc_tree_hmd function
@@ -864,220 +945,272 @@ trees_hmd <- function(
     , FUN = ctg_calc_tree_hmd
     , .options = list(automerge = TRUE)
     # ctg_calc_tree_hmd options
-    , poly_df = 
-    , force_crs = T
+    , poly_df = simp_trees_poly
+    , force_crs = force_same_crs
   )
   
   ##################################
-  # # build return data
+  # read result from calc_tree_hmd
   ##################################
-  if(stringr::str_ends(output_temp, ".*\\.(txt|csv)$")){
-    # read the output file
-    hmd_df <- readr::read_delim(output_temp, progress = F, show_col_types = F)
+  if(
+    max(stringr::str_ends(output_temp, ".*\\.(txt|csv)$"))==1
+  ){
+    # read the output file(s)
+    hmd_df <- stringr::str_subset(output_temp, pattern = ".*\\.(txt|csv)$") %>%
+      purrr::map(\(x) readr::read_delim(
+        file = x, progress = F, show_col_types = F
+      )) %>% 
+      dplyr::bind_rows() %>%
+      # for trees on many tiles keep row with most points
+      dplyr::group_by(treeID) %>% 
+      dplyr::filter(calc_tree_hmd_n_pts == max(calc_tree_hmd_n_pts)) %>% 
+      dplyr::summarise(
+        calc_tree_hmd_n_pts = max(calc_tree_hmd_n_pts, na.rm = T)
+        , calc_tree_hmd_max_z = max(calc_tree_hmd_max_z, na.rm = T)
+        # favor lower hmd if still duplicates
+        , max_crown_diam_height_m = min(max_crown_diam_height_m, na.rm = T)
+      ) %>% 
+      dplyr::ungroup()
     # join to original data
-    df <- trees_poly %>% 
+    trees_poly <- trees_poly %>% 
       dplyr::left_join(
-        hmd_df2 %>% 
+        hmd_df %>% 
           dplyr::mutate(
-            max_crown_diam_height_m = ifelse(n_pts<3, as.numeric(NA), max_crown_diam_height_m)
+            max_crown_diam_height_m = ifelse(calc_tree_hmd_n_pts<3, as.numeric(NA), max_crown_diam_height_m)
           ) %>% 
-          dplyr::select(-n_pts)
+          dplyr::select(-tidyselect::starts_with("calc_tree_hmd"))
         , by = "treeID"
       )
   }else{
-    # blank the cbh columns
-    df <- trees_poly %>%
+    # blank the hmd column
+    trees_poly <- trees_poly %>%
       dplyr::mutate(
         max_crown_diam_height_m = as.numeric(NA)
       )
   }
   
-  # if(
-  #   estimate_missing_cbh==T
-  #   & n_cbh > 10
-  #   & max(grepl("tree_height_m", f))==1
-  # ){
-  #   # add x,y to data
-  #   mod_df <- trees_poly %>%
-  #     dplyr::left_join(
-  #       cbh_df %>%
-  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
-  #       , by = "treeID"
-  #     ) %>%
-  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F)) %>%
-  #     dplyr::select(treeID, tree_height_m, tree_cbh_m, is_training_cbh) %>%
-  #     sf::st_centroid() %>%
-  #     dplyr::mutate(
-  #       tree_xxx = sf::st_coordinates(.)[,1]
-  #       , tree_yyy = sf::st_coordinates(.)[,2]
-  #       , crown_area_zzz = sf::st_area(.) %>% as.numeric()
-  #       , tree_height_m = as.numeric(tree_height_m)
-  #       , tree_cbh_m = as.numeric(tree_cbh_m)
-  #     ) %>%
-  #     sf::st_drop_geometry()
-  #   # training versus predict data
-  #   training_df <- mod_df %>% dplyr::filter(is_training_cbh==T) %>% dplyr::select(-is_training_cbh)
-  #   predict_df <- mod_df %>% dplyr::filter(is_training_cbh==F) %>% dplyr::select(-is_training_cbh)
-  # 
-  #   ### tuning RF model
-  #     # If we are interested with just starting out and tuning the mtry parameter
-  #     # we can use randomForest::tuneRF for a quick and easy tuning assessment.
-  #     # tuneRf will start at a value of mtry that you supply and increase by a
-  #     # certain step factor until the OOB error stops improving be a specified amount.
-  #     # quiet this
-  #     quiet_tuneRF <- purrr::quietly(randomForest::tuneRF)
-  #     # run it
-  #     rf_tune_temp <- quiet_tuneRF(
-  #       # randomForest::tuneRF(
-  #       y = training_df$tree_cbh_m
-  #       , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
-  #       , stepFactor = 0.5
-  #       , ntreeTry = 200
-  #       , mtryStart = 0.5
-  #       , improve = 0.01
-  #       , plot = F
-  #       , trace = F
-  #     )
-  #     # just get the result
-  #     rf_tune_temp <- rf_tune_temp$result
-  # 
-  #     # Extract the optimal mtry value
-  #     optimal_mtry <- rf_tune_temp %>%
-  #       dplyr::as_tibble() %>%
-  #       dplyr::filter(OOBError==min(OOBError)) %>%
-  #       dplyr::filter(dplyr::row_number() == 1) %>%
-  #       dplyr::pull(mtry)
-  #     # ensure that the mtry value is not greater than the number of predictors
-  #     optimal_mtry <- min(
-  #       optimal_mtry
-  #       , ncol(
-  #         training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
-  #       )
-  #     )
-  # 
-  #     ### Run a randomForest model to predict CBH using various crown predictors
-  #     # quiet this
-  #     quiet_rf <- purrr::quietly(randomForest::randomForest)
-  #     # run it
-  #     cbh_mod <- quiet_rf(
-  #       y = training_df$tree_cbh_m
-  #       , x = training_df %>% dplyr::select(-c(treeID,tree_cbh_m))
-  #       , mtry = optimal_mtry
-  #       , na.action = na.omit
-  #     )
-  #     # just get the result
-  #     cbh_mod <- cbh_mod$result
-  # 
-  #   # # model
-  #   # cbh_mod <- stats::lm(
-  #   #   formula = tree_cbh_m ~ tree_xxx + tree_yyy + tree_xxx:tree_yyy + tree_height_m + crown_area_zzz
-  #   #   , data = training_df
-  #   # )
-  # 
-  #   # predict missing
-  #   predicted_cbh_temp <- predict(
-  #       cbh_mod
-  #       , predict_df %>% dplyr::select(-c(treeID,tree_cbh_m))
-  #     ) %>%
-  #     dplyr::as_tibble() %>%
-  #     dplyr::pull(1)
-  # 
-  #   ## combine predicted data with training data for full data set
-  #   trees_poly <- trees_poly %>%
-  #     # join with training data estimates
-  #     dplyr::left_join(
-  #       cbh_df %>%
-  #         dplyr::filter(is_training_cbh==T) %>%
-  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
-  #       , by = "treeID"
-  #     ) %>%
-  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F)) %>%
-  #     # join with predicted data estimates
-  #     dplyr::left_join(
-  #       predict_df %>%
-  #         dplyr::mutate(
-  #           predicted_cbh = predicted_cbh_temp
-  #         ) %>%
-  #         dplyr::select(treeID, predicted_cbh)
-  #       , by = dplyr::join_by("treeID")
-  #     ) %>%
-  #     # clean up data
-  #     dplyr::mutate(
-  #       tree_cbh_m = dplyr::coalesce(tree_cbh_m, predicted_cbh)
-  #     ) %>%
-  #     dplyr::select(-predicted_cbh)
-  # 
-  #   ## prevent the CBH from being > the tree height
-  #     # find the 95th percentile of height-cbh ratio
-  #     max_ratio <- cbh_df %>%
-  #       dplyr::filter(
-  #         is_training_cbh==T
-  #         & tree_cbh_m < tree_height_m
-  #       ) %>%
-  #       dplyr::mutate(ratio = tree_cbh_m/tree_height_m) %>%
-  #       dplyr::pull(ratio) %>%
-  #       stats::quantile(probs = 0.95)
-  #     # update values
-  #     trees_poly <- trees_poly %>%
-  #       dplyr::mutate(
-  #         # update training data where tree_cbh_m > tree_height_m
-  #         is_training_cbh = dplyr::case_when(
-  #           is_training_cbh==T & tree_cbh_m >= tree_height_m ~ FALSE
-  #           , T ~ is_training_cbh
-  #         )
-  #         # update tree_cbh_m
-  #         , tree_cbh_m = dplyr::case_when(
-  #           is_training_cbh==F & tree_cbh_m/tree_height_m > max_ratio ~ max_ratio*tree_height_m
-  #           , T ~ tree_cbh_m
-  #         )
-  #       )
-  # 
-  # }else if(estimate_missing_cbh==T){
-  #   if(max(grepl("tree_height_m", f))==0){
-  #     message(paste0(
-  #       "`trees_poly` data must contain `tree_height_m` column to estimate CBH."
-  #       , "\nSetting `estimate_missing_cbh=TRUE` requires this data."
-  #       , "\nReturning CBH values extracted from cloud only."
-  #     ))
-  #   }else{
-  #     message(paste0(
-  #       "Insufficient data available to estimate missing CBH values."
-  #       , "\nReturning CBH values extracted from cloud only."
-  #     ))
-  #   }
-  #   ## combine predicted data with training data for full data set
-  #   trees_poly <- trees_poly %>%
-  #     # join with training data estimates
-  #     dplyr::left_join(
-  #       cbh_df %>%
-  #         dplyr::filter(is_training_cbh==T) %>%
-  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
-  #       , by = "treeID"
-  #     ) %>%
-  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
-  # }else{
-  #   ## combine predicted data with training data for full data set
-  #   trees_poly <- trees_poly %>%
-  #     # join with training data estimates
-  #     dplyr::left_join(
-  #       cbh_df %>%
-  #         dplyr::filter(is_training_cbh==T) %>%
-  #         dplyr::select(treeID, tree_cbh_m, is_training_cbh)
-  #       , by = "treeID"
-  #     ) %>%
-  #     dplyr::mutate(is_training_cbh = dplyr::coalesce(is_training_cbh, F))
-  # }
-  # # return
-  # return(trees_poly)
+  # check force_hmd_lte_ht
+  if(force_hmd_lte_ht==T && max(grepl("tree_height_m", f))==1){
+    trees_poly <- trees_poly %>%
+      dplyr::mutate(
+        max_crown_diam_height_m = dplyr::case_when(
+          is.na(max_crown_diam_height_m) ~ as.numeric(NA)
+          , max_crown_diam_height_m > tree_height_m ~ as.numeric(NA)
+          , T ~ max_crown_diam_height_m
+        )
+      )
+  }
+  
+  # flag is_training_hmd
+  trees_poly <- trees_poly %>%
+    dplyr::mutate(
+      is_training_hmd = !is.na(max_crown_diam_height_m)
+    )
+  
+  # ensure that there are enough data to estimate
+  n_hmd <- trees_poly %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::filter(is_training_hmd==T) %>% 
+    nrow()
+
+  #######################################################
+  # estimate_missing_hmd
+  #######################################################
+  if(
+    estimate_missing_hmd==T
+    && n_hmd > 10
+    && max(grepl("tree_height_m", f))==1
+  ){
+    # add x,y to data
+    mod_df <- trees_poly %>%
+      dplyr::select(treeID, is_training_hmd, tree_height_m, max_crown_diam_height_m) %>%
+      sf::st_centroid() %>%
+      dplyr::mutate(
+        tree_xxx = sf::st_coordinates(.)[,1]
+        , tree_yyy = sf::st_coordinates(.)[,2]
+        , tree_height_m = as.numeric(tree_height_m)
+        , max_crown_diam_height_m = as.numeric(max_crown_diam_height_m)
+      ) %>%
+      sf::st_drop_geometry()
+    # training versus predict data
+    training_df <- mod_df %>% dplyr::filter(is_training_hmd==T) %>% dplyr::select(-is_training_hmd)
+    predict_df <- mod_df %>% dplyr::filter(is_training_hmd==F) %>% dplyr::select(-is_training_hmd)
+
+    ### tuning RF model
+      # If we are interested with just starting out and tuning the mtry parameter
+      # we can use randomForest::tuneRF for a quick and easy tuning assessment.
+      # tuneRf will start at a value of mtry that you supply and increase by a
+      # certain step factor until the OOB error stops improving be a specified amount.
+      # quiet this
+      quiet_tuneRF <- purrr::quietly(randomForest::tuneRF)
+      # run it
+      rf_tune_temp <- quiet_tuneRF(
+        # randomForest::tuneRF(
+        y = training_df$max_crown_diam_height_m
+        , x = training_df %>% dplyr::select(-c(treeID,max_crown_diam_height_m))
+        , stepFactor = 0.5
+        , ntreeTry = 200
+        , mtryStart = 0.5
+        , improve = 0.01
+        , plot = F
+        , trace = F
+      )
+      # just get the result
+      rf_tune_temp <- rf_tune_temp$result
+
+      # Extract the optimal mtry value
+      optimal_mtry <- rf_tune_temp %>%
+        dplyr::as_tibble() %>%
+        dplyr::filter(OOBError==min(OOBError)) %>%
+        dplyr::filter(dplyr::row_number() == 1) %>%
+        dplyr::pull(mtry)
+      # ensure that the mtry value is not greater than the number of predictors
+      optimal_mtry <- min(
+        optimal_mtry
+        , ncol(
+          training_df %>% dplyr::select(-c(treeID,max_crown_diam_height_m))
+        )
+      )
+
+      ### Run a randomForest model to predict HMD using various crown predictors
+      # quiet this
+      quiet_rf <- purrr::quietly(randomForest::randomForest)
+      # run it
+      hmd_mod <- quiet_rf(
+        y = training_df$max_crown_diam_height_m
+        , x = training_df %>% dplyr::select(-c(treeID,max_crown_diam_height_m))
+        , mtry = optimal_mtry
+        , na.action = na.omit
+      )
+      # just get the result
+      hmd_mod <- hmd_mod$result
+
+    # # model
+    # hmd_mod <- stats::lm(
+    #   formula = max_crown_diam_height_m ~ tree_xxx + tree_yyy + tree_xxx:tree_yyy + tree_height_m + crown_area_zzz
+    #   , data = training_df
+    # )
+
+    # predict missing
+    predicted_hmd_temp <- predict(
+        hmd_mod
+        , predict_df %>% dplyr::select(-c(treeID,max_crown_diam_height_m))
+      ) %>%
+      dplyr::as_tibble() %>%
+      dplyr::pull(1)
+
+    ## combine predicted data with training data for full data set
+    trees_poly <- trees_poly %>%
+      # join with predicted data estimates
+      dplyr::left_join(
+        predict_df %>%
+          dplyr::mutate(
+            predicted_hmd = predicted_hmd_temp
+          ) %>%
+          dplyr::select(treeID, predicted_hmd)
+        , by = dplyr::join_by("treeID")
+      ) %>%
+      # clean up data
+      dplyr::mutate(
+        max_crown_diam_height_m = dplyr::coalesce(max_crown_diam_height_m, predicted_hmd)
+      ) %>%
+      dplyr::select(-predicted_hmd)
+    
+  }else if(estimate_missing_cbh==T){
+    if(max(grepl("tree_height_m", f))==0){
+      message(paste0(
+        "`trees_poly` data must contain `tree_height_m` column to estimate HMD."
+        , "\nSetting `estimate_missing_hmd=TRUE` requires this data."
+        , "\nReturning HMD values extracted from cloud only."
+      ))
+    }else{
+      message(paste0(
+        "Insufficient data available to estimate missing HMD values."
+        , "\nReturning HMD values extracted from cloud only."
+      ))
+    }
+  }
+  
+  ## prevent the hmd from being > the tree height
+    if(force_hmd_lte_ht==T && max(grepl("tree_height_m", f))==1){
+      # find the 95th percentile of height-cbh ratio
+      max_ratio <- trees_poly %>%
+        dplyr::filter(
+          is_training_hmd==T
+          & max_crown_diam_height_m < tree_height_m
+        ) %>%
+        dplyr::mutate(ratio = max_crown_diam_height_m/tree_height_m) %>%
+        dplyr::pull(ratio) %>%
+        stats::quantile(probs = 0.95)
+      # update values
+      trees_poly <- trees_poly %>%
+        dplyr::mutate(
+          # update training data where max_crown_diam_height_m > tree_height_m
+          is_training_hmd = dplyr::case_when(
+            is_training_hmd==T & max_crown_diam_height_m > tree_height_m ~ FALSE
+            , T ~ is_training_hmd
+          )
+          # update max_crown_diam_height_m
+          , max_crown_diam_height_m = dplyr::case_when(
+            is_training_hmd==F & max_crown_diam_height_m/tree_height_m > max_ratio ~ max_ratio*tree_height_m
+            , T ~ max_crown_diam_height_m
+          )
+        )
+    }
   
   # return
-  return(df)
-  
+  return(trees_poly)
 }
-
-
 ```
 
+test the `trees_hmd()` function
+
+```{r}
+trees_hmd_ans <- trees_hmd(
+  trees_poly = cloud2trees_ans$crowns_sf
+  , norm_las = nlas_ctg
+  , estimate_missing_hmd = T
+  , force_same_crs = T
+)
+```
+
+what did we get back?
+
+```{r}
+trees_hmd_ans %>% dplyr::glimpse()
+```
+
+let's view the height versus HMD relationship by training data
+
+```{r}
+trees_hmd_ans %>% 
+  ggplot(aes(x = tree_height_m, y = max_crown_diam_height_m, color = is_training_hmd)) +
+  geom_point(size = 3, alpha = 0.8) +
+  harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
+  scale_y_continuous(breaks = scales::breaks_extended(12)) +
+  scale_x_continuous(breaks = scales::breaks_extended(12)) +
+  labs(y = "HMD (m)", x = "Height (m)", color = "is training data") +
+  theme_light() +
+  theme(legend.position = "top")
+```
+
+check out the HMD spatially
+
+```{r}
+trees_hmd_ans %>% 
+  ggplot(aes(color = is_training_hmd, fill = max_crown_diam_height_m)) +
+  geom_sf(lwd = 0.8) +
+  harrypotter::scale_color_hp_d("ronweasley", direction = -1) +
+  harrypotter::scale_fill_hp("always") +
+  labs(fill = "HMD (m)", color = "is training data") +
+  theme_light() +
+  theme(legend.position = "top", axis.text = element_blank()) +
+  guides(
+    color = guide_legend(order = 1, override.aes = list(lwd = 3, fill = NA))
+  )
+```
+
+let's put the `trees_hmd()` function in to `cloud2trees`
 
 ```{r, include=FALSE, eval=FALSE}
 # original from [Andrew Sanchez Meador](https://github.com/bi0m3trics).
@@ -1160,8 +1293,6 @@ ggplot(tree_points, aes(x = distance, y = Z, color = Z)) +
   coord_equal() +
   theme_minimal()
 ```
-
-let's put the `trees_hmd()` function in to `cloud2trees`
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
