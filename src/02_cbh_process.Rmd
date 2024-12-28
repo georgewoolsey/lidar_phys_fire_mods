@@ -251,6 +251,22 @@ cloud2trees_ans %>% names()
 cloud2trees_ans$crowns_sf %>% dplyr::glimpse()
 ```
 
+```{r, include=FALSE, eval=T}
+cloud2trees_ans$crowns_sf <- cloud2trees_ans$crowns_sf %>% 
+dplyr::select( -dplyr::any_of(c(
+        "hey_xxxxxxxxxx"
+        , "tree_cbh_m"
+        , "is_training_cbh"
+      )))
+cloud2trees_ans$treetops_sf <- cloud2trees_ans$treetops_sf %>% 
+dplyr::select( -dplyr::any_of(c(
+        "hey_xxxxxxxxxx"
+        , "tree_cbh_m"
+        , "is_training_cbh"
+      )))
+```
+
+
 clean it for `LadderFuelsR` to attach treeID to the point cloud
 
 ```{r}

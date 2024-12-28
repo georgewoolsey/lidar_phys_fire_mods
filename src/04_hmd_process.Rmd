@@ -123,6 +123,15 @@ cloud2trees_ans <- cloud2trees::cloud2trees(
 )
 ```
 
+```{r, include=FALSE, eval=TRUE}
+cloud2trees_ans$crowns_sf <- cloud2trees_ans$crowns_sf %>% 
+  dplyr::select( -dplyr::any_of(c(
+    "hey_xxxxxxxxxx"
+    , "max_crown_diam_height_m"
+    , "is_training_hmd"
+  )))
+```
+
 ```{r, include=FALSE, eval=FALSE}
 las_zzz <- lidR::readLAS(
   list.files(
@@ -327,7 +336,7 @@ remove(
 gc()
 ```
 
-let's make a `tidy` data process using the data frame of the point cloud by grouped by `treeID`
+let's make a `tidy` data process using the data frame of the point cloud grouped by `treeID`
 
 ```{r}
 pts_temp <- nlas_one_tree@data %>% 
@@ -616,7 +625,7 @@ the second option is to attach the `treeID` column to the point cloud in the LAS
 
 first, we'll define the function `simplify_multipolygon_crowns()` to simplify MULTIPOLYGON to POLYGON geometry in an `sf` class object as the function we'll use to attach `treeID` to the point cloud, `lidR::merge_spatial()`, requires only POLYGON data
 
-```{r}
+```{r, eval=FALSE}
 simplify_multipolygon_crowns <- function(trees_poly) {
   if(!inherits(trees_poly, "sf")){
     stop("must pass an sf object to the `trees_poly` parameter")
@@ -670,6 +679,7 @@ simplify_multipolygon_crowns <- function(trees_poly) {
 
 ```
 
+now we'll define a function to apply the `calc_tree_hmd()` function to the catalog chunks
 
 ```{r}
 ctg_calc_tree_hmd <- function(chunk, poly_df, force_crs = F){
@@ -699,7 +709,11 @@ ctg_calc_tree_hmd <- function(chunk, poly_df, force_crs = F){
   # return(nlas_tree)
   return(df)
 }
+```
 
+set the processing options and call it
+
+```{r}
 # set the lascatalog options
 lidR::opt_progress(nlas_ctg) <- F
 lidR::opt_filter(nlas_ctg) <- "-drop_duplicates -drop_class 2 9 18" ## class 2 = ground; 9 = water; 18 = noise
@@ -713,7 +727,7 @@ output_temp <- lidR::catalog_apply(
   , FUN = ctg_calc_tree_hmd
   , .options = list(automerge = TRUE)
   # ctg_calc_tree_hmd options
-  , poly_df = simplify_multipolygon_crowns(cloud2trees_ans$crowns_sf)
+  , poly_df = cloud2trees::simplify_multipolygon_crowns(cloud2trees_ans$crowns_sf)
   , force_crs = T
 )
 timer_mins2 <- difftime(Sys.time(), st_temp, units = "mins") %>% as.numeric()
@@ -840,7 +854,7 @@ gc()
 
 the function will take an input normalized las catalog and tree crown polygons and return the tree list with the HMD value
 
-```{r}
+```{r, eval = F}
 #### intermediate functions are
   # calc_tree_hmd
   # ctg_calc_tree_hmd
@@ -1166,7 +1180,7 @@ trees_hmd <- function(
 test the `trees_hmd()` function
 
 ```{r}
-trees_hmd_ans <- trees_hmd(
+trees_hmd_ans <- cloud2trees::trees_hmd(
   trees_poly = cloud2trees_ans$crowns_sf
   , norm_las = nlas_ctg
   , estimate_missing_hmd = T

@@ -130,6 +130,24 @@ cloud2trees_ans <- cloud2trees::cloud2trees(
 )
 ```
 
+```{r, include=F, eval=T}
+cloud2trees_ans$treetops_sf <- cloud2trees_ans$treetops_sf %>% 
+  dplyr::select( -dplyr::any_of(c(
+        "hey_xxxxxxxxxx"
+        , "forest_type_group_code"
+        , "forest_type_group"
+        , "hardwood_softwood"
+      )))
+cloud2trees_ans$crowns_sf <- cloud2trees_ans$crowns_sf %>% 
+  dplyr::select( -dplyr::any_of(c(
+        "hey_xxxxxxxxxx"
+        , "forest_type_group_code"
+        , "forest_type_group"
+        , "hardwood_softwood"
+      )))
+```
+
+
 let's see what we got
 
 ```{r}
@@ -1347,8 +1365,8 @@ mask the raster to this extent
 
 ```{r, results = F, echo = F}
 foresttype_temp <- foresttype %>% 
-  terra::crop(ext_temp) %>% # crop it first to make if faster
-  terra::mask(ext_temp)
+  terra::crop(ext_temp)  # crop it first to make if faster
+  # terra::mask(ext_temp)
 ```
 
 mark all non-forest cells as "NA" in the cropped raster
@@ -1513,8 +1531,8 @@ gc()
 
 let's define a function to put all of those steps together so that we can add it to `cloud2trees`
 
-```{r}
-trees_species <- function(
+```{r, include = T, eval = F}
+trees_type <- function(
   tree_list
   , crs = NA
   , study_boundary = NA
@@ -1888,10 +1906,7 @@ trees_species <- function(
 let's test this function with our example data
 
 ```{r, results=F, echo = F}
-trees_species_ans <- trees_species(
-  cloud2trees_ans$treetops_sf
-  , input_foresttype_dir = "E:\\lidar_phys_fire_mods\\data\\"
-)
+trees_species_ans <- cloud2trees::trees_type(cloud2trees_ans$treetops_sf)
 ```
 
 what did we get back?
@@ -1935,9 +1950,8 @@ mapview::mapview(tl_temp, zcol = "treeID", legend = F, layer.name = "trees")
 let's test the `trees_species()` function with these trees that aren't anywhere near a forest and expand the `max_search_dist_m` parameter to allow for species very far away to be attached to this tree list
 
 ```{r, results=F, echo=FALSE}
-trees_species_ans <- trees_species(
+trees_species_ans <- cloud2trees::trees_type(
   tl_temp
-  , input_foresttype_dir = "E:\\lidar_phys_fire_mods\\data\\"
   , max_search_dist_m = 1000*50
 )
 ```

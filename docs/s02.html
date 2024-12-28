@@ -260,6 +260,19 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="4.3.4" data-path="s03.html"><a href="s03.html#get-forest-type-function"><i class="fa fa-check"></i><b>4.3.4</b> Get forest type function</a></li>
 </ul></li>
 </ul></li>
+<li class="chapter" data-level="5" data-path="s04.html"><a href="s04.html"><i class="fa fa-check"></i><b>5</b> Height to Maximum Diameter Process</a>
+<ul>
+<li class="chapter" data-level="5.1" data-path="s03.html"><a href="s03.html#rmnp_ex"><i class="fa fa-check"></i><b>5.1</b> Example Lidar Data</a>
+<ul>
+<li class="chapter" data-level="5.1.1" data-path="s04.html"><a href="s04.html#cloud2trees-that-lidar-data-2"><i class="fa fa-check"></i><b>5.1.1</b> <code>cloud2trees</code> that lidar data</a></li>
+</ul></li>
+<li class="chapter" data-level="5.2" data-path="s04.html"><a href="s04.html#height-to-max-crown-diameter"><i class="fa fa-check"></i><b>5.2</b> Height to Max Crown Diameter</a>
+<ul>
+<li class="chapter" data-level="5.2.1" data-path="s04.html"><a href="s04.html#one-tree-example"><i class="fa fa-check"></i><b>5.2.1</b> One Tree Example</a></li>
+<li class="chapter" data-level="5.2.2" data-path="s04.html"><a href="s04.html#process-for-entire-lascatalog"><i class="fa fa-check"></i><b>5.2.2</b> Process for entire LAScatalog</a></li>
+</ul></li>
+<li class="chapter" data-level="5.3" data-path="s04.html"><a href="s04.html#function-for-cloud2trees"><i class="fa fa-check"></i><b>5.3</b> Function for <code>cloud2trees</code></a></li>
+</ul></li>
 </ul>
 
       </nav>
@@ -358,8 +371,8 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <p>where in the world is this data?</p>
 <div class="sourceCode" id="cb166"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb166-1"><a href="s02.html#cb166-1" tabindex="-1"></a>las_ctg <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">readLAScatalog</span>(las_f_path)</span>
 <span id="cb166-2"><a href="s02.html#cb166-2" tabindex="-1"></a>mapview<span class="sc">::</span><span class="fu">mapview</span>(las_ctg<span class="sc">@</span>data)</span></code></pre></div>
-<div class="leaflet html-widget html-fill-item" id="htmlwidget-6155ead1c32e37e7359f" style="width:1008px;height:672px;"></div>
-<script type="application/json" data-for="htmlwidget-6155ead1c32e37e7359f">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["polygon",420]},{"method":"addPolygons","args":[[[[{"lng":[-105.5465792276325,-105.5465821289829,-105.5461116533473,-105.546108754494,-105.5465792276325],"lat":[40.27619328566198,40.27655360805593,40.2765558295054,40.27619550708332,40.27619328566198]}]]],null,"las_ctg@data",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"polygon","stroke":true,"color":"#333333","weight":0.5,"opacity":0.9,"fill":true,"fillColor":"#6666FF","fillOpacity":0.6,"smoothFactor":1,"noClip":false},"<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>File.Signature&emsp;<\/th><td>LASF\u0002&emsp;<\/td><\/tr><tr><td>2<\/td><th>File.Source.ID&emsp;<\/th><td>2&emsp;<\/td><\/tr><tr><td>3<\/td><th>GUID&emsp;<\/th><td>00000000-0000-0000-0000-000000000000&emsp;<\/td><\/tr><tr><td>4<\/td><th>Version.Major&emsp;<\/th><td>1&emsp;<\/td><\/tr><tr><td>5<\/td><th>Version.Minor&emsp;<\/th><td>3&emsp;<\/td><\/tr><tr><td>6<\/td><th>System.Identifier&emsp;<\/th><td>&emsp;<\/td><\/tr><tr><td>7<\/td><th>Generating.Software&emsp;<\/th><td>rlas R package&emsp;<\/td><\/tr><tr><td>8<\/td><th>File.Creation.Day.of.Year&emsp;<\/th><td>0&emsp;<\/td><\/tr><tr><td>9<\/td><th>File.Creation.Year&emsp;<\/th><td>2018&emsp;<\/td><\/tr><tr><td>10<\/td><th>Header.Size&emsp;<\/th><td>235&emsp;<\/td><\/tr><tr><td>11<\/td><th>Offset.to.point.data&emsp;<\/th><td>1077&emsp;<\/td><\/tr><tr><td>12<\/td><th>Number.of.variable.length.records&emsp;<\/th><td>2&emsp;<\/td><\/tr><tr><td>13<\/td><th>Point.Data.Format.ID&emsp;<\/th><td>1&emsp;<\/td><\/tr><tr><td>14<\/td><th>Point.Data.Record.Length&emsp;<\/th><td>28&emsp;<\/td><\/tr><tr><td>15<\/td><th>Number.of.point.records&emsp;<\/th><td>20407&emsp;<\/td><\/tr><tr><td>16<\/td><th>X.scale.factor&emsp;<\/th><td>0.001&emsp;<\/td><\/tr><tr><td>17<\/td><th>Y.scale.factor&emsp;<\/th><td>0.001&emsp;<\/td><\/tr><tr><td>18<\/td><th>Z.scale.factor&emsp;<\/th><td>0.001&emsp;<\/td><\/tr><tr><td>19<\/td><th>X.offset&emsp;<\/th><td>450000&emsp;<\/td><\/tr><tr><td>20<\/td><th>Y.offset&emsp;<\/th><td>4450000&emsp;<\/td><\/tr><tr><td>21<\/td><th>Z.offset&emsp;<\/th><td>0&emsp;<\/td><\/tr><tr><td>22<\/td><th>Max.X&emsp;<\/th><td>453572.6&emsp;<\/td><\/tr><tr><td>23<\/td><th>Min.X&emsp;<\/th><td>453532.6&emsp;<\/td><\/tr><tr><td>24<\/td><th>Max.Y&emsp;<\/th><td>4458596&emsp;<\/td><\/tr><tr><td>25<\/td><th>Min.Y&emsp;<\/th><td>4458556&emsp;<\/td><\/tr><tr><td>26<\/td><th>Max.Z&emsp;<\/th><td>2762.425&emsp;<\/td><\/tr><tr><td>27<\/td><th>Min.Z&emsp;<\/th><td>2742.063&emsp;<\/td><\/tr><tr><td>28<\/td><th>CRS&emsp;<\/th><td>32613&emsp;<\/td><\/tr><tr><td>29<\/td><th>Number.of.1st.return&emsp;<\/th><td>12612&emsp;<\/td><\/tr><tr><td>30<\/td><th>Number.of.2nd.return&emsp;<\/th><td>4365&emsp;<\/td><\/tr><tr><td>31<\/td><th>Number.of.3rd.return&emsp;<\/th><td>2284&emsp;<\/td><\/tr><tr><td>32<\/td><th>Number.of.4th.return&emsp;<\/th><td>881&emsp;<\/td><\/tr><tr><td>33<\/td><th>Number.of.5th.return&emsp;<\/th><td>216&emsp;<\/td><\/tr><tr><td>34<\/td><th>filename&emsp;<\/th><td>C:\\Program Files\\R\\R-4.3.0\\library\\NeonTreeEvaluation\\extdata\\NeonTreeEvaluation\\evaluation\\LiDAR\\RMNP_042_2018.laz&emsp;<\/td><\/tr><tr><td>35<\/td><th>geometry&emsp;<\/th><td>sfc_POLYGON&emsp;<\/td><\/tr><\/table><\/div>",{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},"1",{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":1,"opacity":0.9,"fillOpacity":0.84,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"las_ctg@data",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#6666FF"],"labels":["las_ctg@data"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"","extra":null,"layerId":null,"className":"info legend","group":"las_ctg@data"}]}],"limits":{"lat":[40.27619328566198,40.2765558295054],"lng":[-105.5465821289829,-105.546108754494]},"fitBounds":[40.27619328566198,-105.5465821289829,40.2765558295054,-105.546108754494,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-d26dfd12188316da7f9e" style="width:1008px;height:672px;"></div>
+<script type="application/json" data-for="htmlwidget-d26dfd12188316da7f9e">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["polygon",420]},{"method":"addPolygons","args":[[[[{"lng":[-105.5465792276325,-105.5465821289829,-105.5461116533473,-105.546108754494,-105.5465792276325],"lat":[40.27619328566198,40.27655360805593,40.2765558295054,40.27619550708332,40.27619328566198]}]]],null,"las_ctg@data",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"polygon","stroke":true,"color":"#333333","weight":0.5,"opacity":0.9,"fill":true,"fillColor":"#6666FF","fillOpacity":0.6,"smoothFactor":1,"noClip":false},"<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>File.Signature&emsp;<\/th><td>LASF\u0002&emsp;<\/td><\/tr><tr><td>2<\/td><th>File.Source.ID&emsp;<\/th><td>2&emsp;<\/td><\/tr><tr><td>3<\/td><th>GUID&emsp;<\/th><td>00000000-0000-0000-0000-000000000000&emsp;<\/td><\/tr><tr><td>4<\/td><th>Version.Major&emsp;<\/th><td>1&emsp;<\/td><\/tr><tr><td>5<\/td><th>Version.Minor&emsp;<\/th><td>3&emsp;<\/td><\/tr><tr><td>6<\/td><th>System.Identifier&emsp;<\/th><td>&emsp;<\/td><\/tr><tr><td>7<\/td><th>Generating.Software&emsp;<\/th><td>rlas R package&emsp;<\/td><\/tr><tr><td>8<\/td><th>File.Creation.Day.of.Year&emsp;<\/th><td>0&emsp;<\/td><\/tr><tr><td>9<\/td><th>File.Creation.Year&emsp;<\/th><td>2018&emsp;<\/td><\/tr><tr><td>10<\/td><th>Header.Size&emsp;<\/th><td>235&emsp;<\/td><\/tr><tr><td>11<\/td><th>Offset.to.point.data&emsp;<\/th><td>1077&emsp;<\/td><\/tr><tr><td>12<\/td><th>Number.of.variable.length.records&emsp;<\/th><td>2&emsp;<\/td><\/tr><tr><td>13<\/td><th>Point.Data.Format.ID&emsp;<\/th><td>1&emsp;<\/td><\/tr><tr><td>14<\/td><th>Point.Data.Record.Length&emsp;<\/th><td>28&emsp;<\/td><\/tr><tr><td>15<\/td><th>Number.of.point.records&emsp;<\/th><td>20407&emsp;<\/td><\/tr><tr><td>16<\/td><th>X.scale.factor&emsp;<\/th><td>0.001&emsp;<\/td><\/tr><tr><td>17<\/td><th>Y.scale.factor&emsp;<\/th><td>0.001&emsp;<\/td><\/tr><tr><td>18<\/td><th>Z.scale.factor&emsp;<\/th><td>0.001&emsp;<\/td><\/tr><tr><td>19<\/td><th>X.offset&emsp;<\/th><td>450000&emsp;<\/td><\/tr><tr><td>20<\/td><th>Y.offset&emsp;<\/th><td>4450000&emsp;<\/td><\/tr><tr><td>21<\/td><th>Z.offset&emsp;<\/th><td>0&emsp;<\/td><\/tr><tr><td>22<\/td><th>Max.X&emsp;<\/th><td>453572.6&emsp;<\/td><\/tr><tr><td>23<\/td><th>Min.X&emsp;<\/th><td>453532.6&emsp;<\/td><\/tr><tr><td>24<\/td><th>Max.Y&emsp;<\/th><td>4458596&emsp;<\/td><\/tr><tr><td>25<\/td><th>Min.Y&emsp;<\/th><td>4458556&emsp;<\/td><\/tr><tr><td>26<\/td><th>Max.Z&emsp;<\/th><td>2762.425&emsp;<\/td><\/tr><tr><td>27<\/td><th>Min.Z&emsp;<\/th><td>2742.063&emsp;<\/td><\/tr><tr><td>28<\/td><th>CRS&emsp;<\/th><td>32613&emsp;<\/td><\/tr><tr><td>29<\/td><th>Number.of.1st.return&emsp;<\/th><td>12612&emsp;<\/td><\/tr><tr><td>30<\/td><th>Number.of.2nd.return&emsp;<\/th><td>4365&emsp;<\/td><\/tr><tr><td>31<\/td><th>Number.of.3rd.return&emsp;<\/th><td>2284&emsp;<\/td><\/tr><tr><td>32<\/td><th>Number.of.4th.return&emsp;<\/th><td>881&emsp;<\/td><\/tr><tr><td>33<\/td><th>Number.of.5th.return&emsp;<\/th><td>216&emsp;<\/td><\/tr><tr><td>34<\/td><th>filename&emsp;<\/th><td>C:\\Program Files\\R\\R-4.3.0\\library\\NeonTreeEvaluation\\extdata\\NeonTreeEvaluation\\evaluation\\LiDAR\\RMNP_042_2018.laz&emsp;<\/td><\/tr><tr><td>35<\/td><th>geometry&emsp;<\/th><td>sfc_POLYGON&emsp;<\/td><\/tr><\/table><\/div>",{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},"1",{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},{"stroke":true,"weight":1,"opacity":0.9,"fillOpacity":0.84,"bringToFront":false,"sendToBack":false}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"las_ctg@data",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]},{"method":"addLegend","args":[{"colors":["#6666FF"],"labels":["las_ctg@data"],"na_color":null,"na_label":"NA","opacity":1,"position":"topright","type":"factor","title":"","extra":null,"layerId":null,"className":"info legend","group":"las_ctg@data"}]}],"limits":{"lat":[40.27619328566198,40.2765558295054],"lng":[-105.5465821289829,-105.546108754494]},"fitBounds":[40.27619328566198,-105.5465821289829,40.2765558295054,-105.546108754494,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
 <p><em>zoom out if you can’t see anything</em></p>
 <p>let’s read one file</p>
 <div class="sourceCode" id="cb167"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb167-1"><a href="s02.html#cb167-1" tabindex="-1"></a>las <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">readLAS</span>(las_f_path)</span>
@@ -378,7 +391,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb169-3"><a href="s02.html#cb169-3" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;Z&quot;</span>, <span class="at">breaks =</span> <span class="st">&quot;quantile&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> T</span>
 <span id="cb169-4"><a href="s02.html#cb169-4" tabindex="-1"></a>   , <span class="at">pal =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
 <span id="cb169-5"><a href="s02.html#cb169-5" tabindex="-1"></a>  )</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-106-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-107-1.png" width="1008" /></p>
 <div id="cloud2trees-that-lidar-data" class="section level3 hasAnchor" number="3.1.1">
 <h3><span class="header-section-number">3.1.1</span> <code>cloud2trees</code> that lidar data<a href="s02.html#cloud2trees-that-lidar-data" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>extract trees from the lidar data using <code>cloud2trees</code> to create some example tree-level point cloud data to test the <code>LadderFuelsR</code> function we define below with</p>
@@ -392,10 +405,11 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div class="sourceCode" id="cb172"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb172-1"><a href="s02.html#cb172-1" tabindex="-1"></a>norm_las_dir <span class="ot">&lt;-</span> <span class="st">&quot;../data/point_cloud_processing_temp/02_normalize/&quot;</span></span>
 <span id="cb172-2"><a href="s02.html#cb172-2" tabindex="-1"></a><span class="co"># what?</span></span>
 <span id="cb172-3"><a href="s02.html#cb172-3" tabindex="-1"></a>cloud2trees_ans <span class="sc">%&gt;%</span> <span class="fu">names</span>()</span></code></pre></div>
-<pre><code>## [1] &quot;crowns_sf&quot;   &quot;treetops_sf&quot; &quot;dtm_rast&quot;    &quot;chm_rast&quot;</code></pre>
+<pre><code>## [1] &quot;crowns_sf&quot;       &quot;treetops_sf&quot;     &quot;dtm_rast&quot;        &quot;chm_rast&quot;       
+## [5] &quot;foresttype_rast&quot;</code></pre>
 <div class="sourceCode" id="cb174"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb174-1"><a href="s02.html#cb174-1" tabindex="-1"></a>cloud2trees_ans<span class="sc">$</span>crowns_sf <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 107
-## Columns: 22
+## Columns: 27
 ## $ treeID                    &lt;chr&gt; &quot;1_453532.6_4458594.6&quot;, &quot;2_453544.6_4458594.…
 ## $ tree_height_m             &lt;dbl&gt; 3.185, 12.866, 11.826, 4.287, 8.980, 7.009, …
 ## $ tree_x                    &lt;dbl&gt; 453532.6, 453544.6, 453542.6, 453547.4, 4535…
@@ -415,9 +429,14 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## $ ptcld_predicted_dbh_cm    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ tree_cbh_m                &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ is_training_cbh           &lt;lgl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ forest_type_group_code    &lt;chr&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ forest_type_group         &lt;chr&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ hardwood_softwood         &lt;chr&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_trees_per_ha         &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_relative_tree_height &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
-## $ comp_dist_to_nearest_m    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …</code></pre>
+## $ comp_dist_to_nearest_m    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ max_crown_diam_height_m   &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ is_training_hmd           &lt;lgl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …</code></pre>
 <p>clean it for <code>LadderFuelsR</code> to attach treeID to the point cloud</p>
 <div class="sourceCode" id="cb176"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb176-1"><a href="s02.html#cb176-1" tabindex="-1"></a><span class="co"># the lidR::merge_spatial requires only polygons so we need to rid the multipolygons</span></span>
 <span id="cb176-2"><a href="s02.html#cb176-2" tabindex="-1"></a>crowns_sf_poly <span class="ot">&lt;-</span></span>
@@ -463,25 +482,25 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb178-11"><a href="s02.html#cb178-11" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">filter_poi</span>(<span class="sc">!</span><span class="fu">is.na</span>(treeID))</span>
 <span id="cb178-12"><a href="s02.html#cb178-12" tabindex="-1"></a><span class="co"># what is this data?</span></span>
 <span id="cb178-13"><a href="s02.html#cb178-13" tabindex="-1"></a>nlas_one_tree<span class="sc">@</span>data <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 250
+<pre><code>## Rows: 226
 ## Columns: 17
-## $ X                 &lt;dbl&gt; 453545.2, 453544.4, 453545.0, 453545.2, 453542.7, 45…
-## $ Y                 &lt;dbl&gt; 4458559, 4458560, 4458560, 4458560, 4458560, 4458560…
-## $ Z                 &lt;dbl&gt; 0.000, 10.796, 10.059, 8.604, 0.000, 0.000, 0.000, 8…
-## $ gpstime           &lt;dbl&gt; 409990.2, 409990.2, 409990.2, 409990.2, 409990.2, 40…
-## $ Intensity         &lt;int&gt; 57, 215, 75, 53, 88, 363, 421, 26, 63, 164, 76, 35, …
-## $ ReturnNumber      &lt;int&gt; 2, 1, 1, 2, 4, 2, 1, 1, 2, 3, 1, 2, 3, 1, 2, 2, 1, 1…
-## $ NumberOfReturns   &lt;int&gt; 2, 1, 3, 3, 4, 2, 1, 3, 3, 3, 3, 3, 3, 2, 2, 2, 1, 4…
+## $ X                 &lt;dbl&gt; 453532.9, 453533.3, 453533.9, 453533.3, 453533.4, 45…
+## $ Y                 &lt;dbl&gt; 4458566, 4458566, 4458566, 4458567, 4458567, 4458567…
+## $ Z                 &lt;dbl&gt; 9.856, 11.057, 10.067, 13.177, 12.623, 11.766, 10.62…
+## $ gpstime           &lt;dbl&gt; 409990.1, 409990.1, 409990.1, 409990.1, 409990.1, 40…
+## $ Intensity         &lt;int&gt; 151, 239, 111, 79, 112, 7, 74, 159, 43, 35, 17, 10, …
+## $ ReturnNumber      &lt;int&gt; 1, 1, 1, 1, 2, 1, 2, 1, 2, 3, 4, 5, 1, 1, 1, 1, 2, 3…
+## $ NumberOfReturns   &lt;int&gt; 1, 2, 3, 2, 2, 2, 2, 3, 3, 5, 5, 5, 1, 1, 1, 3, 3, 3…
 ## $ ScanDirectionFlag &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
 ## $ EdgeOfFlightline  &lt;int&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0…
-## $ Classification    &lt;int&gt; 2, 5, 5, 5, 2, 2, 2, 5, 5, 2, 5, 5, 2, 5, 5, 5, 5, 5…
+## $ Classification    &lt;int&gt; 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2…
 ## $ Synthetic_flag    &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Keypoint_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
 ## $ Withheld_flag     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FAL…
-## $ ScanAngleRank     &lt;int&gt; -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, -7, …
-## $ UserData          &lt;int&gt; 0, 108, 101, 86, 0, 0, 0, 86, 82, 0, 95, 82, 0, 110,…
+## $ ScanAngleRank     &lt;int&gt; -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, -6, …
+## $ UserData          &lt;int&gt; 98, 111, 101, 132, 126, 118, 106, 109, 88, 84, 75, 6…
 ## $ PointSourceID     &lt;int&gt; 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9…
-## $ treeID            &lt;int&gt; 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, …</code></pre>
+## $ treeID            &lt;int&gt; 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, …</code></pre>
 </div>
 </div>
 <div id="define-ladderfuelsr-processing-function" class="section level2 hasAnchor" number="3.2">
@@ -806,11 +825,11 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ##  [5] &quot;metrics_depth&quot;    &quot;real_fbh&quot;         &quot;real_depth&quot;       &quot;eff_gap&quot;         
 ##  [9] &quot;layers_lad_df&quot;    &quot;cbh_metrics&quot;</code></pre>
 <div class="sourceCode" id="cb183"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb183-1"><a href="s02.html#cb183-1" tabindex="-1"></a>ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 13
+<pre><code>## Rows: 14
 ## Columns: 3
-## $ treeID &lt;fct&gt; 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56
+## $ treeID &lt;fct&gt; 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92, 92
 ## $ height &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, …
-## $ lad    &lt;dbl&gt; 0.000000000, 0.021362532, 0.011498812, 0.036923712, 0.112494453…</code></pre>
+## $ lad    &lt;dbl&gt; 0.000000000, 0.010813444, 0.119080979, 0.187284798, 0.176353747…</code></pre>
 <p>Create our own plot of the gaps and fuel layers base height in the vertical tree profile</p>
 <div class="sourceCode" id="cb185"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb185-1"><a href="s02.html#cb185-1" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span> </span>
 <span id="cb185-2"><a href="s02.html#cb185-2" tabindex="-1"></a>  <span class="fu">geom_path</span>(<span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile, <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> lad, <span class="at">y =</span> height)) <span class="sc">+</span></span>
@@ -841,7 +860,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb185-27"><a href="s02.html#cb185-27" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> scales<span class="sc">::</span><span class="fu">extended_breaks</span>(<span class="dv">10</span>)) <span class="sc">+</span></span>
 <span id="cb185-28"><a href="s02.html#cb185-28" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb185-29"><a href="s02.html#cb185-29" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-117-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-119-1.png" width="1008" /></p>
 <p>note, the <code>gap</code> and <code>cbh</code> columns in <code>ladderfuelsr_cbh_ans$gaps_fbhs</code> contain the data needed for the plot ( but not the <code>gap_</code> and <code>cbh_</code> columns ;/ ).</p>
 <p>but what are these columns?</p>
 <ul>
@@ -853,35 +872,35 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div class="sourceCode" id="cb186"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb186-1"><a href="s02.html#cb186-1" tabindex="-1"></a>ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
 ## Columns: 29
-## $ treeID1        &lt;dbl&gt; 56
-## $ dptf1          &lt;dbl&gt; 8
-## $ effdist1       &lt;dbl&gt; 3
-## $ Hcbh1          &lt;dbl&gt; 4.5
-## $ Hdist1         &lt;dbl&gt; 3.5
+## $ treeID1        &lt;dbl&gt; 92
+## $ dptf1          &lt;dbl&gt; 9
+## $ effdist1       &lt;dbl&gt; 2
+## $ Hcbh1          &lt;dbl&gt; 3.5
+## $ Hdist1         &lt;dbl&gt; 2.5
 ## $ Hdptf1         &lt;dbl&gt; 12.5
-## $ max1           &lt;dbl&gt; 13.5
-## $ Hcbh1_Hdptf1   &lt;dbl&gt; 96.75358
-## $ treeID         &lt;fct&gt; 56
-## $ max_height     &lt;dbl&gt; 13.5
+## $ max1           &lt;dbl&gt; 14.5
+## $ Hcbh1_Hdptf1   &lt;dbl&gt; 98.79025
+## $ treeID         &lt;fct&gt; 92
+## $ max_height     &lt;dbl&gt; 14.5
 ## $ nlayers        &lt;int&gt; 1
-## $ maxlad_Hcbh    &lt;dbl&gt; 4.5
-## $ maxlad_Hdist   &lt;dbl&gt; 3.5
+## $ maxlad_Hcbh    &lt;dbl&gt; 3.5
+## $ maxlad_Hdist   &lt;dbl&gt; 2.5
 ## $ maxlad_Hdptf   &lt;dbl&gt; 12.5
-## $ maxlad_dptf    &lt;dbl&gt; 8
-## $ maxlad_effdist &lt;dbl&gt; 3
-## $ maxlad_lad     &lt;dbl&gt; 96.75358
-## $ max_Hcbh       &lt;dbl&gt; 4.5
-## $ max_Hdist      &lt;dbl&gt; 3.5
+## $ maxlad_dptf    &lt;dbl&gt; 9
+## $ maxlad_effdist &lt;dbl&gt; 2
+## $ maxlad_lad     &lt;dbl&gt; 98.79025
+## $ max_Hcbh       &lt;dbl&gt; 3.5
+## $ max_Hdist      &lt;dbl&gt; 2.5
 ## $ max_Hdptf      &lt;dbl&gt; 12.5
-## $ max_dptf       &lt;dbl&gt; 8
-## $ max_effdist    &lt;dbl&gt; 3
-## $ max_lad        &lt;dbl&gt; 96.75358
-## $ last_Hcbh      &lt;dbl&gt; 4.5
-## $ last_Hdist     &lt;dbl&gt; 3.5
+## $ max_dptf       &lt;dbl&gt; 9
+## $ max_effdist    &lt;dbl&gt; 2
+## $ max_lad        &lt;dbl&gt; 98.79025
+## $ last_Hcbh      &lt;dbl&gt; 3.5
+## $ last_Hdist     &lt;dbl&gt; 2.5
 ## $ last_Hdptf     &lt;dbl&gt; 12.5
-## $ last_dptf      &lt;dbl&gt; 8
-## $ last_effdist   &lt;dbl&gt; 3
-## $ last_lad       &lt;dbl&gt; 96.75358</code></pre>
+## $ last_dptf      &lt;dbl&gt; 9
+## $ last_effdist   &lt;dbl&gt; 2
+## $ last_lad       &lt;dbl&gt; 98.79025</code></pre>
 <p>what are these?</p>
 <ul>
 <li>treeID: tree ID with strings and numeric values</li>
@@ -925,7 +944,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb188-19"><a href="s02.html#cb188-19" tabindex="-1"></a>(plots_cbh_maxdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_maxdist&quot;</span>)) <span class="sc">+</span></span>
 <span id="cb188-20"><a href="s02.html#cb188-20" tabindex="-1"></a>(plots_cbh_lastdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_lastdist&quot;</span>)) <span class="sc">+</span></span>
 <span id="cb188-21"><a href="s02.html#cb188-21" tabindex="-1"></a>  patchwork<span class="sc">::</span><span class="fu">plot_layout</span>(<span class="at">ncol =</span> <span class="dv">2</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-119-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-121-1.png" width="1008" /></p>
 <p>these plots represent the three criteria to define the CBH in a segmented tree:</p>
 <ul>
 <li><code>get_plots_cbh_LAD</code> = the fuel layer containing the maximum LAD percentage (column named <code>maxlad_Hcbh</code>)</li>
@@ -975,7 +994,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb189-37"><a href="s02.html#cb189-37" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="dv">2</span></span>
 <span id="cb189-38"><a href="s02.html#cb189-38" tabindex="-1"></a>  )</span>
 <span id="cb189-39"><a href="s02.html#cb189-39" tabindex="-1"></a>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-120-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-122-1.png" width="1008" /></p>
 </div>
 </div>
 <div id="function-to-cbh-a-tree-list" class="section level2 hasAnchor" number="3.3">
@@ -1465,7 +1484,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <p>what?</p>
 <div class="sourceCode" id="cb193"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb193-1"><a href="s02.html#cb193-1" tabindex="-1"></a>trees_cbh_ans <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 107
-## Columns: 22
+## Columns: 27
 ## $ treeID                    &lt;chr&gt; &quot;1_453532.6_4458594.6&quot;, &quot;2_453544.6_4458594.…
 ## $ tree_height_m             &lt;dbl&gt; 3.185, 12.866, 11.826, 4.287, 8.980, 7.009, …
 ## $ tree_x                    &lt;dbl&gt; 453532.6, 453544.6, 453542.6, 453547.4, 4535…
@@ -1483,11 +1502,16 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## $ basal_area_ft2            &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ ptcld_extracted_dbh_cm    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ ptcld_predicted_dbh_cm    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ forest_type_group_code    &lt;chr&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ forest_type_group         &lt;chr&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ hardwood_softwood         &lt;chr&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_trees_per_ha         &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_relative_tree_height &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_dist_to_nearest_m    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
-## $ tree_cbh_m                &lt;dbl&gt; 2.438955, 4.011466, 3.822230, 3.282826, 3.95…
-## $ is_training_cbh           &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FAL…</code></pre>
+## $ max_crown_diam_height_m   &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ is_training_hmd           &lt;lgl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
+## $ tree_cbh_m                &lt;dbl&gt; 2.087450, 2.500000, 4.500000, 2.809701, 3.50…
+## $ is_training_cbh           &lt;lgl&gt; FALSE, TRUE, TRUE, FALSE, TRUE, TRUE, FALSE,…</code></pre>
 <p>let’s view the height versus CBH relationship by training data</p>
 <div class="sourceCode" id="cb195"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb195-1"><a href="s02.html#cb195-1" tabindex="-1"></a>trees_cbh_ans <span class="sc">%&gt;%</span> </span>
 <span id="cb195-2"><a href="s02.html#cb195-2" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> tree_height_m, <span class="at">y =</span> tree_cbh_m, <span class="at">color =</span> is_training_cbh)) <span class="sc">+</span></span>
@@ -1498,7 +1522,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb195-7"><a href="s02.html#cb195-7" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;CBH (m)&quot;</span>, <span class="at">x =</span> <span class="st">&quot;Height (m)&quot;</span>, <span class="at">color =</span> <span class="st">&quot;is training data&quot;</span>) <span class="sc">+</span></span>
 <span id="cb195-8"><a href="s02.html#cb195-8" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb195-9"><a href="s02.html#cb195-9" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-126-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-128-1.png" width="1008" /></p>
 <p>check out the CBH spatially</p>
 <div class="sourceCode" id="cb196"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb196-1"><a href="s02.html#cb196-1" tabindex="-1"></a>trees_cbh_ans <span class="sc">%&gt;%</span> </span>
 <span id="cb196-2"><a href="s02.html#cb196-2" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">color =</span> is_training_cbh, <span class="at">fill =</span> tree_cbh_m)) <span class="sc">+</span></span>
@@ -1511,7 +1535,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb196-9"><a href="s02.html#cb196-9" tabindex="-1"></a>  <span class="fu">guides</span>(</span>
 <span id="cb196-10"><a href="s02.html#cb196-10" tabindex="-1"></a>    <span class="at">color =</span> <span class="fu">guide_legend</span>(<span class="at">order =</span> <span class="dv">1</span>, <span class="at">override.aes =</span> <span class="fu">list</span>(<span class="at">lwd =</span> <span class="dv">3</span>, <span class="at">fill =</span> <span class="cn">NA</span>))</span>
 <span id="cb196-11"><a href="s02.html#cb196-11" tabindex="-1"></a>  )</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-127-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-129-1.png" width="1008" /></p>
 <div id="comparison-to-ladderfuelsr-defaults" class="section level3 hasAnchor" number="3.4.1">
 <h3><span class="header-section-number">3.4.1</span> Comparison to <code>LadderFuelsR</code> defaults<a href="s02.html#comparison-to-ladderfuelsr-defaults" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>We just calculated the estimates of CBH using custom parameter values for the <code>LadderFuelsR</code> process. Let’s compare these custom values to values obtained if we just use the defaults from the <code>LadderFuelsR</code> package.</p>
@@ -1546,13 +1570,13 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb198-2"><a href="s02.html#cb198-2" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb198-3"><a href="s02.html#cb198-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(tidyselect<span class="sc">::</span><span class="fu">ends_with</span>(<span class="st">&quot;_cbh_m&quot;</span>), pct_diff_cbh) <span class="sc">%&gt;%</span> </span>
 <span id="cb198-4"><a href="s02.html#cb198-4" tabindex="-1"></a>  <span class="fu">summary</span>()</span></code></pre></div>
-<pre><code>##    tree_cbh_m    def_tree_cbh_m   pct_diff_cbh     
-##  Min.   :2.117   Min.   :1.817   Min.   :-0.22181  
-##  1st Qu.:3.500   1st Qu.:3.159   1st Qu.: 0.02369  
-##  Median :3.647   Median :3.314   Median : 0.12396  
-##  Mean   :3.786   Mean   :3.289   Mean   : 0.15985  
-##  3rd Qu.:4.113   3rd Qu.:3.500   3rd Qu.: 0.16675  
-##  Max.   :9.500   Max.   :5.500   Max.   : 1.87788</code></pre>
+<pre><code>##    tree_cbh_m    def_tree_cbh_m   pct_diff_cbh      
+##  Min.   :1.812   Min.   :2.198   Min.   :-0.410164  
+##  1st Qu.:3.317   1st Qu.:3.299   1st Qu.:-0.150676  
+##  Median :3.500   Median :3.500   Median : 0.000000  
+##  Mean   :3.609   Mean   :3.621   Mean   : 0.008473  
+##  3rd Qu.:3.874   3rd Qu.:4.065   3rd Qu.: 0.075366  
+##  Max.   :6.500   Max.   :6.500   Max.   : 0.733707</code></pre>
 <p>so maybe the CBH estimates are sensitive to the parameterization of the <code>LadderFuelsR</code> process…</p>
 <div class="sourceCode" id="cb200"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb200-1"><a href="s02.html#cb200-1" tabindex="-1"></a>trees_cbh_ans <span class="sc">%&gt;%</span> </span>
 <span id="cb200-2"><a href="s02.html#cb200-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
@@ -1568,7 +1592,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb200-12"><a href="s02.html#cb200-12" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;# Trees&quot;</span>, <span class="at">x =</span> <span class="st">&quot;CBH % diff&quot;</span>, <span class="at">fill =</span> <span class="st">&quot;custom CBH &lt; default&quot;</span>) <span class="sc">+</span></span>
 <span id="cb200-13"><a href="s02.html#cb200-13" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb200-14"><a href="s02.html#cb200-14" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>, <span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">90</span>, <span class="at">vjust =</span> <span class="dv">0</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-130-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-132-1.png" width="1008" /></p>
 <p>look at how the CBH estimates changed</p>
 <div class="sourceCode" id="cb201"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb201-1"><a href="s02.html#cb201-1" tabindex="-1"></a>trees_cbh_ans <span class="sc">%&gt;%</span> </span>
 <span id="cb201-2"><a href="s02.html#cb201-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
@@ -1585,7 +1609,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb201-13"><a href="s02.html#cb201-13" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;custom CBH (m)&quot;</span>, <span class="at">x =</span> <span class="st">&quot;default CBH (m)&quot;</span>, <span class="at">color =</span> <span class="st">&quot;custom CBH &lt; default&quot;</span>) <span class="sc">+</span></span>
 <span id="cb201-14"><a href="s02.html#cb201-14" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb201-15"><a href="s02.html#cb201-15" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-131-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-133-1.png" width="1008" /></p>
 <p>one more way to look at how the CBH estimates changed</p>
 <div class="sourceCode" id="cb202"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb202-1"><a href="s02.html#cb202-1" tabindex="-1"></a>dta_temp <span class="ot">&lt;-</span> </span>
 <span id="cb202-2"><a href="s02.html#cb202-2" tabindex="-1"></a>  trees_cbh_ans <span class="sc">%&gt;%</span> </span>
@@ -1622,7 +1646,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb202-33"><a href="s02.html#cb202-33" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;CBH (m)&quot;</span>, <span class="at">x =</span> <span class="st">&quot;&quot;</span>, <span class="at">color =</span> <span class="st">&quot;custom CBH &lt; default&quot;</span>) <span class="sc">+</span></span>
 <span id="cb202-34"><a href="s02.html#cb202-34" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb202-35"><a href="s02.html#cb202-35" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;none&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-132-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-134-1.png" width="1008" /></p>
 <p>In selecting parameter levels, Let’s err on the side of a lower CBH for fuel modelling: 1) to be conservative with how “high” we say the CBH is; 2) since it looks like the minimum CBH extracted from lidar data via the <code>LadderFuelsR</code> process is ~1.5 m; 3) and since lower density lidar gets very few returns closer to the ground level due to canopy occlusion.</p>
 <p>for completeness, let’s view the height versus CBH relationship by training data using the default parameter values</p>
 <div class="sourceCode" id="cb203"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb203-1"><a href="s02.html#cb203-1" tabindex="-1"></a>trees_cbh_ans <span class="sc">%&gt;%</span> </span>
@@ -1634,7 +1658,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb203-7"><a href="s02.html#cb203-7" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;CBH (m)&quot;</span>, <span class="at">x =</span> <span class="st">&quot;Height (m)&quot;</span>, <span class="at">color =</span> <span class="st">&quot;is training data&quot;</span>) <span class="sc">+</span></span>
 <span id="cb203-8"><a href="s02.html#cb203-8" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb203-9"><a href="s02.html#cb203-9" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-133-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-135-1.png" width="1008" /></p>
 </div>
 <div id="test-cbh-based-on-parameterization-of-ladderfuelsr" class="section level3 hasAnchor" number="3.4.2">
 <h3><span class="header-section-number">3.4.2</span> test CBH based on parameterization of <code id="test_l2">LadderFuelsR</code><a href="s02.html#test-cbh-based-on-parameterization-of-ladderfuelsr" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -1729,7 +1753,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb205-8"><a href="s02.html#cb205-8" tabindex="-1"></a>    kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <caption>
-<span id="tab:unnamed-chunk-134">Table 3.1: </span>lidar: these combintations resulted in ERROR!
+<span id="tab:unnamed-chunk-136">Table 3.1: </span>lidar: these combintations resulted in ERROR!
 </caption>
 <thead>
 <tr>
@@ -1757,7 +1781,7 @@ dist_btwn_bins_m
 <span id="cb206-8"><a href="s02.html#cb206-8" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <caption>
-<span id="tab:unnamed-chunk-135">Table 3.2: </span>lidar: these combintations resulted in SUCCESS!
+<span id="tab:unnamed-chunk-137">Table 3.2: </span>lidar: these combintations resulted in SUCCESS!
 </caption>
 <thead>
 <tr>
@@ -2026,11 +2050,11 @@ dist_btwn_bins_m
 ## Columns: 7
 ## $ treeID              &lt;chr&gt; &quot;1_453532.6_4458594.6&quot;, &quot;2_453544.6_4458594.6&quot;, &quot;3…
 ## $ tree_height_m       &lt;dbl&gt; 3.185, 12.866, 11.826, 4.287, 8.980, 7.009, 6.352,…
-## $ tree_cbh_m          &lt;dbl&gt; 1.274369, 1.895744, 1.856778, 1.715297, 2.000000, …
-## $ is_training_cbh     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, TRUE, FAL…
+## $ tree_cbh_m          &lt;dbl&gt; 1.589819, 1.803100, 1.762267, 2.139891, 2.000000, …
+## $ is_training_cbh     &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, TRUE, TRUE, FALSE, FAL…
 ## $ min_fuel_layer_ht_m &lt;dbl&gt; 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,…
 ## $ dist_btwn_bins_m    &lt;dbl&gt; 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, …
-## $ timer_secs          &lt;dbl&gt; 15.52875, 15.52875, 15.52875, 15.52875, 15.52875, …</code></pre>
+## $ timer_secs          &lt;dbl&gt; 141.6403, 141.6403, 141.6403, 141.6403, 141.6403, …</code></pre>
 <p>sick, how about by data set?</p>
 <div class="sourceCode" id="cb209"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb209-1"><a href="s02.html#cb209-1" tabindex="-1"></a>test_cbh_dta <span class="sc">%&gt;%</span> </span>
 <span id="cb209-2"><a href="s02.html#cb209-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(min_fuel_layer_ht_m, dist_btwn_bins_m) <span class="sc">%&gt;%</span> </span>
@@ -2038,7 +2062,7 @@ dist_btwn_bins_m
 <span id="cb209-4"><a href="s02.html#cb209-4" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <caption>
-<span id="tab:unnamed-chunk-137">Table 3.3: </span>look at our test data combintation successes
+<span id="tab:unnamed-chunk-139">Table 3.3: </span>look at our test data combintation successes
 </caption>
 <thead>
 <tr>
@@ -2408,7 +2432,7 @@ n
 <span id="cb210-19"><a href="s02.html#cb210-19" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;min_fuel_layer_ht_m : dist_btwn_bins_m&quot;</span>, <span class="at">x =</span> <span class="st">&quot;CBH (m)&quot;</span>, <span class="at">fill =</span> <span class="st">&quot;is the default&quot;</span>) <span class="sc">+</span></span>
 <span id="cb210-20"><a href="s02.html#cb210-20" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb210-21"><a href="s02.html#cb210-21" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-138-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-140-1.png" width="1008" /></p>
 <p>very interesting. it seems that the default settings result in variable CBH estimates that are generally lower than other parameter settings tested. Setting <code>min_fuel_layer_ht_m = 1</code> and <code>dist_btwn_bins_m = 0.5</code> results in CBH estimates that are lower (what we are aiming for) than the default settings and similarly variable to the default setting. Increasing the <code>min_fuel_layer_ht_m</code> to values &gt;= 2 does indeed result in increase CBH estimates that are also more consistent (potentially a desirable result) which may be due to the limited number of taller trees in this particular test data.</p>
 <p><em>let’s proceed by using these settings: <code>min_fuel_layer_ht_m = 1</code> and <code>dist_btwn_bins_m = 0.5</code></em></p>
 <p>we need to perform a study measuring the accuracy of the CBH estimated from the point cloud versus field validation data to properly determine what parameter settings to use in the <code>LadderFuelsR</code> process</p>
@@ -2421,13 +2445,13 @@ n
 <span id="cb211-6"><a href="s02.html#cb211-6" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(secs_per_tree)</span>
 <span id="cb211-7"><a href="s02.html#cb211-7" tabindex="-1"></a>secs_per_tree <span class="sc">%&gt;%</span> <span class="fu">summary</span>()</span></code></pre></div>
 <pre><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-##  0.1325  0.1502  0.1560  0.1564  0.1613  0.1734</code></pre>
-<p>that’s not too shabby but let’s remember that this is a lower density point cloud. the estimate is that for every 1,000 trees the CBH extraction from the point cloud would take 2.6 minutes. how does that sound?</p>
+##   1.144   1.247   1.267   1.266   1.301   1.393</code></pre>
+<p>that’s not too shabby but let’s remember that this is a lower density point cloud. the estimate is that for every 1,000 trees the CBH extraction from the point cloud would take 21.1 minutes. how does that sound?</p>
 <p>this is also based on the point density of this test data:</p>
 <div class="sourceCode" id="cb213"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb213-1"><a href="s02.html#cb213-1" tabindex="-1"></a>lidR<span class="sc">::</span><span class="fu">readLAScatalog</span>(norm_las_dir)</span></code></pre></div>
-<pre><code>## class       : LAScatalog (v1.3 format 1)
+<pre><code>## class       : LAScatalog (v1.2 format 1)
 ## extent      : 453532.6, 453572.6, 4458556, 4458596 (xmin, xmax, ymin, ymax)
-## coord. ref. : WGS 84 / UTM zone 13N 
+## coord. ref. : UTM Zone 13N Geoid12A 
 ## area        : 1599.8 m²
 ## points      : 20.4 thousand points
 ## density     : 12.7 points/m²
@@ -2508,7 +2532,7 @@ n
 ## $ comp_trees_per_ha         &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_relative_tree_height &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
 ## $ comp_dist_to_nearest_m    &lt;dbl&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, NA, …
-## $ tree_cbh_m                &lt;dbl&gt; 4.947117, 3.114765, 4.202608, 7.257119, 4.88…
+## $ tree_cbh_m                &lt;dbl&gt; 3.993433, 2.866244, 3.534200, 10.180467, 4.9…
 ## $ is_training_cbh           &lt;lgl&gt; FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FA…
 ## $ geom                      &lt;MULTIPOLYGON [m]&gt; MULTIPOLYGON (((490177 4330...,…</code></pre>
 <p>let’s view the height versus CBH relationship by training data</p>
@@ -2521,7 +2545,7 @@ n
 <span id="cb223-7"><a href="s02.html#cb223-7" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;CBH (m)&quot;</span>, <span class="at">x =</span> <span class="st">&quot;Height (m)&quot;</span>, <span class="at">color =</span> <span class="st">&quot;is training data&quot;</span>) <span class="sc">+</span></span>
 <span id="cb223-8"><a href="s02.html#cb223-8" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb223-9"><a href="s02.html#cb223-9" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-146-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-148-1.png" width="1008" /></p>
 <p>check out the CBH spatially</p>
 <div class="sourceCode" id="cb224"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb224-1"><a href="s02.html#cb224-1" tabindex="-1"></a>trees_cbh_ans <span class="sc">%&gt;%</span> </span>
 <span id="cb224-2"><a href="s02.html#cb224-2" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">color =</span> is_training_cbh, <span class="at">fill =</span> tree_cbh_m)) <span class="sc">+</span></span>
@@ -2534,7 +2558,7 @@ n
 <span id="cb224-9"><a href="s02.html#cb224-9" tabindex="-1"></a>  <span class="fu">guides</span>(</span>
 <span id="cb224-10"><a href="s02.html#cb224-10" tabindex="-1"></a>    <span class="at">color =</span> <span class="fu">guide_legend</span>(<span class="at">order =</span> <span class="dv">1</span>, <span class="at">override.aes =</span> <span class="fu">list</span>(<span class="at">lwd =</span> <span class="dv">3</span>, <span class="at">fill =</span> <span class="cn">NA</span>))</span>
 <span id="cb224-11"><a href="s02.html#cb224-11" tabindex="-1"></a>  )</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-147-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-149-1.png" width="1008" /></p>
 </div>
 <div id="test-cbh-based-on-parameterization-of-ladderfuelsr-1" class="section level3 hasAnchor" number="3.5.3">
 <h3><span class="header-section-number">3.5.3</span> test CBH based on parameterization of <code>LadderFuelsR</code><a href="s02.html#test-cbh-based-on-parameterization-of-ladderfuelsr-1" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -2557,7 +2581,7 @@ n
 <span id="cb226-8"><a href="s02.html#cb226-8" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <caption>
-<span id="tab:unnamed-chunk-148">Table 3.4: </span>uas: these combintations resulted in ERROR!
+<span id="tab:unnamed-chunk-150">Table 3.4: </span>uas: these combintations resulted in ERROR!
 </caption>
 <thead>
 <tr>
@@ -2585,7 +2609,7 @@ dist_btwn_bins_m
 <span id="cb227-8"><a href="s02.html#cb227-8" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <caption>
-<span id="tab:unnamed-chunk-149">Table 3.5: </span>uas: these combintations resulted in SUCCESS!
+<span id="tab:unnamed-chunk-151">Table 3.5: </span>uas: these combintations resulted in SUCCESS!
 </caption>
 <thead>
 <tr>
@@ -2861,7 +2885,7 @@ dist_btwn_bins_m
 <span id="cb228-18"><a href="s02.html#cb228-18" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
 <table class="table" style="margin-left: auto; margin-right: auto;">
 <caption>
-<span id="tab:unnamed-chunk-150">Table 3.6: </span>lidar AND uas: these combintations resulted in ERROR!
+<span id="tab:unnamed-chunk-152">Table 3.6: </span>lidar AND uas: these combintations resulted in ERROR!
 </caption>
 <thead>
 <tr>
@@ -2907,7 +2931,7 @@ dist_btwn_bins_m
 <span id="cb229-19"><a href="s02.html#cb229-19" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">y =</span> <span class="st">&quot;min_fuel_layer_ht_m : dist_btwn_bins_m&quot;</span>, <span class="at">x =</span> <span class="st">&quot;CBH (m)&quot;</span>, <span class="at">fill =</span> <span class="st">&quot;is the default&quot;</span>) <span class="sc">+</span></span>
 <span id="cb229-20"><a href="s02.html#cb229-20" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb229-21"><a href="s02.html#cb229-21" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-151-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-153-1.png" width="1008" /></p>
 <p>is this interesting?</p>
 <p>we need to perform a study measuring the accuracy of the CBH estimated from the point cloud versus field validation data to properly determine what parameter settings to use in the <code>LadderFuelsR</code> process</p>
 <p>let’s check out the timer on a per tree basis</p>
@@ -2919,8 +2943,8 @@ dist_btwn_bins_m
 <span id="cb230-6"><a href="s02.html#cb230-6" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">pull</span>(secs_per_tree)</span>
 <span id="cb230-7"><a href="s02.html#cb230-7" tabindex="-1"></a>secs_per_tree <span class="sc">%&gt;%</span> <span class="fu">summary</span>()</span></code></pre></div>
 <pre><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-## 0.02982 0.03199 0.03373 0.03331 0.03491 0.03730</code></pre>
-<p>the estimate is that for every 1,000 trees the CBH extraction from the point cloud would take 0.6 minutes. how does that sound?</p>
+## 0.02810 0.03098 0.03249 0.03242 0.03367 0.03588</code></pre>
+<p>the estimate is that for every 1,000 trees the CBH extraction from the point cloud would take 0.5 minutes. how does that sound?</p>
 
 </div>
 </div>

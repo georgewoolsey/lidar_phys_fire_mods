@@ -592,7 +592,10 @@ let's use it for one of the data sets from a conifer forest in the `NeonTreeEval
 ```{r}
 # get one file
 (f_temp <- las_df %>% 
-    dplyr::filter(neon_site=="RMNP") %>%  # rocky mtn national park
+    dplyr::filter(
+      neon_site=="RMNP"
+      & stringr::str_ends(f_path, "RMNP_018_2018.laz")
+    ) %>%  # rocky mtn national park
     dplyr::slice_sample(n = 1) %>% 
     dplyr::pull(f_path))
 # read in the data
@@ -796,6 +799,14 @@ plt_chm +
 ```
 
 now we'll attach the `treeID` column to the normalized las file and keep only the points that fall within a tree crown.
+
+```{r, include=F, eval=T}
+if(
+    !identical(lidR::st_crs(nlas_temp), sf::st_crs(crowns_sf_poly))
+  ){
+    lidR::st_crs(nlas_temp) <- sf::st_crs(crowns_sf_poly)
+  }
+```
 
 ```{r}
 crowns_nlas_temp <- lidR::merge_spatial(

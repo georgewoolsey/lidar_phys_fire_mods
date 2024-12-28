@@ -1,9 +1,9 @@
-tab:unnamed-chunk-134
-tab:unnamed-chunk-135
+tab:unnamed-chunk-136
 tab:unnamed-chunk-137
-tab:unnamed-chunk-148
-tab:unnamed-chunk-149
+tab:unnamed-chunk-139
 tab:unnamed-chunk-150
+tab:unnamed-chunk-151
+tab:unnamed-chunk-152
 introduction
 objective
 data
@@ -65,3 +65,11 @@ fill-missing-forest-type-example
 fill-missing-forest-type-resilience
 find-another-way-with-huge-rasters
 get-forest-type-function
+s04
+cloud2trees-that-lidar-data-2
+height-to-max-crown-diameter
+one-tree-example
+process-for-entire-lascatalog
+filter-the-lascatalog-one-tree-at-a-time
+attach-treeid-attribute-to-the-lascatalog
+function-for-cloud2trees
