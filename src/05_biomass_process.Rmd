@@ -205,10 +205,10 @@ cloud2trees_ans$treetops_sf$biomass_kg <- allodb::get_biomass(
   , genus = rep("Pinus", times = nrow(cloud2trees_ans$treetops_sf))
   , species = rep("contorta", times = nrow(cloud2trees_ans$treetops_sf))
   , coords = 
-    c(-105.53886, 40.16380)
-    # cloud2trees_ans$treetops_sf %>% 
-    #   sf::st_transform(crs = sf::st_crs(4326)) %>% 
-    #   sf::st_coordinates()
+    cloud2trees_ans$treetops_sf %>%
+      sf::st_transform(crs = sf::st_crs(4326)) %>%
+      sf::st_coordinates() %>% 
+      dplyr::as_tibble()
 )
 ```
 
@@ -219,9 +219,104 @@ cloud2trees_ans$treetops_sf$biomass_kg %>%
   summary()
 ```
 
+let's plot biomass versus tree height because height comes directly from the point cloud
+
+```{r}
+cloud2trees_ans$treetops_sf %>% 
+  ggplot(mapping = aes(x = tree_height_m, y = biomass_kg, color = biomass_kg)) +
+  geom_point() +
+  harrypotter::scale_color_hp(option = "slytherin") +
+  scale_x_continuous(breaks = scales::extended_breaks(n = 11)) +
+  scale_y_continuous(breaks = scales::extended_breaks(n = 11)) +
+  labs(x = "height (m)", y = "biomass (kg)") +
+  theme_light() +
+  theme(legend.position = "none")
+
+```
+
+note that there is variation in the predicted biomass at a given height that is introduced from the variation in location of the trees
+
+#### `allodb::new_equations()` function
+
+the `allodb::new_equations()` function might allow us to modify the set of equations that will be used to estimate the biomass. can we adjust the weights used by `allodb::get_biomass()` to allow for multiple species allometries to contribute to the estimation of biomass given that we have only FIA forest type which groups multiple species together?
+
+it looks like the `allodb::est_params()` returns the allometric equation parameters to be used to estimate biomass for each tree and it's returned data is joined with the tree list data based on the columns `c("genus", "long", "lat")` if no `species` parameter is provided (if `species` is provided, it is added to the join column list)
+
+```{r}
+# just get one coordinate location
+coords_temp <- cloud2trees_ans$treetops_sf %>%
+  sf::st_transform(crs = sf::st_crs(4326)) %>%
+  sf::st_coordinates() %>% 
+  dplyr::as_tibble() %>% 
+  dplyr::slice(1)
+# what parameters are default?
+def_params_temp <- allodb::est_params(
+  genus = "Pinus",
+  coords = coords_temp,
+  species = NULL,
+  new_eqtable = NULL, # default for get_biomass
+  wna = 0.1, # default for get_biomass
+  w95 = 500, # default for get_biomass
+  nres = 1e4 # default for get_biomass
+)
+def_params_temp
+```
+
+let's use `allodb::new_equations()` to filter the equations to use for biomass estimation
+
+```{r}
+new_eq_temp <- allodb::new_equations(
+  subset_taxa = c(
+    "Pinus" # in case the species doesn't exist
+    , "Pinus contorta"
+  )
+)
+```
+
+what did we get?
+
+```{r}
+new_eq_temp %>% 
+  dplyr::select(c("equation_id", "equation_taxa", "equation_allometry")) %>% 
+  dplyr::glimpse()
+```
+
+now we'll update the `new_eqtable` parameter using the return from `allodb::new_equations()`
+
+```{r}
+updt_params_temp <- allodb::est_params(
+  genus = "Pinus",
+  coords = coords_temp,
+  species = NULL,
+  new_eqtable = new_eq_temp, # updated
+  wna = 0.1, # default for get_biomass
+  w95 = 500, # default for get_biomass
+  nres = 1e4 # default for get_biomass
+)
+# what is the update?
+updt_params_temp
+```
+
+let's figure out a mapping between genus/species and FIA forest types
+
+```{r}
+fia_trees <- system.file(package = "cloud2trees", "extdata", "treemap") %>% 
+  list.files(full.names = T) %>% 
+  stringr::str_subset("tree_table.csv") %>% 
+  readr::read_csv(show_col_types = F, progress = F) %>% 
+  dplyr::rename_with(tolower)
+```
+
+what is in the FIA tree table from TreeMap?
+
+```{r}
+fia_trees %>% 
+  dplyr::glimpse()
+```
+
+we could overlay the TreeMap raster with the FIA forest type raster and aggregate the tree species by forest type
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
-remove(list = ls())
 gc()
 ```
