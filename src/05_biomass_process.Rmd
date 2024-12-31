@@ -1,0 +1,227 @@
+# Tree Biomass Process{#s05}
+
+In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to test a process for estimating biomass in kg at the tree level. The ultimate goal is to incorporate this process in the [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package (Woolsey and Tinkham, 2024).
+
+We will test out three methods for attaching biomass in kg to a spatial tree list:
+
+1. Estimate single tree biomass (kg) using allometric equations based on predictors such as tree diameter, height, and species
+    + This methodology is well represented in the literature with allometries developed for nearly all tree species ([Chojnacky et al. 2014](https://scholar.google.com/scholar?cluster=13769102016905655949&hl=en&as_sdt=0,5); [Ter-Mikaelian & Korzukhin 1997](https://scholar.google.com/scholar?cluster=6148302766104288498&hl=en&as_sdt=0,5))
+    + [Gonzalez‐Akre et al. (2022)](https://scholar.google.com/scholar?cluster=14167690887599848846&oi=gsb&hl=en&as_sdt=0,5) developed an R package to perform this exact task: [`allodb`](https://github.com/ropensci/allodb).
+2. Use models developed to predict canopy fuel stratum at the stand level based on common stand descriptors (e.g. TPH and  basal area) and distribute the stand-level estimate (in kg per m^2^ or kg per m^3^) across the individual trees in the stand
+    + [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) developed models to predict canopy fuel stratum at the stand level for four coniferous forest types common in the western US: Douglas-fir, ponderosa pine, lodgepole pine, and mixed conifer.
+    + Models for other forests types are currently lacking which limits the scope of this methodology
+3. Use raster estimates of canopy fuel stratum such as the [LANDFIRE](https://landfire.gov/fuel) database developed jointly by the USDA Forest Service and USDOI Office of Wildland Fire (OWF) and distribute the fuel estimate across the individual trees that fall in a raster cell
+    + There is an R package for accessing the LANDFIRE data [`rlandfire`](https://github.com/bcknr/rlandfire)
+
+## Preliminaries
+
+Like [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5), we'll use the term "crown" to describe aerial fuels at the tree level and the term "canopy" at the stand level.
+
+Below, we provide an overview of some commonly used fuel complex characteristics: canopy fuel load (CFL) and canopy bulk density (CBD). In simple terms, imagine a box filled with leaves, fuel load represents the total weight of all the leaves in the box while bulk density represents how tightly those leaves are packed within the box.
+
+**Canopy Fuel Load**
+
+* Definition: The total amount of flammable material (like leaves, needles, branches) within the tree crowns in a given area.
+* Focus: Primarily on the mass of the fuel.
+* Units: Typically expressed in units of mass per unit area (e.g., kilograms per square meter, tons per acre).
+* Scope: Fuel load focuses on the overall amount of fuel.
+* Significance: Important for understanding the overall fire potential of an area. A higher fuel load generally means more potential fuel for a fire to consume.
+
+**Canopy Bulk Density**
+
+* Definition: The mass of flammable material per unit volume of the tree crown.
+* Focus: Considers both the mass of fuel and the space it occupies.
+* Units: Typically expressed in units of mass per unit volume (e.g., kilograms per cubic meter).
+* Scope: Bulk density considers how the fuel load is distributed within the tree crown.
+* Significance: Crucial for predicting how easily a fire can spread through the tree crowns. Higher bulk density can increase the likelihood of crown fires.
+
+## Data Load
+
+load the libraries
+
+```{r, warning=FALSE, message=FALSE}
+# bread-and-butter
+library(tidyverse) # the tidyverse
+library(viridis) # viridis colors
+library(harrypotter) # hp colors
+library(RColorBrewer) # brewer colors
+library(scales) # work with number and plot scales
+library(latex2exp)
+
+# visualization
+library(mapview) # interactive html maps
+library(kableExtra) # tables
+library(patchwork) # combine plots
+library(ggnewscale) # ggnewscale
+library(rgl) # rgl plotting
+
+# spatial analysis
+library(terra) # raster
+library(sf) # simple features
+library(lidR) # lidar data
+library(cloud2trees) # tha cloud2trees
+library(NeonTreeEvaluation) # benchmark data
+library(allodb) # allometric biomass (kg) estimates
+```
+
+```{r, include=F, warning=F, message=F}
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  # , results = 'hide'
+  , fig.width = 10.5
+  , fig.height = 7
+)
+# option to put satellite imagery as base layer of mapview maps
+  mapview::mapviewOptions(
+    homebutton = FALSE
+    # , basemaps = c("Esri.WorldImagery","OpenStreetMap")
+    , basemaps = c("Esri.WorldImagery", "OpenStreetMap")
+  )
+# clean session
+remove(list = ls())
+gc()
+```
+
+## Example Lidar Data
+
+Let's load an example lidar dataset from Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) in their `NeonTreeEvaluation` package.
+
+We'll use data from a NEON site that we know has conifers: RMNP (Rocky Mountain National Park)
+
+```{r}
+# get the laz file path
+las_f_path_temp <- system.file(package = "NeonTreeEvaluation", "extdata") %>% 
+    list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% 
+    unique() %>% 
+    dplyr::as_tibble() %>%
+    dplyr::rename(f_path = 1) %>% 
+    dplyr::filter(
+      stringr::str_detect(f_path,  "RMNP")
+    ) %>% 
+    dplyr::slice(15) %>% 
+    dplyr::pull(f_path)
+```
+
+check the data
+
+```{r}
+# check the data
+lidR::readLAS(las_f_path_temp) %>% 
+  lidR::plot(
+    color = "Z", breaks = "quantile", bg = "white", legend = T
+   , pal = harrypotter::hp(n=50, house = "gryffindor")
+  )
+```
+
+### `cloud2trees` that lidar data
+
+extract trees from the lidar data using `cloud2trees`
+
+we will estimate DBH, CBH, and forest type for this data
+
+```{r, message=FALSE, results=FALSE}
+# save our output_dir
+od <- tempdir()
+# cloud2trees
+cloud2trees_ans <- cloud2trees::cloud2trees(
+  input_las_dir = las_f_path_temp
+  , output_dir = od
+  , keep_intrmdt = T
+  , estimate_tree_dbh = T
+  , estimate_tree_type = T
+  , estimate_tree_cbh = T, cbh_estimate_missing_cbh = T, cbh_tree_sample_n = 55
+)
+```
+
+let's see what we got
+
+```{r}
+cloud2trees_ans$treetops_sf %>% dplyr::glimpse()
+```
+
+where is this?
+
+```{r}
+# where?
+cloud2trees_ans$treetops_sf %>% 
+  mapview::mapview(layer.name = "trees")
+```
+
+*zoom out if you can't see anything*
+
+what does our CBH data look like?
+
+```{r}
+cloud2trees_ans$treetops_sf %>% 
+  ggplot(mapping = aes(x = tree_height_m, y = tree_cbh_m, color = is_training_cbh)) +
+  geom_point() +
+  scale_color_viridis_d() +
+  labs(x = "height (m)", y = "CBH (m)", color = "is CBH\nfrom cloud") +
+  theme_light()
+  
+```
+
+what does our DBH data look like?
+
+```{r}
+cloud2trees_ans$treetops_sf %>% 
+  ggplot(mapping = aes(x = tree_height_m, y = dbh_cm)) +
+  geom_point(color = "navy") +
+  labs(x = "height (m)", y = "DBH (cm)") +
+  theme_light()
+  
+```
+
+how about the forest type?
+
+```{r}
+cloud2trees_ans$treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(forest_type_group)
+```
+
+## Method 1: single tree biomass (kg) using allometric equations
+
+The first method we'll explore for attaching biomass in kg to a spatial tree list is estimating single tree biomass (kg) using allometric equations based on predictors such as tree diameter, height, and species.
+
+This methodology is well represented in the literature with allometries developed for nearly all tree species ([Chojnacky et al. 2014](https://scholar.google.com/scholar?cluster=13769102016905655949&hl=en&as_sdt=0,5); [Ter-Mikaelian & Korzukhin 1997](https://scholar.google.com/scholar?cluster=6148302766104288498&hl=en&as_sdt=0,5)). [Gonzalez‐Akre et al. (2022)](https://scholar.google.com/scholar?cluster=14167690887599848846&oi=gsb&hl=en&as_sdt=0,5) developed an R package to perform this exact task: [`allodb`](https://github.com/ropensci/allodb).
+
+### Define species based on forest type group
+
+`cloud2trees` gives us USDA Forest Inventory and Analysis (FIA) forest type group codes when we set the parameter `estimate_tree_type = T`. However, the `allodb` package requires genus and species information to estimate tree biomass. We need to make or find a lookup table to map the FIA forest type group to the genus and species.
+
+Alternatively, we can use the `allodb::new_equations()` function to modify the set of equations that will be used to estimate the biomass
+
+#### Manual
+
+we can manually set the genus and species to PICO
+
+```{r}
+cloud2trees_ans$treetops_sf$biomass_kg <- allodb::get_biomass(
+  dbh = cloud2trees_ans$treetops_sf$dbh_cm
+  , genus = rep("Pinus", times = nrow(cloud2trees_ans$treetops_sf))
+  , species = rep("contorta", times = nrow(cloud2trees_ans$treetops_sf))
+  , coords = 
+    c(-105.53886, 40.16380)
+    # cloud2trees_ans$treetops_sf %>% 
+    #   sf::st_transform(crs = sf::st_crs(4326)) %>% 
+    #   sf::st_coordinates()
+)
+```
+
+what did we get back?
+
+```{r}
+cloud2trees_ans$treetops_sf$biomass_kg %>% 
+  summary()
+```
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls())
+gc()
+```
