@@ -136,6 +136,10 @@ cloud2trees_ans <- cloud2trees::cloud2trees(
 )
 ```
 
+```{r, include = F, eval = F, results=F, message=F}
+cloud2trees_ans$treetops_sf <- cloud2trees::trees_dbh(cloud2trees_ans$treetops_sf)
+```
+
 let's see what we got
 
 ```{r}
@@ -297,6 +301,11 @@ updt_params_temp <- allodb::est_params(
 updt_params_temp
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
 let's figure out a mapping between genus/species and FIA forest types
 
 ```{r}
@@ -314,9 +323,177 @@ fia_trees %>%
   dplyr::glimpse()
 ```
 
-we could overlay the TreeMap raster with the FIA forest type raster and aggregate the tree species by forest type
+we could overlay the TreeMap raster with the FIA forest type raster and aggregate the tree species by forest type......but at that point it seems like we might as well utilize the TreeMap FIA data from [Riley et al. (2021)](https://doi.org/10.2737/RDS-2021-0074) to build a [softmax regression (i.e. multinomial logistic regression)](https://bookdown.org/content/3686/nominal-predicted-variable.html) to predict the nominal variable tree species using the predictors tree height and location extracted from the point cloud data. This option roughly follows the process most represented in the existing literature as detailed above. Note that to predict the nominal variable tree species we could also use a random forest classifier as in [Meng et al. (2024)](https://doi.org/10.3390/f15122110).
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
+
+## Method 2: stand-level canopy fuels models
+
+The first method we'll explore for attaching biomass in kg to a spatial tree list is by using models developed to predict canopy fuel stratum at the stand level based on common stand descriptors (e.g. TPH and  basal area) and distribute the stand-level estimate (in kg per m^2^ or kg per m^3^) across the individual trees in the stand. The primary challenge with this methodology is that, currently a very limited set of forests types are represented in the literature by these stand-level models. This information gap limits the scope of this methodology.
+
+### Cruz et al. 2003 equations
+
+[Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) developed models to predict canopy fuel stratum at the stand level for four coniferous forest types common in the western US: Douglas-fir, ponderosa pine, lodgepole pine, and mixed conifer.
+
+Let's build a function to utilize those models for data at the stand level to calculate Canopy Bulk Density (CBD) in kilograms per cubic meter
+
+```{r}
+get_cruz_stand_kg_per_m3 <- function(forest_type_group_code, basal_area_m2_per_ha, trees_per_ha){
+  # Cruz et al. (2003)
+  # https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5
+  # Page 46, Table 4
+  if(as.numeric(forest_type_group_code) == 200){
+    #Douglas-Fir Group
+    b0 = -7.380
+    b1 = 0.479
+    b2 = 0.625
+  }else if(as.numeric(forest_type_group_code) == 220){
+    #Ponderosa Pine Group
+    b0 = -6.649
+    b1 = 0.435
+    b2 = 0.579
+  }else if(as.numeric(forest_type_group_code) == 280){
+    #Lodgepole Pine Group
+    b0 = -7.852
+    b1 = 0.349
+    b2 = 0.711
+  }else if(as.numeric(forest_type_group_code) %in% c(120,260,320) ){
+    #Mixed Conifer Group
+    b0 = -8.445
+    b1 = 0.319
+    b2 = 0.859
+  }else{
+    #No Cruz et al. formulas for these YET!!!
+    b0 = as.numeric(NA)
+    b1 = as.numeric(NA)
+    b2 = as.numeric(NA)
+  }
+  #Apply Cruz et al. if species found
+  if(!is.na(b0)){
+    return( 
+      exp(b0 + b1 * log(basal_area_m2_per_ha) + b2 * log(trees_per_ha))
+    )
+  }else{
+    return(as.numeric(NA))
+  }
+}
+```
+
+test our Cruz et al. (2003) `get_cruz_stand_kg_per_m3()` function
+
+```{r}
+get_cruz_stand_kg_per_m3(
+  forest_type_group_code = 220 # ponderosa pine
+  , basal_area_m2_per_ha = 25
+  , trees_per_ha = 600
+)
+```
+
+let's make a fake stand ID and data frame to show how to use this
+
+```{r}
+# fake a stand
+cloud2trees_ans$treetops_sf <- cloud2trees_ans$treetops_sf %>% 
+  dplyr::mutate(
+    # ~2/3 will be "2", ~1/3 will be "1"
+    stand_id = runif(n = nrow(cloud2trees_ans$treetops_sf), min = 0, max = 3) %>% 
+      ceiling() %>% 
+      ifelse(.==3,2,.)
+  )
+# aggregate
+fake_stand_temp <- 
+  cloud2trees_ans$treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  # aggregate to stand level
+  dplyr::group_by(stand_id, forest_type_group_code) %>% 
+  dplyr::summarise(
+    trees = dplyr::n()
+    , basal_area_m2 = sum(basal_area_m2, na.rm = T)
+  ) %>% 
+  # fake per ha calcs
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    basal_area_m2_per_ha = basal_area_m2/0.1
+    , trees_per_ha = trees/0.1
+  )
+fake_stand_temp
+```
+
+apply our Cruz et al. (2003) `get_cruz_stand_kg_per_m3()` function to the data frame
+
+```{r}
+fake_stand_temp <- fake_stand_temp %>% 
+  dplyr::ungroup() %>% 
+  dplyr::rowwise() %>% # this is key
+  dplyr::mutate(
+    kg_per_m3 = get_cruz_stand_kg_per_m3(
+      forest_type_group_code = forest_type_group_code
+      , basal_area_m2_per_ha = basal_area_m2_per_ha
+      , trees_per_ha = trees_per_ha
+    )
+  ) %>% 
+  dplyr::ungroup()
+fake_stand_temp
+```
+
+looks good
+
+### Define a "stand" using raster
+
+for our `cloud2trees` process, we'll define a stand in the point cloud detected tree list using the USFS Forest Type Groups of the Continental United States raster Wilson (2023) available online [here](https://di-usfsdata.img.arcgis.com/arcgis/rest/services/CONUS_forest_type_group_2018_masked_202105122120120/ImageServer) with a data overview [here](https://www.arcgis.com/home/item.html?id=10760c83b9e44923bd3c18efdaa7319d) which was used to attach the tree species group to individual trees detected from the point cloud data based on spatial location.
+
+let's read in the raster which we downloaded with `cloud2trees::get_data()`
+
+```{r}
+foresttype <- terra::rast(
+  system.file(package = "cloud2trees", "extdata", "foresttype", "foresttype.tif")
+)
+```
+
+what is this?
+
+```{r}
+foresttype
+```
+
+we will only use the data structure of this raster and not the values because we already have the forest type group in our tree list since we set the `estimate_tree_type = T` in our call to `cloud2trees::cloud2trees()`
+
+we only need to get the cell id to use this to group our tree list into "stands"
+
+```{r}
+cloud2trees_ans$treetops_sf$stand_id <- 
+  # use terra::extract to get the cell id
+  terra::extract(
+    x = foresttype
+    , y = cloud2trees_ans$treetops_sf %>% 
+      terra::vect() %>% 
+      terra::project(terra::crs(foresttype))
+    , cells = T # cell numbers are also returned
+  ) %>% 
+  dplyr::pull(cell)
+```
+
+let's look at this spatially to make sure it makes sense
+
+```{r}
+cloud2trees_ans$treetops_sf %>% 
+  ggplot(mapping = aes(color = as.factor(stand_id))) +
+  geom_sf() +
+  labs(color = "cell id\nwe'll call stand") +
+  theme_light()
+```
+
+the challenge now is that we need to account for cases when our point cloud scan only overlaps a portion of a raster cell to scale our per hectare values
+
+
+
+
+### Distribute stand CBD (kg/m3) to trees
+
+```{r}
+
+```
+
