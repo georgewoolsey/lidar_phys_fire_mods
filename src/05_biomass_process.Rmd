@@ -461,6 +461,22 @@ foresttype
 
 we will only use the data structure of this raster and not the values because we already have the forest type group in our tree list since we set the `estimate_tree_type = T` in our call to `cloud2trees::cloud2trees()`
 
+```{r}
+plt_temp <- foresttype %>% 
+  terra::crop(
+    cloud2trees_ans$treetops_sf %>% 
+      sf::st_buffer(50) %>% 
+      terra::vect() %>% 
+      terra::project(terra::crs(foresttype))
+  ) %>% 
+  as.data.frame(xy=T) %>%
+  ggplot() + 
+  geom_tile(mapping = aes(x=x,y=y), fill = NA, color = "gray33") +
+  theme_void() +
+  theme(axis.text = element_blank(), axis.title = element_blank())
+plt_temp
+```
+
 we only need to get the cell id to use this to group our tree list into "stands"
 
 ```{r}
@@ -479,15 +495,44 @@ cloud2trees_ans$treetops_sf$stand_id <-
 let's look at this spatially to make sure it makes sense
 
 ```{r}
-cloud2trees_ans$treetops_sf %>% 
-  ggplot(mapping = aes(color = as.factor(stand_id))) +
-  geom_sf() +
-  labs(color = "cell id\nwe'll call stand") +
-  theme_light()
+plt_temp +
+  cloud2trees_ans$treetops_sf %>% 
+  sf::st_transform(crs = terra::crs(foresttype)) %>%
+  geom_sf(mapping = aes(color = as.factor(stand_id))) +
+  labs(color = "cell id\nwe'll call stand")
 ```
 
 the challenge now is that we need to account for cases when our point cloud scan only overlaps a portion of a raster cell to scale our per hectare values
 
+```{r}
+las_ctg_sf <- sf::st_read(
+  file.path(od, "point_cloud_processing_delivery", "raw_las_ctg_info.gpkg")
+  , quiet = T
+)
+```
+
+how does this look with our tree list?
+
+```{r}
+plt_temp <- plt_temp +
+  # point cloud boundary
+  geom_sf(
+    data = las_ctg_sf %>% 
+      sf::st_union() %>%
+      sf::st_transform(crs = terra::crs(foresttype))
+    , fill = NA, color = "red", lwd = 2
+  ) +
+  # tree points
+  geom_sf(
+    data = cloud2trees_ans$treetops_sf %>% 
+      sf::st_transform(crs = terra::crs(foresttype))
+    , mapping = aes(color = as.factor(stand_id))
+  ) +
+  labs(color = "cell id\nwe'll call stand")
+plt_temp
+```
+
+we need to get a data frame of the cell numbers with the area of the raster cells that overlap with the point cloud extent. if the extent fully covers the raster cell, the area should be 1. if the extent only partially covers the cell, only the portion of the cell covered by the extent should be included in the area (e.g. 0.32).
 
 
 
