@@ -160,7 +160,6 @@ col_not_sel <- c(
 )
 ```
 
-
 where is this?
 
 ```{r}
@@ -219,7 +218,7 @@ Alternatively, we can use the `allodb::new_equations()` function to modify the s
 we can manually set the genus and species to PICO
 
 ```{r}
-cloud2trees_ans$treetops_sf$biomass_kg <- allodb::get_biomass(
+cloud2trees_ans$treetops_sf$allodb_biomass_kg <- allodb::get_biomass(
   dbh = cloud2trees_ans$treetops_sf$dbh_cm
   , genus = rep("Pinus", times = nrow(cloud2trees_ans$treetops_sf))
   , species = rep("contorta", times = nrow(cloud2trees_ans$treetops_sf))
@@ -234,7 +233,7 @@ cloud2trees_ans$treetops_sf$biomass_kg <- allodb::get_biomass(
 what did we get back?
 
 ```{r}
-cloud2trees_ans$treetops_sf$biomass_kg %>% 
+cloud2trees_ans$treetops_sf$allodb_biomass_kg %>% 
   summary()
 ```
 
@@ -242,7 +241,7 @@ let's plot biomass versus tree height because height comes directly from the poi
 
 ```{r}
 cloud2trees_ans$treetops_sf %>% 
-  ggplot(mapping = aes(x = tree_height_m, y = biomass_kg, color = biomass_kg)) +
+  ggplot(mapping = aes(x = tree_height_m, y = allodb_biomass_kg, color = allodb_biomass_kg)) +
   geom_point() +
   harrypotter::scale_color_hp(option = "slytherin") +
   scale_x_continuous(breaks = scales::extended_breaks(n = 11)) +
@@ -563,9 +562,8 @@ we'll clean up our tree list columns that we just made so that we can create fun
 
 ```{r}
 cloud2trees_ans$treetops_sf <- cloud2trees_ans$treetops_sf %>% 
-  dplyr::select(-c(stand_id, biomass_kg))
+  dplyr::select(-c(stand_id))
 ```
-
 
 we need to get a data frame of the cell numbers with the area of the raster cells that overlap with the point cloud extent. if the extent fully covers the raster cell, the area should be the area of the cell (e.g. 90 x 90 = 8100 sq. m). if the extent only partially covers the cell, only the portion of the cell covered by the extent should be included in the area.
 
@@ -761,6 +759,7 @@ calc_rast_cell_trees <- function(rast, tree_list, poly_extent, buffer = 100){
   return(list(
     cell_df = r_df
     , tree_list = tree_list
+    , rast = overlap_ans$rast
   ))
 }
 ```
@@ -804,6 +803,30 @@ what did we do?
 ```{r}
 calc_rast_cell_trees_ans$cell_df %>% dplyr::glimpse()
 ```
+
+plot our raster (e.g. "stand") kilograms per cubed meter value
+
+```{r}
+plt_temp <- calc_rast_cell_trees_ans$cell_df %>% 
+  ggplot(mapping=aes(x=x,y=y)) +
+  theme_light() +
+  theme(legend.position = "top", legend.text = element_text(angle = 90,size=8), axis.text = element_blank())
+# ba
+p1_temp <- plt_temp +
+  geom_tile(mapping = aes(fill = basal_area_m2_per_ha), color = "black") +
+  scale_fill_distiller(palette = "Blues", na.value = NA, direction = 1)
+# tph
+p2_temp <- plt_temp +
+  geom_tile(mapping = aes(fill = trees_per_ha), color = "black") +
+  scale_fill_distiller(palette = "Oranges", na.value = NA, direction = 1)
+# biomass
+p3_temp <-  plt_temp +
+  geom_tile(mapping = aes(fill = kg_per_m3), color = "black") +
+  scale_fill_distiller(palette = "Greys", na.value = NA, direction = 1, labels = scales::label_number())
+# patchwork
+(p1_temp+p2_temp)/p3_temp
+```
+
 
 now, we'll distribute the stand level kilograms per cubed meter value to all the trees to get tree biomass in kg...but first we need to calculate crown volume in kilograms per cubed meter so that the stand kg/m3 * tree m3 = tree kg
 
@@ -853,33 +876,71 @@ calc_crown_volume_cols <- function(
 }
 ```
 
-apply the function to our data
+apply the `calc_crown_volume_cols()` function to our tree list data
 
 ```{r}
-calc_rast_cell_trees_ans$tree_list <- calc_rast_cell_trees_ans$tree_list %>% 
+tree_list_temp <- calc_rast_cell_trees_ans$tree_list %>% 
   calc_crown_volume_cols() 
 # what?
-calc_rast_cell_trees_ans$tree_list %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
+tree_list_temp %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
 ```
 
-now we can attach our stand data to the tree list and calculate tree biomass in kg
+now we can attach our stand data to the tree list and calculate tree biomass in kg using our estimate of individual tree volume
 
 ```{r}
-calc_rast_cell_trees_ans$tree_list <- 
-  calc_rast_cell_trees_ans$tree_list %>% 
+tree_list_temp <- 
+  tree_list_temp %>% 
   dplyr::left_join(
     calc_rast_cell_trees_ans$cell_df %>% 
       dplyr::select(cell, kg_per_m3)
     , by = "cell"
   ) %>% 
-  dplyr::mutate(biomass_kg = kg_per_m3*crown_volume_m3)
+  dplyr::mutate(cruz_biomass_kg = kg_per_m3*crown_volume_m3)
 ```
 
-are we done?
+what does our tree list data look like now?
 
 ```{r}
-calc_rast_cell_trees_ans$tree_list %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
+tree_list_temp %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
 ```
 
-how does this compare to the `allodb` estimate?
+## Biomass Method Comparison
+
+Let's compare the individual tree biomass estimates between the methods tested above. The first method relied on the `allodb` package to estimate single tree biomass (kg) based on published allometric equations. The second method we explored was using stand-level canopy fuels models ([Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5)) to estimate stand-level CBD (kg per m^3^) and we distributed that fuel load across the individual trees in the stand.
+
+```{r}
+tree_list_temp %>% 
+  ggplot() +
+  geom_abline() +
+  geom_point(
+    mapping = aes(
+      x = allodb_biomass_kg
+      , y = cruz_biomass_kg
+      , color = tree_height_m
+      # , size = tree_height_m
+    )
+  ) +
+  scale_y_continuous(limits = c(0,max(tree_list_temp$allodb_biomass_kg)*1.01)) +
+  scale_x_continuous(limits = c(0,max(tree_list_temp$allodb_biomass_kg)*1.01)) +
+  scale_color_viridis_c(option = "mako", direction = -1) +
+  labs(
+    x = "`allodb` individ.\ntree biomass (kg)"
+    , y = "Cruz stand to\nindivid. tree biomass (kg)"
+    , color = "tree height (m)"
+  ) +
+  theme_light() +
+  guides(size = "none")
+```
+
+the individual tree biomass estimates from the stand-level canopy fuels models distributed to the tree level were significantly lower than the biomass estimates from individual tree allometric equations. maybe this occurred because Cruz et al. (2003) estimated load of the crown portion of the tree only while the individual tree biomass equations estimate weight of the entire tree?
+
+```{r}
+tree_list_temp %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::mutate(
+    allodb_biomass_factor_larger = allodb_biomass_kg/cruz_biomass_kg
+  ) %>% 
+  dplyr::select(tidyselect::contains("biomass")) %>% 
+  summary()
+```
 
