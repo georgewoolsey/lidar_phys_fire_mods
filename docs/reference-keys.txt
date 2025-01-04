@@ -73,3 +73,17 @@ process-for-entire-lascatalog
 filter-the-lascatalog-one-tree-at-a-time
 attach-treeid-attribute-to-the-lascatalog
 function-for-cloud2trees
+s05
+preliminaries
+data-load
+example-lidar-data
+cloud2trees-that-lidar-data-3
+method-1-single-tree-biomass-kg-using-allometric-equations
+define-species-based-on-forest-type-group
+manual
+allodbnew_equations-function
+method-2-stand-level-canopy-fuels-models
+cruz-et-al.-2003-equations
+define-a-stand-using-raster
+distribute-stand-cbd-kgm3-to-trees
+biomass-method-comparison
