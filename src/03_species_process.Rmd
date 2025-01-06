@@ -323,7 +323,7 @@ get_foresttype_raw <- function(savedir=NULL,force=F){
 
 This function downloads the cleaned data from the [Zenodo](https://doi.org/10.5281/zenodo.14338873) archive
 
-```{r, include=T, eval=T}
+```{r, include=T, eval=F}
 # this is for: [Wilson 2023](https://www.arcgis.com/home/item.html?id=10760c83b9e44923bd3c18efdaa7319d))
 # The Forest Type Groups dataset provides a broad classification of forest types at a 30-meter resolution 
 
@@ -395,13 +395,12 @@ call the function to download the data
 savedir_temp <- "../data/"
 ```
 
-
 ```{r}
 # what dirs do we have already?
 list.dirs(savedir_temp, recursive = F)
 
 # get the data
-get_foresttype(savedir = savedir_temp)
+cloud2trees::get_foresttype(savedir = savedir_temp)
 ## get_foresttype_raw(savedir = savedir_temp) # if want to test the raw image extraction
 
 # now what dirs?
@@ -902,6 +901,78 @@ foresttype_lookup %>%
     , row.names = F
   )
 ```
+
+aggregate the forest type group coverage by different geographic delineations
+
+```{r}
+agg_foresttype_table <- function(sf, rast=foresttype, lu=foresttype_lookup) {
+  rast %>% 
+    terra::crop(
+      sf %>% sf::st_make_valid() %>% 
+        dplyr::filter(sf::st_is_valid(.)) %>% 
+        sf::st_union() %>% 
+        terra::vect() %>% 
+        terra::project(terra::crs(rast))
+    ) %>% 
+    terra::mask(
+      sf %>% sf::st_make_valid() %>% 
+        dplyr::filter(sf::st_is_valid(.)) %>% 
+        sf::st_union() %>% 
+        terra::vect() %>% 
+        terra::project(terra::crs(rast))
+    ) %>%
+    terra::freq() %>% 
+    dplyr::as_tibble() %>% 
+    dplyr::rename(forest_type_code=value) %>% 
+    dplyr::mutate(forest_type_code = as.character(forest_type_code)) %>% 
+    dplyr::left_join(lu, by = "forest_type_code") %>% 
+    dplyr::mutate(forest_type_group = dplyr::coalesce(forest_type_group, "non-forest")) %>% 
+    dplyr::group_by(forest_type_group) %>% 
+    dplyr::summarise(count = sum(count, na.rm = T)) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(pct_area = count/sum(count)) %>% 
+    dplyr::arrange(desc(count))
+}
+```
+
+the state of Colorado
+
+```{r}
+library(USAboundaries)
+USAboundaries::us_states(states = c("CO")) %>% 
+  agg_foresttype_table() %>%  
+  kableExtra::kbl(caption = paste("FIA Forest Type Groups in", "the entire state of Colorado") ) %>% 
+  kableExtra::kable_styling()
+```
+
+National forests in USFS Region 2
+
+```{r}
+# !!! must be downloaded first
+reg_dsn_temp <- "c:/data/usfs/bhef_rxfire_plan/data/S_USA.NFSLandUnit.gdb/S_USA.NFSLandUnit.gdb"
+usfs_nf <- sf::st_read(dsn = reg_dsn_temp) %>% 
+  dplyr::rename_with(tolower) %>% 
+  dplyr::filter(region == "02" & tolower(nfslandunittype) == "national forest")
+# forest type summary
+usfs_nf %>% 
+  agg_foresttype_table() %>%  
+  kableExtra::kbl(caption = paste("FIA Forest Type Groups in", "USFS R2 National Forests") ) %>% 
+  kableExtra::kable_styling()
+```
+
+the ARNF
+
+```{r}
+usfs_nf %>%
+  dplyr::filter(
+    stringr::str_detect(tolower(nfslandunitname), "arapaho")
+    | stringr::str_detect(tolower(nfslandunitname), "roosevelt")
+  ) %>% 
+  agg_foresttype_table() %>%  
+  kableExtra::kbl(caption = paste("FIA Forest Type Groups in", "the Arapaho and Roosevelt National Forest") ) %>% 
+  kableExtra::kable_styling()
+```
+
 
 ### Forest type group example
 

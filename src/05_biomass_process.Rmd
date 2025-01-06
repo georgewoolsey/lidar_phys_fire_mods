@@ -129,7 +129,8 @@ we will estimate DBH, CBH, and forest type for this data
 
 ```{r, message=FALSE, results=FALSE}
 # save our output_dir
-od <- tempdir()
+od <- "c:/data/usfs/point_cloud_tree_detection_ex/data/"
+  # tempdir()
 # cloud2trees
 cloud2trees_ans <- cloud2trees::cloud2trees(
   input_las_dir = las_f_path_temp
@@ -361,7 +362,7 @@ Let's build a function to utilize those models for data at the stand level to ca
 
 ```{r}
 get_cruz_stand_kg_per_m3 <- function(forest_type_group_code, basal_area_m2_per_ha, trees_per_ha){
-  forest_type_group_code <- dplyr::coalesce(as.numeric(forest_type_group_code), as.numeric(NA))
+  forest_type_group_code <- dplyr::coalesce(as.numeric(forest_type_group_code), 0)
   # Cruz et al. (2003)
   # https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5
   # Page 46, Table 4
@@ -439,7 +440,7 @@ fake_stand_temp <-
     basal_area_m2_per_ha = basal_area_m2/0.1
     , trees_per_ha = trees/0.1
   )
-fake_stand_temp
+fake_stand_temp %>% dplyr::glimpse()
 ```
 
 apply our Cruz et al. (2003) `get_cruz_stand_kg_per_m3()` function to the data frame
@@ -456,7 +457,7 @@ fake_stand_temp <- fake_stand_temp %>%
     )
   ) %>% 
   dplyr::ungroup()
-fake_stand_temp
+fake_stand_temp %>% dplyr::glimpse()
 ```
 
 looks good
@@ -908,6 +909,181 @@ what does our tree list data look like now?
 ```{r}
 tree_list_temp %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
 ```
+
+let's plot biomass versus tree height because height comes directly from the point cloud
+
+```{r}
+tree_list_temp %>% 
+  ggplot(mapping = aes(x = tree_height_m, y = cruz_biomass_kg, color = cruz_biomass_kg)) +
+  geom_point() +
+  harrypotter::scale_color_hp(option = "slytherin") +
+  scale_x_continuous(limits = c(0,NA), breaks = scales::extended_breaks(n = 11)) +
+  scale_y_continuous(limits = c(0,NA), breaks = scales::extended_breaks(n = 11)) +
+  labs(x = "height (m)", y = "biomass (kg)") +
+  theme_light() +
+  theme(legend.position = "none")
+```
+
+```{r, include=FALSE, eval=FALSE}
+ggsave(
+  "c:/users/georg/Downloads/cruz_biomass_vs_height.jpg"
+  , height = 7, width = 10
+  , dpi = "print"
+)
+
+tree_list_temp %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::mutate(ba = pi * ((dbh_m/2)^2) ) %>% 
+  dplyr::select(ba, basal_area_m2) %>% 
+  dplyr::slice_head(n=22)
+
+# what if we do this for just the las extent as the stand?
+
+stand_temp <- tree_list_temp %>% 
+  sf::st_drop_geometry() %>% 
+  # aggregate to stand level
+  dplyr::group_by(forest_type_group_code) %>% ## !!!! only works b/c there is one group
+  dplyr::summarise(
+    trees = dplyr::n()
+    , basal_area_m2 = sum(basal_area_m2, na.rm = T)
+    , mean_crown_length_m = mean(crown_length_m, na.rm = T)
+    , sum_crown_volume_m3 = sum(crown_volume_m3, na.rm = T)
+  ) %>% 
+  # fake per ha calcs
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    basal_area_m2_per_ha = basal_area_m2/
+      (
+        las_ctg_sf %>% sf::st_union() %>% sf::st_area() %>% as.numeric() %>% `/`(10000)
+      )
+    , trees_per_ha = trees/
+      (
+        las_ctg_sf %>% sf::st_union() %>% sf::st_area() %>% as.numeric() %>% `/`(10000)
+      )
+  )
+# get cruz CBD
+cbd_temp <- get_cruz_stand_kg_per_m3(
+  forest_type_group_code = stand_temp$forest_type_group_code[1]
+  , basal_area_m2_per_ha = stand_temp$basal_area_m2_per_ha[1]
+  , trees_per_ha = stand_temp$trees_per_ha[1]
+)
+# get cfl in kg/m2 ...stand level still
+cfl_temp <- stand_temp$mean_crown_length_m[1] * cbd_temp
+# get stand biomass in kg at the stand level
+stand_biomass_kg_temp <-
+  cfl_temp * (
+    las_ctg_sf %>% sf::st_union() %>% sf::st_area() %>% as.numeric()
+  )
+
+# single tree CBD in kg/m3
+tree_kg_m3 <- stand_biomass_kg_temp / stand_temp$sum_crown_volume_m3[1]
+
+# what is the total stand volume?
+tree_list_temp %>% 
+  sf::st_drop_geometry() %>%
+  dplyr::ungroup() %>% 
+  dplyr::summarise(crown_volume_m3 = sum(crown_volume_m3))
+# calc done by s.bonner
+trees_sbonner_temp <- readr::read_csv("c:/Users/georg/Downloads/big_treeslist.csv") %>% 
+  dplyr::rename_with(tolower)
+trees_sbonner_temp %>% dplyr::glimpse()
+trees_sbonner_temp %>% 
+  dplyr::ungroup() %>% 
+  dplyr::summarise(crown_volume = sum(crown_volume))
+
+trees_sbonner_temp %>% 
+  dplyr::select(
+    treeid, tree_cbh_m, crown_dia, crown_length
+    , crown_volume, height_to_max, moist
+    , ss, tree_cbd, tree_bm
+  ) %>%
+  View()
+
+# compare
+tree_list_temp <- tree_list_temp %>% 
+  dplyr::left_join(
+    trees_sbonner_temp %>% 
+      dplyr::select(
+        treeid, tree_cbh_m, crown_dia, crown_length
+        , crown_volume, height_to_max, moist
+        , ss, tree_cbd, tree_bm
+      ) %>% 
+      dplyr::rename_with(
+        ~ paste0("sb_", .x, recycle0 = TRUE)
+        , .cols = -c(treeid)
+      ) %>% 
+      dplyr::rename(treeID = treeid)
+    , by = "treeID"
+  )
+# plots
+tree_list_temp %>% 
+  ggplot() +
+    geom_abline() +
+    geom_point(aes(x = sb_tree_cbh_m, y = tree_cbh_m)) +
+    theme_light()
+# re-calc volume
+tree_list_temp <- tree_list_temp %>% 
+  dplyr::left_join(
+    tree_list_temp %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::select(treeID, sb_tree_cbh_m, tree_height_m, crown_area_m2) %>% 
+      dplyr::rename(tree_cbh_m=sb_tree_cbh_m) %>% 
+      calc_crown_volume_cols() %>% 
+      dplyr::select(treeID,crown_volume_m3) %>% 
+      dplyr::rename(new_crown_volume_m3=crown_volume_m3)
+    , by = "treeID"
+  )
+
+# plots
+stats::cor(tree_list_temp$new_crown_volume_m3, tree_list_temp$sb_crown_volume)
+tree_list_temp %>% 
+  ggplot() +
+    geom_abline() +
+    geom_point(aes(x = sb_crown_volume, y = new_crown_volume_m3)) +
+    theme_light()
+
+# what is the total stand volume?
+tree_list_temp %>% 
+  sf::st_drop_geometry() %>%
+  dplyr::ungroup() %>% 
+  dplyr::summarise(
+    crown_volume_m3 = sum(crown_volume_m3)
+    , sb_crown_volume = sum(sb_crown_volume)
+    , new_crown_volume_m3 = sum(new_crown_volume_m3)
+  )
+
+
+# apply to trees
+tree_list_temp %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::mutate(
+    temp_biomass_kg = new_crown_volume_m3*tree_kg_m3
+  ) %>% 
+  # dplyr::select(temp_biomass_kg) %>% summary()
+  ggplot(mapping = aes(x = tree_height_m, y = temp_biomass_kg, color = temp_biomass_kg)) +
+  geom_point() +
+  harrypotter::scale_color_hp(option = "slytherin") +
+  scale_x_continuous(limits = c(0,NA), breaks = scales::extended_breaks(n = 11)) +
+  scale_y_continuous(limits = c(0,NA), breaks = scales::extended_breaks(n = 11)) +
+  labs(x = "height (m)", y = "biomass (kg)") +
+  theme_light() +
+  theme(legend.position = "none")
+
+ggsave(
+  "c:/users/georg/Downloads/cruz_biomass_vs_height.jpg"
+  , height = 7, width = 10
+  , dpi = "print"
+)
+
+```
+
+## Method 3: LANDFIRE
+
+```{r}
+cloud2trees::get_data()
+"https://landfire.gov/data-downloads/US_240/LF2023_FBFM13_240_CONUS.zip"
+```
+
 
 ## Biomass Method Comparison
 
