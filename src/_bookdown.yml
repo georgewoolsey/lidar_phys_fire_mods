@@ -11,7 +11,9 @@ language:
 delete_merged_file: true
 # rmd_subdir: ["src/"]
 # rmd_files: ["index.Rmd"
-#   , "01_data_processing_spatial.Rmd"
-#   , "02_data_processing_combine.Rmd"
-#   , "03_analysis_harvest_npp.Rmd"
+#   # , "01_data.Rmd"
+#   , "02_cbh_process.Rmd"
+#   # , "03_species_process.Rmd"
+#   # , "04_hmd_process.Rmd"
+#   , "05_biomass_process.Rmd"
 # ]
