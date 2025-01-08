@@ -131,16 +131,24 @@ we will estimate DBH, CBH, and forest type for this data
 # save our output_dir
 od <- "c:/data/usfs/point_cloud_tree_detection_ex/data/"
   # tempdir()
-# cloud2trees
-cloud2trees_ans <- cloud2trees::cloud2trees(
-  input_las_dir = las_f_path_temp
-  , output_dir = od
-  , keep_intrmdt = T
-  , estimate_tree_dbh = T
-  , estimate_tree_type = T
-  , estimate_tree_hmd = T
-  , estimate_tree_cbh = T, cbh_estimate_missing_cbh = T, cbh_tree_sample_n = 55
-)
+chk_file_temp <- file.path(od,"point_cloud_processing_delivery","final_detected_tree_tops.gpkg")
+if(!file.exists(chk_file_temp)){
+  # cloud2trees
+  cloud2trees_ans <- cloud2trees::cloud2trees(
+    input_las_dir = las_f_path_temp
+    , output_dir = od
+    , keep_intrmdt = T
+    , estimate_tree_dbh = T
+    , estimate_tree_type = T
+    , estimate_tree_hmd = T
+    , estimate_tree_cbh = T, cbh_estimate_missing_cbh = T, cbh_tree_sample_n = 55
+  )
+}else{
+  cloud2trees_ans <- list(
+    treetops_sf = sf::st_read(chk_file_temp, quiet = T)
+  )
+}
+
 ```
 
 ```{r, include = F, eval = F, results=F, message=F}
@@ -207,7 +215,7 @@ cloud2trees_ans$treetops_sf %>%
   dplyr::count(forest_type_group)
 ```
 
-## Method 1: single tree biomass (kg) using allometric equations
+## Method 1: single tree biomass (kg) using allometric equations{#method1}
 
 The first method we'll explore for attaching biomass in kg to a spatial tree list is estimating single tree biomass (kg) using allometric equations based on predictors such as tree diameter, height, and species.
 
@@ -350,7 +358,7 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
-## Method 2: stand-level canopy fuels models
+## Method 2: stand-level canopy fuels models{#method2}
 
 The first method we'll explore for attaching biomass in kg to a spatial tree list is by using models developed to predict canopy fuel stratum at the stand level based on common stand descriptors (e.g. TPH and  basal area) and distribute the stand-level estimate (in kg per m^2^ or kg per m^3^) across the individual trees in the stand. The primary challenge with this methodology is that, currently a very limited set of forests types are represented in the literature by these stand-level models. This information gap limits the scope of this methodology.
 
@@ -606,7 +614,8 @@ stand_df_temp <-
   ) %>% 
   dplyr::rename(stand_id = cell) %>% 
   dplyr::mutate(
-    overlap_area_ha = ( area*dplyr::coalesce(pct_overlap, 0) ) / 10000
+    overlap_area_m2 = ( area*dplyr::coalesce(pct_overlap, 0) )
+    , overlap_area_ha = overlap_area_m2 / 10000
   )
 ```
 
@@ -621,6 +630,8 @@ remove(list = ls()[grep("_temp",ls())])
 remove(foresttype_crop, fia_trees)
 gc()
 ```
+
+#### Function to calculate polygon overlap of raster
 
 let's create a function to ingest a raster and a polygon and calculate the area of each raster cell that overlaps with the polygon
 
@@ -668,7 +679,8 @@ calc_rast_cell_overlap <- function(rast, poly, buff = 100) {
       , by = "cell"
     ) %>% 
     dplyr::mutate(
-      overlap_area_ha = ( area*dplyr::coalesce(pct_overlap, 0) ) / 10000
+      overlap_area_m2 = ( area*dplyr::coalesce(pct_overlap, 0) )
+      , overlap_area_ha = overlap_area_m2 / 10000
     )
   
   return(list(
@@ -686,10 +698,103 @@ calc_rast_cell_overlap(rast = foresttype, poly = las_ctg_sf) %>%
   dplyr::glimpse()
 ```
 
+#### Function to create tree columns needed for aggregation
+
+before we aggregate trees to the raster cell level we need to calculate tree-level values we'll need for the back transformation from stand-level metrics to tree level metrics such as crown volume in kilograms per cubed meter so that the mean stand kg/m3 * tree m3 = tree kg
+
+```{r}
+calc_tree_level_cols <- function(df){
+  # # proportion of crown length to have max crown width at 
+  # # 0.5 is a perfect ellipsoid, 0 is more conical, 1 looks like an icecream cone
+  # # link to forest type
+  # ht_to_max = 0.5 
+  
+  ## check for cols
+  nms <- names(df) %>% dplyr::coalesce("")
+  has_cols <- c("crown_area_m2", "tree_height_m", "tree_cbh_m") %>% 
+    purrr::map(function(x){
+      stringr::str_equal(tolower(nms), x) %>% 
+      max() # do any columns match, T=1
+    }) %>% 
+    unlist() %>% 
+    min()
+  if(has_cols==0){
+    stop("the `df` data does not contain the columns `crown_area_m2`, `tree_height_m`, and `tree_cbh_m`, ensure columns exist")
+  }
+  
+  ## basal area
+  if(
+    !(stringr::str_detect(nms, "basal_area_m2") %>% any())
+    && (stringr::str_detect(nms, "dbh_cm") %>% any())
+  ){
+    df <- df %>% 
+      dplyr::mutate(
+        dbh_cm = as.numeric(dbh_cm)
+        , basal_area_m2 = pi * (((dbh_cm/100)/2)^2) 
+      )
+  }else if(
+    !(stringr::str_detect(nms, "basal_area_m2") %>% any())
+    && (stringr::str_detect(nms, "dbh_m") %>% any())
+  ){
+    df <- df %>% 
+      dplyr::mutate(
+        dbh_m = as.numeric(dbh_m)
+        , basal_area_m2 = pi * ((dbh_m/2)^2) 
+      )
+  }else if(
+    (stringr::str_detect(nms, "basal_area_m2") %>% any())
+  ){
+    df <- df %>% 
+      dplyr::mutate(
+        basal_area_m2 = as.numeric(basal_area_m2)
+      )
+  }else{
+    stop(paste0(
+      "the `df` data does not contain the columns `basal_area_m2`, `dbh_cm`, or `dbh_m`"
+      , "\n .... at least one of these columns must be present"
+    ))
+  }
+  
+  ## apply the crown calculations
+  r_df <- df %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(
+      crown_area_m2 = as.numeric(crown_area_m2)
+      , tree_height_m = as.numeric(tree_height_m)
+      , tree_cbh_m = as.numeric(tree_cbh_m)
+    ) %>% 
+    # apply the calculations
+    dplyr::mutate(
+      #calculate crown diameter (m) = SQRT(area/pi) * 2
+      crown_dia_m = sqrt(crown_area_m2 / pi) * 2
+      #calculate crown length (m)
+      , crown_length_m = tree_height_m - tree_cbh_m
+      # calculate crown volume [4/3 * pi * a * b * c] 
+      # which is [4/3 * pi * (crownlength/2) * (max crown radius) * (max crown radius)]
+      ## !!!!!!!!!!!!!!!!!!11 source??????????????????????????????????????????????????????????????
+      , crown_volume_m3 = (4/3) * pi * ((crown_length_m/2)) * ((crown_dia_m/2)^2)
+      # #calculate height to max crown
+      # , height_to_max = (crown_length_m * ht_to_max) + tree_cbh_m
+    )
+  return(r_df)
+}
+```
+
+apply the `calc_tree_level_cols()` function to our tree list data
+
+```{r}
+cloud2trees_ans$treetops_sf <- cloud2trees_ans$treetops_sf %>% 
+  calc_tree_level_cols()
+# what?
+cloud2trees_ans$treetops_sf %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
+```
+
+#### Function to aggregate trees in raster cell
+
 create a function to aggregate our tree list to the raster cell level and join to the raster cell overlap data by calling `calc_rast_cell_overlap()` within the function
 
 ```{r}
-calc_rast_cell_trees <- function(rast, tree_list, poly_extent, buffer = 100){
+calc_rast_cell_trees <- function(rast, tree_list, poly_extent, buffer = 100, calc_tree_level_cols=T){
   if(!inherits(tree_list, "sf")){
     stop("must pass a spatial sf object to `tree_list`")
   }
@@ -716,34 +821,45 @@ calc_rast_cell_trees <- function(rast, tree_list, poly_extent, buffer = 100){
     ) %>% 
     dplyr::pull(cell)
   
+  # check calc_tree_level_cols
+  if(calc_tree_level_cols==T){
+     tree_list <- tree_list %>% 
+       calc_tree_level_cols()
+  }
+  
   # aggregate tree list to cell
-  nms <- names(tree_list)
-  if(
-    stringr::str_detect(nms, "forest_type_group_code") %>% any() &&
-    stringr::str_detect(nms, "basal_area_m2") %>% any()
-  ){
+  nms <- names(tree_list) %>% dplyr::coalesce("")
+  if(stringr::str_detect(nms, "forest_type_group_code") %>% any()){
     trees_agg <- tree_list %>% 
       sf::st_drop_geometry() %>% 
       # aggregate to stand level
-      dplyr::group_by(cell, forest_type_group_code) %>% 
+      dplyr::group_by(cell, forest_type_group_code)
+  }else{
+    trees_agg <- tree_list %>% 
+      sf::st_drop_geometry() %>% 
+      # aggregate to stand level
+      dplyr::group_by(cell)
+  }
+  
+  # summarize
+  if(calc_tree_level_cols==T){
+    trees_agg <- trees_agg %>% 
       dplyr::summarise(
         trees = dplyr::n()
         , basal_area_m2 = sum(basal_area_m2, na.rm = T)
+        , mean_crown_length_m = mean(crown_length_m, na.rm = T)
+        , sum_crown_volume_m3 = sum(crown_volume_m3, na.rm = T)
       ) %>% 
       dplyr::ungroup()
   }else if(stringr::str_detect(nms, "basal_area_m2") %>% any()){
-    trees_agg <- tree_list %>% 
-      sf::st_drop_geometry() %>% 
-      # aggregate to stand level
-      dplyr::group_by(cell) %>% 
+    trees_agg <- trees_agg %>% 
       dplyr::summarise(
         trees = dplyr::n()
         , basal_area_m2 = sum(basal_area_m2, na.rm = T)
       ) %>% 
       dplyr::ungroup()
   }else{
-    trees_agg <- tree_list %>% 
-      sf::st_drop_geometry() %>% 
+    trees_agg <- trees_agg %>% 
       # aggregate to stand level
       dplyr::group_by(cell) %>% 
       dplyr::summarise(
@@ -777,6 +893,7 @@ calc_rast_cell_trees_ans <- calc_rast_cell_trees(
     rast = foresttype
     , tree_list = cloud2trees_ans$treetops_sf
     , poly_extent = las_ctg_sf
+    , calc_tree_level_cols = T
   )
 # what?
 calc_rast_cell_trees_ans %>% 
@@ -791,129 +908,106 @@ Now that we have trees grouped into "stands" (i.e. raster cells), and we have ra
 first, we'll use our `get_cruz_stand_kg_per_m3()` function to calculate the stand level CBH in kilograms per cubed meter
 
 ```{r}
-calc_rast_cell_trees_ans$cell_df <- calc_rast_cell_trees_ans$cell_df %>% 
-  dplyr::ungroup() %>% 
-  dplyr::rowwise() %>% # this is key
-  dplyr::mutate(
-    kg_per_m3 = get_cruz_stand_kg_per_m3(
-      forest_type_group_code = forest_type_group_code
-      , basal_area_m2_per_ha = basal_area_m2_per_ha
-      , trees_per_ha = trees_per_ha
+distribute_stand_fuel_load <- function(cell_df, tree_list) {
+  # calculate fuel loading at the stand levesl
+  cell_df <- cell_df %>% 
+    dplyr::ungroup() %>% 
+    dplyr::rowwise() %>% # this is key
+    dplyr::mutate(
+      kg_per_m3 = get_cruz_stand_kg_per_m3(
+        forest_type_group_code = forest_type_group_code
+        , basal_area_m2_per_ha = basal_area_m2_per_ha
+        , trees_per_ha = trees_per_ha
+      )
+    ) %>% 
+    dplyr::ungroup() %>% 
+    # tertiary columns 
+    dplyr::mutate(
+      # get cfl in kg/m2
+      kg_per_m2 = mean_crown_length_m * kg_per_m3
+      # get stand biomass in kg at the stand level
+      , biomass_kg = kg_per_m2 * overlap_area_m2
+      # single tree CBD in kg/m3 will be constant by stand/cell
+      , tree_kg_per_m3 = biomass_kg / sum_crown_volume_m3
     )
-  ) %>% 
-  dplyr::ungroup()
+  
+  # apply stand fuel load to trees
+  tree_list <- tree_list %>% 
+    dplyr::ungroup() %>% 
+    dplyr::left_join(
+      cell_df %>% 
+        dplyr::select(cell,tree_kg_per_m3)
+      , by = "cell"
+    ) %>% 
+    dplyr::mutate(cruz_biomass_kg = tree_kg_per_m3*crown_volume_m3) %>% 
+    dplyr::select(-tree_kg_per_m3)
+  
+  #return
+  return(list(
+    cell_df = cell_df
+    , tree_list = tree_list
+  ))
+}
 ```
 
-what did we do?
+apply the `distribute_stand_fuel_load()` function
 
 ```{r}
-calc_rast_cell_trees_ans$cell_df %>% dplyr::glimpse()
+distribute_stand_fuel_load_ans <- distribute_stand_fuel_load(
+  cell_df = calc_rast_cell_trees_ans$cell_df
+  , tree_list = calc_rast_cell_trees_ans$tree_list
+)
+```
+
+what does our "stand" (i.e. raster cell) data look like?
+
+```{r}
+distribute_stand_fuel_load_ans$cell_df %>% dplyr::glimpse()
 ```
 
 plot our raster (e.g. "stand") kilograms per cubed meter value
 
 ```{r}
-plt_temp <- calc_rast_cell_trees_ans$cell_df %>% 
+plt_temp <- distribute_stand_fuel_load_ans$cell_df %>% 
   ggplot(mapping=aes(x=x,y=y)) +
+  geom_text(mapping = aes(label = cell)) +
   theme_light() +
   theme(legend.position = "top", legend.text = element_text(angle = 90,size=8), axis.text = element_blank())
 # ba
 p1_temp <- plt_temp +
-  geom_tile(mapping = aes(fill = basal_area_m2_per_ha), color = "black") +
+  geom_tile(mapping = aes(fill = basal_area_m2_per_ha), color = "black", alpha = 0.9) +
   scale_fill_distiller(palette = "Blues", na.value = NA, direction = 1)
 # tph
 p2_temp <- plt_temp +
-  geom_tile(mapping = aes(fill = trees_per_ha), color = "black") +
+  geom_tile(mapping = aes(fill = trees_per_ha), color = "black", alpha = 0.9) +
   scale_fill_distiller(palette = "Oranges", na.value = NA, direction = 1)
 # biomass
 p3_temp <-  plt_temp +
-  geom_tile(mapping = aes(fill = kg_per_m3), color = "black") +
-  scale_fill_distiller(palette = "Greys", na.value = NA, direction = 1, labels = scales::label_number())
+  geom_tile(mapping = aes(fill = kg_per_m3), color = "black", alpha = 0.9) +
+  scale_fill_distiller(palette = "Greens", na.value = NA, direction = 1, labels = scales::label_number())
 # patchwork
 (p1_temp+p2_temp)/p3_temp
-```
-
-
-now, we'll distribute the stand level kilograms per cubed meter value to all the trees to get tree biomass in kg...but first we need to calculate crown volume in kilograms per cubed meter so that the stand kg/m3 * tree m3 = tree kg
-
-```{r}
-calc_crown_volume_cols <- function(
-  df
-){
-  # # proportion of crown length to have max crown width at 
-  # # 0.5 is a perfect ellipsoid, 0 is more conical, 1 looks like an icecream cone
-  # # link to forest type
-  # ht_to_max = 0.5 
-  
-  ## check for cols
-  nms <- names(df) %>% dplyr::coalesce("")
-  has_cols <- c("crown_area_m2", "tree_height_m", "tree_cbh_m") %>% 
-    purrr::map(function(x){
-      stringr::str_equal(tolower(nms), x) %>% 
-      max() # do any columns match, T=1
-    }) %>% 
-    unlist() %>% 
-    min()
-  if(has_cols==0){
-    stop("the `df` data does not contain the columns `crown_area_m2`, `tree_height_m`, and `tree_cbh_m`, ensure columns exist")
-  }
-  
-  r_df <- df %>% 
-    dplyr::ungroup() %>% 
-    dplyr::mutate(
-      crown_area_m2 = as.numeric(crown_area_m2)
-      , tree_height_m = as.numeric(tree_height_m)
-      , tree_cbh_m = as.numeric(tree_cbh_m)
-    ) %>% 
-    # apply the calculations
-    dplyr::mutate(
-      #calculate crown diameter (m) = SQRT(area/pi) * 2
-      crown_dia_m = sqrt(crown_area_m2 / pi) * 2
-      #calculate crown length (m)
-      , crown_length_m = tree_height_m - tree_cbh_m
-      # calculate crown volume [4/3 * pi * a * b * c] 
-      # which is [4/3 * pi * (crownlength/2) * (max crown radius) * (max crown radius)]
-      ## !!!!!!!!!!!!!!!!!!11 source??????????????????????????????????????????????????????????????
-      , crown_volume_m3 = (4/3) * pi * ((crown_length_m/2)) * ((crown_dia_m/2)^2)
-      # #calculate height to max crown
-      # , height_to_max = (crown_length_m * ht_to_max) + tree_cbh_m
-    )
-  return(r_df)
-}
-```
-
-apply the `calc_crown_volume_cols()` function to our tree list data
-
-```{r}
-tree_list_temp <- calc_rast_cell_trees_ans$tree_list %>% 
-  calc_crown_volume_cols() 
-# what?
-tree_list_temp %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
-```
-
-now we can attach our stand data to the tree list and calculate tree biomass in kg using our estimate of individual tree volume
-
-```{r}
-tree_list_temp <- 
-  tree_list_temp %>% 
-  dplyr::left_join(
-    calc_rast_cell_trees_ans$cell_df %>% 
-      dplyr::select(cell, kg_per_m3)
-    , by = "cell"
-  ) %>% 
-  dplyr::mutate(cruz_biomass_kg = kg_per_m3*crown_volume_m3)
 ```
 
 what does our tree list data look like now?
 
 ```{r}
-tree_list_temp %>% dplyr::select(-dplyr::any_of(col_not_sel)) %>% dplyr::glimpse()
+distribute_stand_fuel_load_ans$tree_list %>% 
+  dplyr::select(-dplyr::any_of(col_not_sel)) %>% 
+  dplyr::glimpse()
+```
+
+what does our biomass estimate look like?
+
+```{r}
+distribute_stand_fuel_load_ans$tree_list$cruz_biomass_kg %>% 
+  summary()
 ```
 
 let's plot biomass versus tree height because height comes directly from the point cloud
 
 ```{r}
-tree_list_temp %>% 
+distribute_stand_fuel_load_ans$tree_list %>% 
   ggplot(mapping = aes(x = tree_height_m, y = cruz_biomass_kg, color = cruz_biomass_kg)) +
   geom_point() +
   harrypotter::scale_color_hp(option = "slytherin") +
@@ -925,6 +1019,7 @@ tree_list_temp %>%
 ```
 
 ```{r, include=FALSE, eval=FALSE}
+#### trying to get the biomass correct
 ggsave(
   "c:/users/georg/Downloads/cruz_biomass_vs_height.jpg"
   , height = 7, width = 10
@@ -1028,7 +1123,7 @@ tree_list_temp <- tree_list_temp %>%
       sf::st_drop_geometry() %>% 
       dplyr::select(treeID, sb_tree_cbh_m, tree_height_m, crown_area_m2) %>% 
       dplyr::rename(tree_cbh_m=sb_tree_cbh_m) %>% 
-      calc_crown_volume_cols() %>% 
+      calc_tree_level_cols() %>% 
       dplyr::select(treeID,crown_volume_m3) %>% 
       dplyr::rename(new_crown_volume_m3=crown_volume_m3)
     , by = "treeID"
@@ -1090,7 +1185,7 @@ cloud2trees::get_data()
 Let's compare the individual tree biomass estimates between the methods tested above. The first method relied on the `allodb` package to estimate single tree biomass (kg) based on published allometric equations. The second method we explored was using stand-level canopy fuels models ([Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5)) to estimate stand-level CBD (kg per m^3^) and we distributed that fuel load across the individual trees in the stand.
 
 ```{r}
-tree_list_temp %>% 
+distribute_stand_fuel_load_ans$tree_list %>% 
   ggplot() +
   geom_abline() +
   geom_point(
@@ -1101,8 +1196,8 @@ tree_list_temp %>%
       # , size = tree_height_m
     )
   ) +
-  scale_y_continuous(limits = c(0,max(tree_list_temp$allodb_biomass_kg)*1.01)) +
-  scale_x_continuous(limits = c(0,max(tree_list_temp$allodb_biomass_kg)*1.01)) +
+  scale_y_continuous(limits = c(0,max(distribute_stand_fuel_load_ans$tree_list$allodb_biomass_kg)*1.01)) +
+  scale_x_continuous(limits = c(0,max(distribute_stand_fuel_load_ans$tree_list$allodb_biomass_kg)*1.01)) +
   scale_color_viridis_c(option = "mako", direction = -1) +
   labs(
     x = "`allodb` individ.\ntree biomass (kg)"
@@ -1113,10 +1208,12 @@ tree_list_temp %>%
   guides(size = "none")
 ```
 
-the individual tree biomass estimates from the stand-level canopy fuels models distributed to the tree level were significantly lower than the biomass estimates from individual tree allometric equations. maybe this occurred because Cruz et al. (2003) estimated load of the crown portion of the tree only while the individual tree biomass equations estimate weight of the entire tree?
+The individual tree biomass estimates from the stand-level canopy fuels models distributed to the tree level were significantly lower than the biomass estimates from individual tree allometric equations. This difference is likely attributable to Cruz et al. (2003) estimating biomass of the crown portion of the tree only while the individual tree biomass equations implemented by `allodb` estimate total above ground biomass which includes biomass from foliage, stem bark, and stem wood.
+
+To make an appropriate comparison between [method 1](#method1) and [method 2](#method2), the individual tree total above ground biomass ought to be separated into tree components. Where "components" refer to the different portions of a tree such as foliage, merchantable stem, roots, or branches. Species group ratios of the biomass of component to the total above ground biomass have been reported in prior work ([Jenkins et al. 2003](https://scholar.google.com/scholar?cluster=3792367511483812518&oi=gsb&hl=en&as_sdt=0,6)). For the present study we could implement these biomass component ratios to get biomass for the crown portion only, or we could further explore the `allodb::new_equations()` function to modify the set of equations that will be used to estimate the biomass.
 
 ```{r}
-tree_list_temp %>% 
+distribute_stand_fuel_load_ans$tree_list %>% 
   sf::st_drop_geometry() %>% 
   dplyr::mutate(
     allodb_biomass_factor_larger = allodb_biomass_kg/cruz_biomass_kg
