@@ -131,7 +131,7 @@ we will estimate DBH, CBH, and forest type for this data
 # save our output_dir
 od <- "c:/data/usfs/point_cloud_tree_detection_ex/data/"
   # tempdir()
-chk_file_temp <- file.path(od,"point_cloud_processing_delivery","final_detected_tree_tops.gpkg")
+chk_file_temp <- file.path(od,"biomass_point_cloud_processing_delivery","final_detected_tree_tops.gpkg")
 if(!file.exists(chk_file_temp)){
   # cloud2trees
   cloud2trees_ans <- cloud2trees::cloud2trees(
@@ -268,72 +268,6 @@ cloud2trees_ans$treetops_sf %>%
 
 note that there is variation in the predicted biomass at a given height that is introduced from the variation in location of the trees
 
-#### `allodb::new_equations()` function
-
-the `allodb::new_equations()` function might allow us to modify the set of equations that will be used to estimate the biomass. can we adjust the weights used by `allodb::get_biomass()` to allow for multiple species allometries to contribute to the estimation of biomass given that we have only FIA forest type which groups multiple species together?
-
-it looks like the `allodb::est_params()` returns the allometric equation parameters to be used to estimate biomass for each tree and it's returned data is joined with the tree list data based on the columns `c("genus", "long", "lat")` if no `species` parameter is provided (if `species` is provided, it is added to the join column list)
-
-```{r}
-# just get one coordinate location
-coords_temp <- cloud2trees_ans$treetops_sf %>%
-  sf::st_transform(crs = sf::st_crs(4326)) %>%
-  sf::st_coordinates() %>% 
-  dplyr::as_tibble() %>% 
-  dplyr::slice(1)
-# what parameters are default?
-def_params_temp <- allodb::est_params(
-  genus = "Pinus",
-  coords = coords_temp,
-  species = NULL,
-  new_eqtable = NULL, # default for get_biomass
-  wna = 0.1, # default for get_biomass
-  w95 = 500, # default for get_biomass
-  nres = 1e4 # default for get_biomass
-)
-def_params_temp
-```
-
-let's use `allodb::new_equations()` to filter the equations to use for biomass estimation
-
-```{r}
-new_eq_temp <- allodb::new_equations(
-  subset_taxa = c(
-    "Pinus" # in case the species doesn't exist
-    , "Pinus contorta"
-  )
-)
-```
-
-what did we get?
-
-```{r}
-new_eq_temp %>% 
-  dplyr::select(c("equation_id", "equation_taxa", "equation_allometry")) %>% 
-  dplyr::glimpse()
-```
-
-now we'll update the `new_eqtable` parameter using the return from `allodb::new_equations()`
-
-```{r}
-updt_params_temp <- allodb::est_params(
-  genus = "Pinus",
-  coords = coords_temp,
-  species = NULL,
-  new_eqtable = new_eq_temp, # updated
-  wna = 0.1, # default for get_biomass
-  w95 = 500, # default for get_biomass
-  nres = 1e4 # default for get_biomass
-)
-# what is the update?
-updt_params_temp
-```
-
-```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
-remove(list = ls()[grep("_temp",ls())])
-gc()
-```
-
 let's figure out a mapping between genus/species and FIA forest types
 
 ```{r}
@@ -351,7 +285,7 @@ fia_trees %>%
   dplyr::glimpse()
 ```
 
-we could overlay the TreeMap raster with the FIA forest type raster and aggregate the tree species by forest type......but at that point it seems like we might as well utilize the TreeMap FIA data from [Riley et al. (2021)](https://doi.org/10.2737/RDS-2021-0074) to build a [softmax regression (i.e. multinomial logistic regression)](https://bookdown.org/content/3686/nominal-predicted-variable.html) to predict the nominal variable tree species using the predictors tree height and location extracted from the point cloud data. This option roughly follows the process most represented in the existing literature as detailed above. Note that to predict the nominal variable tree species we could also use a random forest classifier as in [Meng et al. (2024)](https://doi.org/10.3390/f15122110).
+we could overlay the TreeMap raster with the FIA forest type raster and aggregate the tree species by forest type......but at that point it seems like we might as well utilize the TreeMap FIA data from [Riley et al. (2021)](https://doi.org/10.2737/RDS-2021-0074) to build a [softmax regression (i.e. multinomial logistic regression)](https://bookdown.org/content/3686/nominal-predicted-variable.html) to predict the nominal variable tree species using the predictors tree height and location extracted from the point cloud data. This option would most closely follow the process most represented in the existing literature. Note that to predict the nominal variable tree species we could also use a random forest classifier as in [Meng et al. (2024)](https://doi.org/10.3390/f15122110).
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
@@ -492,7 +426,7 @@ pull in the extent of our point cloud catalog
 
 ```{r}
 las_ctg_sf <- sf::st_read(
-  file.path(od, "point_cloud_processing_delivery", "raw_las_ctg_info.gpkg")
+  file.path(od, "biomass_point_cloud_processing_delivery", "raw_las_ctg_info.gpkg")
   , quiet = T
 )
 ```
@@ -1174,11 +1108,115 @@ ggsave(
 
 ## Method 3: LANDFIRE
 
+### Get data
+
+we first downloaded the LANDFIRE "Forest Canopy Bulk Density - CBD" raster from: https://landfire.gov/data-downloads/US_240/LF2023_CBD_240_CONUS.zip
+
+we'll need to add this download to the `cloud2trees::get_data()` function...
+
 ```{r}
-cloud2trees::get_data()
-"https://landfire.gov/data-downloads/US_240/LF2023_FBFM13_240_CONUS.zip"
+lf_dir <- "c:/data/usfs/lidar_phys_fire_mods/data/landfire/Tif/"
+# read in the data
+landfire_cbd <- terra::rast(file.path(lf_dir, "LC23_CBD_240.tif"))
 ```
 
+what is this raster?
+
+```{r}
+landfire_cbd
+```
+
+what is in this data?
+
+```{r}
+lf_levels <- landfire_cbd %>% terra::levels()
+lf_levels
+```
+
+the raster is categorical/factors
+
+```{r}
+terra::is.factor(landfire_cbd)
+```
+
+update the raster to numeric
+
+```{r}
+# update raster to numeric
+landfire_cbd <- as.numeric(landfire_cbd)
+```
+
+adjust the numeric values since the units are in kg/m3*100 and set the rest to `NA`
+
+```{r}
+# rcl = two column matrix ("is", "becomes") can be useful for classifying integer
+ # values. In that case, the arguments right and include.lowest are ignored.
+# unique type codes
+#divide by 100 to get actual kg/m^3
+lf_values_recode <- ifelse(lf_levels[[1]]$Value<=0,NA,lf_levels[[1]]$Value) / 100
+# matrix
+rcl_temp <- c(lf_levels[[1]]$Value, lf_values_recode) %>%
+  matrix(ncol=2, byrow=F)
+# update raster to mark all non-forest cells as NA and convert rest to numeric
+landfire_cbd_recode <- landfire_cbd %>%
+  terra::classify(
+    rcl = rcl_temp
+    , others = NA
+  )
+```
+
+this took way too long and we won't want to do this in the `cloud2trees` process every time we use the data. we could either: 
+
+* upload the already cleaned data to Zenodo and have the `cloud2trees::get_data()` point to that source...we could put a hidden function in the package to do this
+* or, have the `cloud2trees::get_data()` point to the original LANDFIRE source, download it, and clean it and write the new data only at download 
+
+how does our new data look?
+
+```{r}
+landfire_cbd_recode
+```
+
+quick plot
+
+```{r}
+landfire_cbd_recode %>% terra::plot()
+```
+
+make a function to download, clean, and write the LANDFIRE data
+
+```{r}
+# do it
+```
+
+### Tree overlap with raster
+
+our `calc_rast_cell_overlap()` function to ingest a raster and a polygon and calculate the area of each raster cell that overlaps with the polygon
+
+```{r}
+calc_rast_cell_overlap(rast = landfire_cbd_recode, poly = las_ctg_sf) %>% 
+  purrr::pluck("df") %>% 
+  dplyr::glimpse()
+```
+
+### aggregate trees in raster cell
+
+our `calc_rast_cell_trees()` function aggregates our tree list to the raster cell level and join to the raster cell overlap data by calling `calc_rast_cell_overlap()` within the function
+
+```{r}
+calc_rast_cell_trees_ans <- calc_rast_cell_trees(
+    rast = landfire_cbd
+    , tree_list = cloud2trees_ans$treetops_sf
+    , poly_extent = las_ctg_sf
+    , calc_tree_level_cols = T
+  )
+# what?
+calc_rast_cell_trees_ans %>% 
+  purrr::pluck("cell_df") %>% 
+  dplyr::glimpse()
+```
+
+
+!!!!!!!!!!!!!!!!!!! need to make this function more general to aggregate to carry (or not carry) the landfire CBD value and the fia forest type group 
 
 ## Biomass Method Comparison
 
@@ -1208,9 +1246,7 @@ distribute_stand_fuel_load_ans$tree_list %>%
   guides(size = "none")
 ```
 
-The individual tree biomass estimates from the stand-level canopy fuels models distributed to the tree level were significantly lower than the biomass estimates from individual tree allometric equations. This difference is likely attributable to Cruz et al. (2003) estimating biomass of the crown portion of the tree only while the individual tree biomass equations implemented by `allodb` estimate total above ground biomass which includes biomass from foliage, stem bark, and stem wood.
-
-To make an appropriate comparison between [method 1](#method1) and [method 2](#method2), the individual tree total above ground biomass ought to be separated into tree components. Where "components" refer to the different portions of a tree such as foliage, merchantable stem, roots, or branches. Species group ratios of the biomass of component to the total above ground biomass have been reported in prior work ([Jenkins et al. 2003](https://scholar.google.com/scholar?cluster=3792367511483812518&oi=gsb&hl=en&as_sdt=0,6)). For the present study we could implement these biomass component ratios to get biomass for the crown portion only, or we could further explore the `allodb::new_equations()` function to modify the set of equations that will be used to estimate the biomass.
+summary comparison
 
 ```{r}
 distribute_stand_fuel_load_ans$tree_list %>% 
@@ -1221,4 +1257,117 @@ distribute_stand_fuel_load_ans$tree_list %>%
   dplyr::select(tidyselect::contains("biomass")) %>% 
   summary()
 ```
+
+The individual tree biomass estimates from the stand-level canopy fuels models distributed to the tree level were significantly lower than the biomass estimates from individual tree allometric equations. This difference is likely attributable to Cruz et al. (2003) estimating biomass of the crown portion of the tree only while the individual tree biomass equations implemented by `allodb` estimate total above ground biomass which includes biomass from foliage, stem bark, and stem wood.
+
+To make an appropriate comparison between [method 1](#method1) and [method 2](#method2), the individual tree total above ground biomass ought to be separated into tree components. Where "components" refer to the different portions of a tree such as foliage, merchantable stem, roots, or branches. Species group ratios of the biomass of component to the total above ground biomass have been reported in prior work ([Jenkins et al. 2003](https://scholar.google.com/scholar?cluster=3792367511483812518&oi=gsb&hl=en&as_sdt=0,6)). For the present study we could implement these biomass component ratios to get biomass for the crown portion only, or we could further explore the `allodb::new_equations()` function to modify the set of equations that will be used to estimate the biomass.
+
+## Method 1: reprise
+
+In [method 1](#method1) above we used the `allodb` package to estimate single tree biomass (kg) using allometric equations with DBH as a predictor variable. The `allodb::get_biomass()` function we used in the above demonstration defaults to estimating total above ground biomass for individual trees.
+
+Let's see if we can get estimates that align with the biomass of only the crown portion of the tree
+
+### `allodb::new_equations()` for crown biomass
+
+The `allodb::new_equations()` function has a parameter `subset_output` that determines the dependent variable(s) to be provided by the `allodb::get_biomass()` function. The `subset_output` default is `c("Total aboveground biomass", "Whole tree (above stump)")`, other possible values are: "Bark biomass", "Branches (dead)", "Branches (live)", "Branches total (live, dead)", "Foliage total", "Height", "Leaves", "Stem (wood only)", "Stem biomass", "Stem biomass (with bark)", "Stem biomass (without bark)", "Whole tree (above and belowground)".
+
+What equations are represented if we filter the list in our attempt to get the biomass of only the crown portion of the tree?
+
+```{r}
+allodb::new_equations(
+  subset_output = c(
+    # "Total aboveground biomass" # default
+    # , "Whole tree (above stump)" # default
+    # , "Bark biomass"
+    "Branches (dead)"
+    , "Branches (live)"
+    , "Branches total (live, dead)"
+    , "Foliage total"
+    # , "Height"
+    , "Leaves"
+    # , "Stem (wood only)"
+    # , "Stem biomass"
+    # , "Stem biomass (with bark)"
+    # , "Stem biomass (without bark)"
+    # , "Whole tree (above and belowground)"
+  )
+) %>% 
+  dplyr::select(
+    "dependent_variable", "equation_taxa", "equation_allometry"
+    , "ecosystem_type", "ref_id"
+  )
+```
+
+This list is sparse. Let's consider using species group ratios of the biomass of component to the total above ground biomass which have been reported in prior work ([Jenkins et al. 2003](https://scholar.google.com/scholar?cluster=3792367511483812518&oi=gsb&hl=en&as_sdt=0,6))
+
+### `allodb::new_equations()` for species composition
+
+The `allodb::new_equations()` function might allow us to modify the set of equations that will be used to estimate the biomass. can we adjust the weights used by `allodb::get_biomass()` to allow for multiple species allometries to contribute to the estimation of biomass given that we have only FIA forest type which groups multiple species together?
+
+it looks like the `allodb::est_params()` returns the allometric equation parameters to be used to estimate biomass for each tree and it's returned data is joined with the tree list data based on the columns `c("genus", "long", "lat")` if no `species` parameter is provided (if `species` is provided, it is added to the join column list)
+
+```{r}
+# just get one coordinate location
+coords_temp <- cloud2trees_ans$treetops_sf %>%
+  sf::st_transform(crs = sf::st_crs(4326)) %>%
+  sf::st_coordinates() %>% 
+  dplyr::as_tibble() %>% 
+  dplyr::slice(1)
+# what parameters are default?
+def_params_temp <- allodb::est_params(
+  genus = "Pinus",
+  coords = coords_temp,
+  species = NULL,
+  new_eqtable = NULL, # default for get_biomass
+  wna = 0.1, # default for get_biomass
+  w95 = 500, # default for get_biomass
+  nres = 1e4 # default for get_biomass
+)
+def_params_temp
+```
+
+let's use `allodb::new_equations()` to filter the equations to use for biomass estimation
+
+```{r}
+new_eq_temp <- allodb::new_equations(
+  subset_taxa = c(
+    "Pinus" # in case the species doesn't exist
+    , "Pinus contorta"
+  )
+)
+```
+
+what did we get?
+
+```{r}
+new_eq_temp %>% 
+  dplyr::select(c("equation_id", "equation_taxa", "equation_allometry")) %>% 
+  dplyr::glimpse()
+```
+
+now we'll update the `new_eqtable` parameter using the return from `allodb::new_equations()`
+
+```{r}
+updt_params_temp <- allodb::est_params(
+  genus = "Pinus",
+  coords = coords_temp,
+  species = NULL,
+  new_eqtable = new_eq_temp, # updated
+  wna = 0.1, # default for get_biomass
+  w95 = 500, # default for get_biomass
+  nres = 1e4 # default for get_biomass
+)
+# what is the update?
+updt_params_temp
+```
+
+nice! now what?
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+
 
