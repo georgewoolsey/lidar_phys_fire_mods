@@ -1,0 +1,333 @@
+# Point Cloud Processing
+
+In this section we'll process the [raw point cloud data](#data_desc) using the [`cloud2trees` R package](https://github.com/georgewoolsey/cloud2trees) developed to provide accessible routines for processing point cloud data collected by airborne lidar or generated using UAS imagery and photogrammetry (e.g. structure from motion).
+
+The `cloud2trees` package can be installed by following the directions listed in the [README file on GitHub](https://github.com/georgewoolsey/cloud2trees). If one is still experiencing difficulties installing the package, see the [example.R file](https://github.com/georgewoolsey/cloud2trees/blob/main/inst/examples/example.R) which details how to install the package using a virgin R instance.
+
+```{r, eval=FALSE}
+## remotes helps us get packages hosted on github
+install.packages("remotes")
+## get cloud2trees
+remotes::install_github(repo = "georgewoolsey/cloud2trees", upgrade = F)
+```
+
+Load the standard libraries we use to do work
+
+```{r, warning=FALSE, message=FALSE}
+# bread-and-butter
+library(tidyverse) # the tidyverse
+library(viridis) # viridis colors
+library(harrypotter) # hp colors
+library(RColorBrewer) # brewer colors
+library(scales) # work with number and plot scales
+library(latex2exp)
+
+# visualization
+library(mapview) # interactive html maps
+library(kableExtra) # tables
+library(patchwork) # combine plots
+
+# spatial analysis
+library(terra) # raster
+library(sf) # simple features
+library(lidR) # lidar data
+library(cloud2trees) # the cloud2trees
+```
+
+```{r pkg-ld, include=F, warning=F, message=F}
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  # , results = 'hide'
+  , fig.width = 10.5
+  , fig.height = 7
+)
+# option to put satellite imagery as base layer of mapview maps
+  mapview::mapviewOptions(
+    homebutton = FALSE
+    # , basemaps = c("Esri.WorldImagery","OpenStreetMap")
+    , basemaps = c("OpenStreetMap", "Esri.WorldImagery")
+  )
+# clean session
+remove(list = ls())
+gc()
+```
+
+## Lidar Data Location
+
+Let's check out the lidar data we got from the Mogollon Rim area of the Coconino National Forest about 20 km north of Payson, Arizona, USA using the [USGS LidarExplorer](https://www.usgs.gov/tools/lidarexplorer).
+
+```{r}
+# directory with the downloaded .las|.laz files
+f <- "e:/lidar_phys_fire_mods/data/mogollon_rim_az_lidar/"
+# is there data?
+list.files(f, pattern = ".*\\.(laz|las)$") %>% length()
+# what files are in here?
+list.files(f, pattern = ".*\\.(laz|las)$")[1:3]
+```
+
+We'll plot our point cloud data tiles real quick to orient ourselves
+
+```{r}
+lidR::readLAScatalog(f) %>% 
+  purrr::pluck("data") %>% 
+  mapview::mapview(popup = F, layer.name = "point cloud tile")
+```
+
+## Individial Tree Detection Tuning: `itd_tuning()`
+
+The `cloud2trees` package performs individual tree detection using `lidR::locate_trees()` with the `lidR::lmf()` algorithm. The local maximum filter algorithm allows for a constant window size or a variable window size defined by a function. See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
+
+The `itd_tuning()` function is used to visually assess tree crown delineation results from different window size functions used for the detection of individual trees. `itd_tuning()` allows users to test different window size functions on a sample of data to determine which function is most suitable for the area being analyzed. The preferred function can then be used in the `ws` parameter in `raster2trees()` and `cloud2trees()`.
+
+Let's run `itd_tuning()` on our data starting with default window size functions
+
+```{r}
+# run itd_tuning()
+itd_tuning_ans <- cloud2trees::itd_tuning(f)
+# what did we get?
+itd_tuning_ans %>% names()
+```
+
+check the `ws_fn_list` return which includes the different window size functions tested
+
+```{r}
+# what ws_fn_list
+itd_tuning_ans$ws_fn_list %>% str()
+```
+
+let's look at the function definition for the linear function (`lin_fn`)
+
+```{r}
+# the linear function
+itd_tuning_ans$ws_fn_list$lin_fn
+```
+
+let's plot all of the functions we tested with our call to `itd_tuning()` using the defaults
+
+```{r}
+# shape of the ws functions
+ggplot() +
+  geom_function(aes(color = "lin_fn"),fun=itd_tuning_ans$ws_fn_list$lin_fn, lwd=1.2) +
+  geom_function(aes(color = "nonlin_fn"),fun=itd_tuning_ans$ws_fn_list$nonlin_fn, lwd=1.2) +
+  geom_function(aes(color = "exp_fn"),fun=itd_tuning_ans$ws_fn_list$exp_fn, lwd=1.2) +
+  xlim(-5,60) +
+  harrypotter::scale_color_hp_d(option = "hermionegranger") +
+  labs(x = "heights", y = "ws", color = "ws function") +
+  theme_light()
+```
+
+now, let's see how those window size functions impacted individual tree detection by checking the `plot_samples` return
+
+```{r, eval=FALSE}
+# tuning plot
+itd_tuning_ans$plot_samples
+```
+
+```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold', results='asis'}
+# this is so we get the actual result that we used for tuning
+knitr::include_graphics("e:/lidar_phys_fire_mods/data/itd_tuning1.jpg")
+```
+
+Looking at the first sample, the exponential function (`exp_fn`) resulted in too few trees detected in the overstory class. The clearest evidence of this is in the center of the left-hand side of the plot in the first sample. There is a clear "valley" in the CHM which the linear (`lin_fn`) and non-linear (`nonlin_fn`) correctly split into two trees but the exponential function misses this split. Furthermore, the exponential function results in too many tree splits for short trees as can be seen in the second sample plot in the lower-left corner small tree group. The linear and the non-linear function are very similar in detecting overstory trees but the linear function perhaps does a better job splitting up clumps of smaller trees. In the third sample plot the linear function does a better job splitting up the short tree group in the upper-right corner small tree group compared to the non-linear function (there is no way that a tree that short [3-6 m tall] would have such a large crown area as in the non-linear split). 
+
+If we had one gripe about the linear function, it's maybe that it results in too many trees in small-tree patches. Let's define our own custom linear function that slightly increases the window size for shorter trees compared to the default linear function.
+
+```{r}
+# custom linear function
+custom_lin <- function (x){
+  y <- dplyr::case_when(
+    is.na(x) ~ 0.001
+    , x < 0 ~ 0.001
+    , x < 2 ~ 1.2
+    , x > 30 ~ 5
+    , TRUE ~ 0.9 + (x * 0.139)
+  )
+  return(y)
+}
+# shape of the ws functions
+ggplot() +
+  geom_function(aes(color = "lin_fn"),fun=itd_tuning_ans$ws_fn_list$lin_fn, lwd=1.2) +
+  geom_function(aes(color = "nonlin_fn"),fun=itd_tuning_ans$ws_fn_list$nonlin_fn, lwd=1.2) +
+  geom_function(aes(color = "custom_lin"),fun=custom_lin, lwd=1.2) +
+  xlim(-5,60) +
+  harrypotter::scale_color_hp_d(option = "hermionegranger") +
+  labs(x = "heights", y = "ws", color = "ws function") +
+  theme_light()
+```
+
+We'll run another sample test using `itd_tuning()`with our new function (call it "my_custom_lin" for extra clarity) compared to the default linear and non-linear functions and this time we'll ask for four sample plots of 0.1 ha.
+
+```{r, eval=FALSE}
+itd_tuning_ans2 <- cloud2trees::itd_tuning(
+  f
+  , ws_fn_list = list(
+    my_custom_lin = custom_lin
+    , lin_fn = itd_tuning_ans$ws_fn_list$lin_fn
+    , nonlin_fn = itd_tuning_ans$ws_fn_list$nonlin_fn
+  )
+  , n_samples = 4
+)
+```
+
+now, let's see how those window size functions impacted individual tree detection by checking the `plot_samples` return
+
+```{r, eval=FALSE}
+# tuning plot
+itd_tuning_ans2$plot_samples
+```
+
+```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold', results='asis'}
+# this is so we get the actual result that we used for tuning
+knitr::include_graphics("e:/lidar_phys_fire_mods/data/itd_tuning2.jpg")
+```
+
+Our custom linear function (`my_custom_lin`) strikes a good balance between detection of lower canopy trees (e.g. <10 m in height) without improperly subdividing dominant canopy trees based on the areas sampled. Let's move forward with our custom linear function in the `raster2trees()` and `cloud2trees()` functions.
+
+## Point Cloud Tree Extraction: `cloud2trees()`
+
+The `cloud2trees()` function combines methods in the `cloud2trees` package for an all-in-one approach. We'll call this function without estimating any of the additional tree components (the `estimate_*` parameters) which we will do separately to show the full process. With all other options turned off, `cloud2trees()` will: 1) generate a CHM from the point cloud using `cloud2raster()`; and 2) perform individual tree detection using `raster2trees()`.
+
+```{r, eval=FALSE}
+cloud2trees_ans <- cloud2trees::cloud2trees(
+  output_dir = "../data"
+  , input_las_dir = f # we defined this above
+  , accuracy_level = 2
+  , dtm_res_m = 1
+  , chm_res_m = 0.25
+  , min_height = 2
+  , ws = custom_lin # here it is
+  , keep_intrmdt = T
+  # these are turned off by default but we'll be explicit
+  , estimate_tree_dbh = F
+  , estimate_tree_competition = F
+  , estimate_tree_type = F
+  , estimate_tree_hmd = F
+  , estimate_tree_cbh = F
+)
+```
+
+```{r, include=F, eval=T, echo=F, message=F, warning=F}
+# get the data from already run
+crowns_sf <-
+  list.files(
+    "../data/point_cloud_processing_delivery"
+    , pattern = "final_detected_crowns.*\\.gpkg$"
+    , full.names = T
+  ) %>% 
+  normalizePath() %>% 
+  .[1:3] %>% 
+  purrr::map(\(x)
+    sf::st_read(
+      dsn = x
+      , quiet = T
+    )
+  ) %>% 
+  dplyr::bind_rows()
+# get the data from already run
+treetops_sf <-
+  list.files(
+    "../data/point_cloud_processing_delivery"
+    , pattern = "final_detected_tree_tops.*\\.gpkg$"
+    , full.names = T
+  ) %>% 
+  normalizePath() %>% 
+  .[1:3] %>% 
+  purrr::map(\(x)
+    sf::st_read(
+      dsn = x
+      , quiet = T
+    )
+  ) %>% 
+  dplyr::bind_rows()
+
+# put it together
+cloud2trees_ans <- list(
+  crowns_sf = crowns_sf
+  , treetops_sf = treetops_sf
+)
+# remove
+remove(crowns_sf, treetops_sf)
+gc()
+```
+
+we should have a spatial tree list with tree height attached
+
+```{r}
+cloud2trees_ans$crowns_sf %>% 
+  dplyr::select(treeID, tree_x, tree_y, tree_height_m, crown_area_m2) %>% 
+  dplyr::glimpse()
+```
+
+That's a lot of trees!
+
+The `cloud2trees()` function dropped off a lot of additional data in a folder titled "point_cloud_processing_delivery" which is nested where we told the command to write the data (`output_dir = "../data"` parameter setting). Let's load in the "processed_tracking_data.csv" file to see how long that `cloud2trees()` process took to run. Run times are, of course, dependent on computer processing and I am working on a laptop typical of a spatial analyst (especially outside of the US Federal Government) running Windows with an Intel i7-10750H 6-core computer processor unit and 32 gigabytes of random-access memory.
+
+```{r}
+# load processed_tracking_data.csv
+processing_temp <- readr::read_csv(
+    file = "../data/point_cloud_processing_delivery/processed_tracking_data.csv"
+    , progress = F
+    , show_col_types = F
+  ) %>% 
+  dplyr::select(1:4)
+# what?
+processing_temp %>% dplyr::glimpse()
+```
+
+let's do some math
+
+```{r}
+# total tree extraction time
+trees_mins_temp <- processing_temp$timer_cloud2raster_mins[1] + 
+  processing_temp$timer_raster2trees_mins[1]
+# ha
+ha_temp <- round(processing_temp$las_area_m2[1]/10000)
+# secs per ha
+rate_temp <- (trees_mins_temp*60) / ha_temp
+# point density
+dens_temp <- processing_temp$number_of_points[1] / processing_temp$las_area_m2[1]
+```
+
+Tree extraction over **`r scales::comma(ha_temp, accuracy = 1)`** hectares took a total of **`r scales::comma(trees_mins_temp, accuracy = 0.1)`** minutes at processing rate of **`r scales::comma(rate_temp, accuracy = 0.01)`** seconds per hectare on lidar data with a point density of **`r scales::comma(dens_temp, accuracy = 0.1)`** points per square meter.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+## DBH Modeling: `trees_dbh()`
+
+The `trees_dbh()` function uses the [TreeMap](https://www.fs.usda.gov/rds/archive/catalog/RDS-2021-0074) FIA plot data in the area of the tree list to estimate the height-DBH allometry relationship. The height predicting DBH model built from the FIA data is then used to predict DBH based on tree height in the tree list.
+
+```{r, eval=FALSE}
+trees_dbh_ans <- cloud2trees::trees_dbh()
+```
+
+## CBH Modeling: `trees_cbh()`
+
+The `trees_cbh()` function does work
+
+```{r, eval=FALSE}
+# ?cloud2trees::trees_cbh
+trees_cbh_ans <- cloud2trees::trees_cbh(
+  trees_poly = cloud2trees_ans$crowns_sf
+  , norm_las = "../data/point_cloud_processing_delivery/norm_las/"
+  , tree_sample_n = 333
+  , which_cbh = "lowest"
+  , estimate_missing_cbh = TRUE
+  , min_vhp_n = 3
+  , voxel_grain_size_m = 1
+  , dist_btwn_bins_m = 1
+  , min_fuel_layer_ht_m = 1
+  , lad_pct_gap = 25
+  , lad_pct_base = 25
+  , num_jump_steps = 1
+  , min_lad_pct = 10
+  , frst_layer_min_ht_m = 1
+  , force_same_crs = T
+)
+```
+

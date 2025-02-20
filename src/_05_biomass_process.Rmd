@@ -761,19 +761,12 @@ calc_rast_cell_trees <- function(rast, tree_list, poly_extent, buffer = 100, cal
        calc_tree_level_cols()
   }
   
-  # aggregate tree list to cell
+  # check col names
   nms <- names(tree_list) %>% dplyr::coalesce("")
-  if(stringr::str_detect(nms, "forest_type_group_code") %>% any()){
-    trees_agg <- tree_list %>% 
-      sf::st_drop_geometry() %>% 
-      # aggregate to stand level
-      dplyr::group_by(cell, forest_type_group_code)
-  }else{
-    trees_agg <- tree_list %>% 
-      sf::st_drop_geometry() %>% 
-      # aggregate to stand level
-      dplyr::group_by(cell)
-  }
+  # aggregate tree list to cell
+  trees_agg <- tree_list %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::group_by(cell)
   
   # summarize
   if(calc_tree_level_cols==T){
@@ -842,28 +835,79 @@ Now that we have trees grouped into "stands" (i.e. raster cells), and we have ra
 first, we'll use our `get_cruz_stand_kg_per_m3()` function to calculate the stand level CBH in kilograms per cubed meter
 
 ```{r}
-distribute_stand_fuel_load <- function(cell_df, tree_list) {
-  # calculate fuel loading at the stand levesl
-  cell_df <- cell_df %>% 
-    dplyr::ungroup() %>% 
-    dplyr::rowwise() %>% # this is key
-    dplyr::mutate(
-      kg_per_m3 = get_cruz_stand_kg_per_m3(
-        forest_type_group_code = forest_type_group_code
-        , basal_area_m2_per_ha = basal_area_m2_per_ha
-        , trees_per_ha = trees_per_ha
+distribute_stand_fuel_load <- function(cell_df, tree_list, cbd_method = "cruz") {
+  # check the method
+  cbd_method <- dplyr::coalesce(cbd_method[1], "") %>% tolower()
+  if( !(cbd_method %in% c("cruz", "landfire")) ){
+    stop("`cbd_method` parameter must be one of \"cruz\" or \"landfire\"")
+  }
+  
+  # for cruz, need to get the forest type group code
+  # we'll do this based on the most common code in the tree data
+  nms <- names(tree_list) %>% dplyr::coalesce("")
+  if(
+    !(stringr::str_detect(nms, "cell") %>% any())
+  ){
+    stop("tree_list data must have the column `cell`...should be in the output of calc_rast_cell_trees()?")
+  }
+  if(
+    cbd_method == "cruz"
+    && !(stringr::str_detect(nms, "forest_type_group_code") %>% any())
+  ){
+    stop(paste0(
+      "cbd_method set to `cruz` but the `forest_type_group_code` does not exist in the tree list data"
+      , "\n try running cloud2trees::trees_type() first"
+    ))
+  }
+  #############################################
+  # CRUZ
+  #############################################
+  if(cbd_method == "cruz"){
+    # select most common forest type group in a cell based on tree list
+    cell_ft_temp <- tree_list %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::mutate(
+        is_na_ft = ifelse(
+          is.na(as.numeric(forest_type_group_code))
+          , 1
+          , 0
+        )
+      ) %>% 
+      dplyr::group_by(cell, forest_type_group_code, is_na_ft) %>% 
+      dplyr::summarise(trees = dplyr::n()) %>% 
+      dplyr::group_by(cell) %>% 
+      dplyr::arrange(cell, desc(is_na_ft), desc(trees)) %>% 
+      dplyr::filter(dplyr::row_number()==1) %>% 
+      dplyr::ungroup()
+  
+    # calculate fuel loading at the stand level
+    cell_df <- cell_df %>% 
+      dplyr::ungroup() %>% 
+      dplyr::left_join(cell_ft_temp %>% dplyr::select(cell,forest_type_group_code), by = "cell") %>% 
+      dplyr::rowwise() %>% # this is key
+      dplyr::mutate(
+        kg_per_m3 = get_cruz_stand_kg_per_m3(
+          forest_type_group_code = forest_type_group_code
+          , basal_area_m2_per_ha = basal_area_m2_per_ha
+          , trees_per_ha = trees_per_ha
+        )
+      ) %>% 
+      dplyr::ungroup() %>% 
+      # tertiary columns 
+      dplyr::mutate(
+        # get cfl in kg/m2
+        kg_per_m2 = mean_crown_length_m * kg_per_m3
+        # get stand biomass in kg at the stand level
+        , biomass_kg = kg_per_m2 * overlap_area_m2
+        # single tree CBD in kg/m3 will be constant by stand/cell
+        , tree_kg_per_m3 = biomass_kg / sum_crown_volume_m3
       )
-    ) %>% 
-    dplyr::ungroup() %>% 
-    # tertiary columns 
-    dplyr::mutate(
-      # get cfl in kg/m2
-      kg_per_m2 = mean_crown_length_m * kg_per_m3
-      # get stand biomass in kg at the stand level
-      , biomass_kg = kg_per_m2 * overlap_area_m2
-      # single tree CBD in kg/m3 will be constant by stand/cell
-      , tree_kg_per_m3 = biomass_kg / sum_crown_volume_m3
-    )
+  }
+  
+  #############################################
+  # LANDFIRE
+  #############################################
+  
   
   # apply stand fuel load to trees
   tree_list <- tree_list %>% 
@@ -1148,12 +1192,30 @@ landfire_cbd <- as.numeric(landfire_cbd)
 
 adjust the numeric values since the units are in kg/m3*100 and set the rest to `NA`
 
+```{r, include=FALSE, eval=FALSE}
+# small the rast for testing
+landfire_cbd <- landfire_cbd %>%
+  terra::crop(
+    cloud2trees_ans$treetops_sf %>% 
+    sf::st_bbox() %>% 
+    sf::st_as_sfc() %>% 
+    sf::st_buffer(20000) %>% 
+    terra::vect() %>% 
+    terra::project(terra::crs(landfire_cbd))
+  )
+```
+
+
 ```{r}
 # rcl = two column matrix ("is", "becomes") can be useful for classifying integer
  # values. In that case, the arguments right and include.lowest are ignored.
 # unique type codes
 #divide by 100 to get actual kg/m^3
-lf_values_recode <- ifelse(lf_levels[[1]]$Value<=0,NA,lf_levels[[1]]$Value) / 100
+lf_values_recode <- ifelse(
+  lf_levels[[1]]$Value<=0
+  , NA
+  , lf_levels[[1]]$Value
+  ) / 100
 # matrix
 rcl_temp <- c(lf_levels[[1]]$Value, lf_values_recode) %>%
   matrix(ncol=2, byrow=F)
@@ -1188,14 +1250,49 @@ make a function to download, clean, and write the LANDFIRE data
 # do it
 ```
 
+### Fill empty LANDFIRE cells
+
+we want to ensure that any trees that fall within an empty LANDFIRE cell get a value. to do this we need to ensure that the LANDFIRE raster cells are all filled using nearest neighbor imputation
+
+we can use the `fill_rast_na()` function we defined in `cloud2trees::trees_type()`
+
+but we'll want to pass a cropped raster (potentially a coarser resolution raster if the AOI is huge) to this function
+
+```{r}
+fill_rast_na(landfire_cbd_recode)
+```
+
+
 ### Tree overlap with raster
 
 our `calc_rast_cell_overlap()` function to ingest a raster and a polygon and calculate the area of each raster cell that overlaps with the polygon
 
 ```{r}
-calc_rast_cell_overlap(rast = landfire_cbd_recode, poly = las_ctg_sf) %>% 
-  purrr::pluck("df") %>% 
+calc_rast_cell_overlap_ans <- calc_rast_cell_overlap(
+  rast = landfire_cbd_recode, poly = las_ctg_sf
+) 
+# what does the data look like?
+calc_rast_cell_overlap_ans %>% 
+  purrr::pluck("df") %>%
   dplyr::glimpse()
+```
+
+let's check this on the map
+
+```{r}
+ggplot(data = calc_rast_cell_overlap_ans$df) +
+  geom_tile(mapping = aes(x=x,y=y,fill=overlap_area_m2), color = "gray") +
+  geom_text(
+    mapping = aes(x=x,y=y,label = scales::comma(overlap_area_m2, accuracy = 1))
+    , color = "white"
+  ) +
+  geom_sf(
+    data = las_ctg_sf %>% sf::st_union() %>% sf::st_transform(crs = terra::crs(landfire_cbd_recode))
+    , color = "red"
+    , alpha = 0
+  ) +
+  scale_fill_viridis_c(option = "mako", direction = -1) +
+  theme_void()
 ```
 
 ### aggregate trees in raster cell
@@ -1204,7 +1301,7 @@ our `calc_rast_cell_trees()` function aggregates our tree list to the raster cel
 
 ```{r}
 calc_rast_cell_trees_ans <- calc_rast_cell_trees(
-    rast = landfire_cbd
+    rast = landfire_cbd_recode
     , tree_list = cloud2trees_ans$treetops_sf
     , poly_extent = las_ctg_sf
     , calc_tree_level_cols = T
@@ -1212,11 +1309,10 @@ calc_rast_cell_trees_ans <- calc_rast_cell_trees(
 # what?
 calc_rast_cell_trees_ans %>% 
   purrr::pluck("cell_df") %>% 
+  dplyr::filter(overlap_area_ha>0) %>% 
   dplyr::glimpse()
 ```
 
-
-!!!!!!!!!!!!!!!!!!! need to make this function more general to aggregate to carry (or not carry) the landfire CBD value and the fia forest type group 
 
 ## Biomass Method Comparison
 
@@ -1266,13 +1362,28 @@ To make an appropriate comparison between [method 1](#method1) and [method 2](#m
 
 In [method 1](#method1) above we used the `allodb` package to estimate single tree biomass (kg) using allometric equations with DBH as a predictor variable. The `allodb::get_biomass()` function we used in the above demonstration defaults to estimating total above ground biomass for individual trees.
 
-Let's see if we can get estimates that align with the biomass of only the crown portion of the tree
+First, let's see if we can get estimates that align with the biomass of only the crown portion of the tree. Second, let's see if we can update the set of equations to estimate biomass based on FIA forest type groups which possibly contain multiple species. Some guidance from [Gonzalez‐Akre et al. (2022)](https://scholar.google.com/scholar?cluster=14167690887599848846&oi=gsb&hl=en&as_sdt=0,5):
 
-### `allodb::new_equations()` for crown biomass
+>User provides a dataframe with DBH (cm), parsed species Latin names and site coordinates. `allodb` estimates AGB by calibrating a new allometric equation for each taxon in the user-provided data. The equations table in `allodb` can be customized using the `new_equations()` function. Each equation is given a weight by the `weight_allom()` function and then resampled with the function `resample_agb()`. The values obtained are used in the function `est_params()` to recalibrate a new allometric equation and then used in the `get_biomass()` function. `illustrate_allodb()` is used to visualize the top resampled equations (details for each equation can be found in the equations table within `allodb`) and the final fitted equation. (Fig. 1, p. 334)
+
+### Step 1: `allodb::new_equations()`
+
+The equations table in `allodb` can be customized using the `new_equations()` function.
+
+#### Equation dependent variables
 
 The `allodb::new_equations()` function has a parameter `subset_output` that determines the dependent variable(s) to be provided by the `allodb::get_biomass()` function. The `subset_output` default is `c("Total aboveground biomass", "Whole tree (above stump)")`, other possible values are: "Bark biomass", "Branches (dead)", "Branches (live)", "Branches total (live, dead)", "Foliage total", "Height", "Leaves", "Stem (wood only)", "Stem biomass", "Stem biomass (with bark)", "Stem biomass (without bark)", "Whole tree (above and belowground)".
 
-What equations are represented if we filter the list in our attempt to get the biomass of only the crown portion of the tree?
+What equations are represented in our attempt to get the biomass of only the crown portion of the tree?
+
+```{r}
+allodb::equations %>% 
+  dplyr::count(equation_taxa,dependent_variable) %>% 
+  dplyr::arrange(equation_taxa,desc(n)) %>% 
+  kableExtra::kbl() %>% 
+  kableExtra::kable_styling()
+```
+
 
 ```{r}
 allodb::new_equations(

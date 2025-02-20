@@ -30,7 +30,7 @@
   
   
 
-<link rel="next" href="s01.html"/>
+<link rel="next" href="point-cloud-processing.html"/>
 <script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
 <link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
@@ -51,10 +51,6 @@
 <link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
 <link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
 <script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
-<script src="libs/kePrint-0.0.1/kePrint.js"></script>
-<link href="libs/lightable-0.0.1/lightable.css" rel="stylesheet" />
-<link href="libs/bsTable-3.3.7/bootstrapTable.min.css" rel="stylesheet" />
-<script src="libs/bsTable-3.3.7/bootstrapTable.js"></script>
 <link href="libs/htmltools-fill-0.5.8.1/fill.css" rel="stylesheet" />
 <script src="libs/htmlwidgets-1.6.4/htmlwidgets.js"></script>
 <link href="libs/leaflet-1.3.1/leaflet.css" rel="stylesheet" />
@@ -180,118 +176,15 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="1" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i><b>1</b> Introduction</a>
 <ul>
 <li class="chapter" data-level="1.1" data-path="index.html"><a href="index.html#objective"><i class="fa fa-check"></i><b>1.1</b> Objective</a></li>
-<li class="chapter" data-level="1.2" data-path="index.html"><a href="index.html#data"><i class="fa fa-check"></i><b>1.2</b> Data</a></li>
+<li class="chapter" data-level="1.2" data-path="index.html"><a href="index.html#data_desc"><i class="fa fa-check"></i><b>1.2</b> Data</a></li>
 </ul></li>
-<li class="chapter" data-level="2" data-path="s01.html"><a href="s01.html"><i class="fa fa-check"></i><b>2</b> Data Load and Methods Explore</a>
+<li class="chapter" data-level="2" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html"><i class="fa fa-check"></i><b>2</b> Point Cloud Processing</a>
 <ul>
-<li class="chapter" data-level="2.1" data-path="s01.html"><a href="s01.html#neontreeevaluation"><i class="fa fa-check"></i><b>2.1</b> <code id="neon">NeonTreeEvaluation</code></a>
-<ul>
-<li class="chapter" data-level="2.1.1" data-path="s01.html"><a href="s01.html#explore-lidar-data-from-package"><i class="fa fa-check"></i><b>2.1.1</b> Explore LiDAR data from package</a></li>
-</ul></li>
-<li class="chapter" data-level="2.2" data-path="s01.html"><a href="s01.html#cloud2trees"><i class="fa fa-check"></i><b>2.2</b> <code id="cloud2trees">cloud2trees</code></a>
-<ul>
-<li class="chapter" data-level="2.2.1" data-path="s01.html"><a href="s01.html#get-tree-list-and-normalized-cloud"><i class="fa fa-check"></i><b>2.2.1</b> Get tree list and normalized cloud</a></li>
-</ul></li>
-<li class="chapter" data-level="2.3" data-path="s01.html"><a href="s01.html#ladderfuelsr"><i class="fa fa-check"></i><b>2.3</b> <code id="ladr">LadderFuelsR</code></a>
-<ul>
-<li class="chapter" data-level="2.3.1" data-path="s01.html"><a href="s01.html#prep-for-the-package"><i class="fa fa-check"></i><b>2.3.1</b> Prep for the package</a></li>
-<li class="chapter" data-level="2.3.2" data-path="s01.html"><a href="s01.html#defining-function-for-computing-crown-level-metrics"><i class="fa fa-check"></i><b>2.3.2</b> Defining function for computing crown-level metrics</a></li>
-<li class="chapter" data-level="2.3.3" data-path="s01.html"><a href="s01.html#computing-crown-level-standard-metrics-within-all-trees-detected"><i class="fa fa-check"></i><b>2.3.3</b> Computing crown level standard metrics within all trees detected</a></li>
-<li class="chapter" data-level="2.3.4" data-path="s01.html"><a href="s01.html#lai-lad-metrics-by-trees"><i class="fa fa-check"></i><b>2.3.4</b> LAI-LAD metrics by Trees</a></li>
-<li class="chapter" data-level="2.3.5" data-path="s01.html"><a href="s01.html#i-quit"><i class="fa fa-check"></i><b>2.3.5</b> I quit</a></li>
-</ul></li>
-<li class="chapter" data-level="2.4" data-path="s01.html"><a href="s01.html#ladr_s"><i class="fa fa-check"></i><b>2.4</b> <code>LadderFuelsR</code> - simplified</a>
-<ul>
-<li class="chapter" data-level="2.4.1" data-path="s01.html"><a href="s01.html#setup"><i class="fa fa-check"></i><b>2.4.1</b> Setup</a></li>
-<li class="chapter" data-level="2.4.2" data-path="s01.html"><a href="s01.html#step-0---leafr-steps"><i class="fa fa-check"></i><b>2.4.2</b> Step 0 - <code>leafR</code> steps</a></li>
-<li class="chapter" data-level="2.4.3" data-path="s01.html"><a href="s01.html#step-1---ladderfuelsrget_gaps_fbhs"><i class="fa fa-check"></i><b>2.4.3</b> Step 1 - <code>LadderFuelsR::get_gaps_fbhs</code></a></li>
-<li class="chapter" data-level="2.4.4" data-path="s01.html"><a href="s01.html#step-2---ladderfuelsrcalculate_gaps_perc"><i class="fa fa-check"></i><b>2.4.4</b> Step 2 - <code>LadderFuelsR::calculate_gaps_perc</code></a></li>
-<li class="chapter" data-level="2.4.5" data-path="s01.html"><a href="s01.html#step-3---ladderfuelsrget_distance"><i class="fa fa-check"></i><b>2.4.5</b> Step 3 - <code>LadderFuelsR::get_distance</code></a></li>
-<li class="chapter" data-level="2.4.6" data-path="s01.html"><a href="s01.html#step-4---ladderfuelsrget_depths"><i class="fa fa-check"></i><b>2.4.6</b> Step 4 - <code>LadderFuelsR::get_depths</code></a></li>
-<li class="chapter" data-level="2.4.7" data-path="s01.html"><a href="s01.html#step-5---ladderfuelsrget_real_fbh"><i class="fa fa-check"></i><b>2.4.7</b> Step 5 - <code>LadderFuelsR::get_real_fbh</code></a></li>
-<li class="chapter" data-level="2.4.8" data-path="s01.html"><a href="s01.html#step-6---ladderfuelsrget_real_depths"><i class="fa fa-check"></i><b>2.4.8</b> Step 6 - <code>LadderFuelsR::get_real_depths</code></a></li>
-<li class="chapter" data-level="2.4.9" data-path="s01.html"><a href="s01.html#step-7---ladderfuelsrget_effective_gap"><i class="fa fa-check"></i><b>2.4.9</b> Step 7 - <code>LadderFuelsR::get_effective_gap</code></a></li>
-<li class="chapter" data-level="2.4.10" data-path="s01.html"><a href="s01.html#step-8---ladderfuelsrget_layers_lad"><i class="fa fa-check"></i><b>2.4.10</b> Step 8 - <code>LadderFuelsR::get_layers_lad</code></a></li>
-<li class="chapter" data-level="2.4.11" data-path="s01.html"><a href="s01.html#step-9---ladderfuelsrget_cbh_dist-ladderfuelsrget_cbh_metrics"><i class="fa fa-check"></i><b>2.4.11</b> Step 9 - <del><code>LadderFuelsR::get_cbh_dist</code></del> <code>LadderFuelsR::get_cbh_metrics</code></a></li>
-</ul></li>
-</ul></li>
-<li class="chapter" data-level="3" data-path="s02.html"><a href="s02.html"><i class="fa fa-check"></i><b>3</b> CBH Process</a>
-<ul>
-<li class="chapter" data-level="3.1" data-path="s02.html"><a href="s02.html#get-some-lidar-data"><i class="fa fa-check"></i><b>3.1</b> Get some lidar data</a>
-<ul>
-<li class="chapter" data-level="3.1.1" data-path="s02.html"><a href="s02.html#cloud2trees-that-lidar-data"><i class="fa fa-check"></i><b>3.1.1</b> <code>cloud2trees</code> that lidar data</a></li>
-</ul></li>
-<li class="chapter" data-level="3.2" data-path="s02.html"><a href="s02.html#define-ladderfuelsr-processing-function"><i class="fa fa-check"></i><b>3.2</b> Define <code>LadderFuelsR</code> Processing Function</a>
-<ul>
-<li class="chapter" data-level="3.2.1" data-path="s02.html"><a href="s02.html#return-cbh-metrics"><i class="fa fa-check"></i><b>3.2.1</b> Return CBH Metrics</a></li>
-<li class="chapter" data-level="3.2.2" data-path="s02.html"><a href="s02.html#cbh-on-the-point-cloud"><i class="fa fa-check"></i><b>3.2.2</b> CBH on the point cloud</a></li>
-</ul></li>
-<li class="chapter" data-level="3.3" data-path="s02.html"><a href="s02.html#function-to-cbh-a-tree-list"><i class="fa fa-check"></i><b>3.3</b> Function to CBH a tree list</a></li>
-<li class="chapter" data-level="3.4" data-path="s02.html"><a href="s02.html#test_l"><i class="fa fa-check"></i><b>3.4</b> Test CBH process - lidar</a>
-<ul>
-<li class="chapter" data-level="3.4.1" data-path="s02.html"><a href="s02.html#comparison-to-ladderfuelsr-defaults"><i class="fa fa-check"></i><b>3.4.1</b> Comparison to <code>LadderFuelsR</code> defaults</a></li>
-<li class="chapter" data-level="3.4.2" data-path="s02.html"><a href="s02.html#test-cbh-based-on-parameterization-of-ladderfuelsr"><i class="fa fa-check"></i><b>3.4.2</b> test CBH based on parameterization of <code id="test_l2">LadderFuelsR</code></a></li>
-</ul></li>
-<li class="chapter" data-level="3.5" data-path="s02.html"><a href="s02.html#test-cbh-process---uas"><i class="fa fa-check"></i><b>3.5</b> Test CBH process - UAS</a>
-<ul>
-<li class="chapter" data-level="3.5.1" data-path="s02.html"><a href="s02.html#cloud2trees-that-uas-data"><i class="fa fa-check"></i><b>3.5.1</b> <code>cloud2trees</code> that UAS data</a></li>
-<li class="chapter" data-level="3.5.2" data-path="s02.html"><a href="s02.html#extract-cbh-example"><i class="fa fa-check"></i><b>3.5.2</b> Extract CBH example</a></li>
-<li class="chapter" data-level="3.5.3" data-path="s02.html"><a href="s02.html#test-cbh-based-on-parameterization-of-ladderfuelsr-1"><i class="fa fa-check"></i><b>3.5.3</b> test CBH based on parameterization of <code>LadderFuelsR</code></a></li>
-</ul></li>
-</ul></li>
-<li class="chapter" data-level="4" data-path="s03.html"><a href="s03.html"><i class="fa fa-check"></i><b>4</b> Species Process</a>
-<ul>
-<li class="chapter" data-level="4.1" data-path="s03.html"><a href="s03.html#rmnp_ex"><i class="fa fa-check"></i><b>4.1</b> Example Lidar Data</a>
-<ul>
-<li class="chapter" data-level="4.1.1" data-path="s03.html"><a href="s03.html#cloud2trees-that-lidar-data-1"><i class="fa fa-check"></i><b>4.1.1</b> <code>cloud2trees</code> that lidar data</a></li>
-</ul></li>
-<li class="chapter" data-level="4.2" data-path="s03.html"><a href="s03.html#usfs-national-forest-type-group-dataset"><i class="fa fa-check"></i><b>4.2</b> USFS National Forest Type Group dataset</a>
-<ul>
-<li class="chapter" data-level="4.2.1" data-path="s03.html"><a href="s03.html#get-the-data"><i class="fa fa-check"></i><b>4.2.1</b> Get the data</a></li>
-<li class="chapter" data-level="4.2.2" data-path="s03.html"><a href="s03.html#check-the-raster"><i class="fa fa-check"></i><b>4.2.2</b> Check the raster</a></li>
-<li class="chapter" data-level="4.2.3" data-path="s03.html"><a href="s03.html#forest-type-group-data"><i class="fa fa-check"></i><b>4.2.3</b> Forest type group data</a></li>
-<li class="chapter" data-level="4.2.4" data-path="s03.html"><a href="s03.html#forest-type-group-example"><i class="fa fa-check"></i><b>4.2.4</b> Forest type group example</a></li>
-</ul></li>
-<li class="chapter" data-level="4.3" data-path="s03.html"><a href="s03.html#forest-type-to-tree-list"><i class="fa fa-check"></i><b>4.3</b> Forest Type to Tree List</a>
-<ul>
-<li class="chapter" data-level="4.3.1" data-path="s03.html"><a href="s03.html#example-with-original-forest-type"><i class="fa fa-check"></i><b>4.3.1</b> Example with original forest type</a></li>
-<li class="chapter" data-level="4.3.2" data-path="s03.html"><a href="s03.html#fill-missing-forest-type-example"><i class="fa fa-check"></i><b>4.3.2</b> Fill missing forest type example</a></li>
-<li class="chapter" data-level="4.3.3" data-path="s03.html"><a href="s03.html#fill-missing-forest-type-resilience"><i class="fa fa-check"></i><b>4.3.3</b> Fill missing forest type resilience</a></li>
-<li class="chapter" data-level="4.3.4" data-path="s03.html"><a href="s03.html#get-forest-type-function"><i class="fa fa-check"></i><b>4.3.4</b> Get forest type function</a></li>
-</ul></li>
-</ul></li>
-<li class="chapter" data-level="5" data-path="s04.html"><a href="s04.html"><i class="fa fa-check"></i><b>5</b> Height to Maximum Diameter Process</a>
-<ul>
-<li class="chapter" data-level="5.1" data-path="s03.html"><a href="s03.html#rmnp_ex"><i class="fa fa-check"></i><b>5.1</b> Example Lidar Data</a>
-<ul>
-<li class="chapter" data-level="5.1.1" data-path="s04.html"><a href="s04.html#cloud2trees-that-lidar-data-2"><i class="fa fa-check"></i><b>5.1.1</b> <code>cloud2trees</code> that lidar data</a></li>
-</ul></li>
-<li class="chapter" data-level="5.2" data-path="s04.html"><a href="s04.html#height-to-max-crown-diameter"><i class="fa fa-check"></i><b>5.2</b> Height to Max Crown Diameter</a>
-<ul>
-<li class="chapter" data-level="5.2.1" data-path="s04.html"><a href="s04.html#one-tree-example"><i class="fa fa-check"></i><b>5.2.1</b> One Tree Example</a></li>
-<li class="chapter" data-level="5.2.2" data-path="s04.html"><a href="s04.html#process-for-entire-lascatalog"><i class="fa fa-check"></i><b>5.2.2</b> Process for entire LAScatalog</a></li>
-</ul></li>
-<li class="chapter" data-level="5.3" data-path="s04.html"><a href="s04.html#function-for-cloud2trees"><i class="fa fa-check"></i><b>5.3</b> Function for <code>cloud2trees</code></a></li>
-</ul></li>
-<li class="chapter" data-level="6" data-path="s05.html"><a href="s05.html"><i class="fa fa-check"></i><b>6</b> Tree Biomass Process</a>
-<ul>
-<li class="chapter" data-level="6.1" data-path="s05.html"><a href="s05.html#preliminaries"><i class="fa fa-check"></i><b>6.1</b> Preliminaries</a></li>
-<li class="chapter" data-level="6.2" data-path="s05.html"><a href="s05.html#data-load"><i class="fa fa-check"></i><b>6.2</b> Data Load</a></li>
-<li class="chapter" data-level="6.3" data-path="s05.html"><a href="s05.html#example-lidar-data"><i class="fa fa-check"></i><b>6.3</b> Example Lidar Data</a>
-<ul>
-<li class="chapter" data-level="6.3.1" data-path="s05.html"><a href="s05.html#cloud2trees-that-lidar-data-3"><i class="fa fa-check"></i><b>6.3.1</b> <code>cloud2trees</code> that lidar data</a></li>
-</ul></li>
-<li class="chapter" data-level="6.4" data-path="s05.html"><a href="s05.html#method-1-single-tree-biomass-kg-using-allometric-equations"><i class="fa fa-check"></i><b>6.4</b> Method 1: single tree biomass (kg) using allometric equations</a>
-<ul>
-<li class="chapter" data-level="6.4.1" data-path="s05.html"><a href="s05.html#define-species-based-on-forest-type-group"><i class="fa fa-check"></i><b>6.4.1</b> Define species based on forest type group</a></li>
-</ul></li>
-<li class="chapter" data-level="6.5" data-path="s05.html"><a href="s05.html#method-2-stand-level-canopy-fuels-models"><i class="fa fa-check"></i><b>6.5</b> Method 2: stand-level canopy fuels models</a>
-<ul>
-<li class="chapter" data-level="6.5.1" data-path="s05.html"><a href="s05.html#cruz-et-al.-2003-equations"><i class="fa fa-check"></i><b>6.5.1</b> Cruz et al. 2003 equations</a></li>
-<li class="chapter" data-level="6.5.2" data-path="s05.html"><a href="s05.html#define-a-stand-using-raster"><i class="fa fa-check"></i><b>6.5.2</b> Define a “stand” using raster</a></li>
-<li class="chapter" data-level="6.5.3" data-path="s05.html"><a href="s05.html#distribute-stand-cbd-kgm3-to-trees"><i class="fa fa-check"></i><b>6.5.3</b> Distribute stand CBD (kg/m3) to trees</a></li>
-</ul></li>
-<li class="chapter" data-level="6.6" data-path="s05.html"><a href="s05.html#biomass-method-comparison"><i class="fa fa-check"></i><b>6.6</b> Biomass Method Comparison</a></li>
+<li class="chapter" data-level="2.1" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#lidar-data-location"><i class="fa fa-check"></i><b>2.1</b> Lidar Data Location</a></li>
+<li class="chapter" data-level="2.2" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#individial-tree-detection-tuning-itd_tuning"><i class="fa fa-check"></i><b>2.2</b> Individial Tree Detection Tuning: <code>itd_tuning()</code></a></li>
+<li class="chapter" data-level="2.3" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#point-cloud-tree-extraction-cloud2trees"><i class="fa fa-check"></i><b>2.3</b> Point Cloud Tree Extraction: <code>cloud2trees()</code></a></li>
+<li class="chapter" data-level="2.4" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#dbh-modeling-trees_dbh"><i class="fa fa-check"></i><b>2.4</b> DBH Modeling: <code>trees_dbh()</code></a></li>
+<li class="chapter" data-level="2.5" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#cbh-modeling-trees_cbh"><i class="fa fa-check"></i><b>2.5</b> CBH Modeling: <code>trees_cbh()</code></a></li>
 </ul></li>
 </ul>
 
@@ -313,7 +206,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="header">
 <h1 class="title">Aerial LiDAR for Fire Model Inputs</h1>
 <p class="author"><em>George Woolsey</em></p>
-<p class="date"><em>05 January, 2025</em></p>
+<p class="date"><em>20 February, 2025</em></p>
 </div>
 <div id="introduction" class="section level1 hasAnchor" number="1">
 <h1><span class="header-section-number">Section 1</span> Introduction<a href="index.html#introduction" class="anchor-section" aria-label="Anchor link to header"></a></h1>
@@ -322,9 +215,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <h2><span class="header-section-number">1.1</span> Objective<a href="index.html#objective" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>The objective of this study is to demonstrate the use of aerial LiDAR data to create inputs for physics-based fire models in frequent-fire forests of the southwestern United States. We review the methods used to extract tree location, species, and physical form from aerial LiDAR data. We evaluate this canopy crown detection methodology using a benchmark data set created to standardize evaluation metrics (Weinstein et al. 2021). We explain how to format this data for seamless integration with two commonly used object-based physical fire modeling tools. We demonstrate the end-to-end process using a case study from the southwestern United States.</p>
 </div>
-<div id="data" class="section level2 hasAnchor" number="1.2">
-<h2><span class="header-section-number">1.2</span> Data<a href="index.html#data" class="anchor-section" aria-label="Anchor link to header"></a></h2>
-<p>LiDAR data from the southwest US</p>
+<div id="data_desc" class="section level2 hasAnchor" number="1.2">
+<h2><span class="header-section-number">1.2</span> Data<a href="index.html#data_desc" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>Lidar data from the Mogollon Rim area of the Coconino National Forest about 20 km north of Payson, Arizona, USA was acquired from the <a href="https://www.usgs.gov/tools/lidarexplorer">USGS LidarExplorer</a>. The <a href="https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/AZ_USFS_3DEP_Processing_2019_D20/AZ_USFS_3DEP_Processing_2019">aerial lidar data</a> was collected between August 2013 and October 2014 under <a href="https://prd-tnm.s3.amazonaws.com/index.html?prefix=StagedProducts/Elevation/metadata/AZ_USFS_3DEP_Processing_2019_D20/AZ_USFS_3DEP_Processing_2019">lidar project “AZ_USFS_3DEP_Processing_2019_D20”</a> (project ID: 195122).</p>
 
 </div>
 </div>
@@ -334,7 +227,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         </div>
       </div>
 
-<a href="s01.html" class="navigation navigation-next navigation-unique" aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+<a href="point-cloud-processing.html" class="navigation navigation-next navigation-unique" aria-label="Next page"><i class="fa fa-angle-right"></i></a>
     </div>
   </div>
 <script src="libs/gitbook-2.6.7/js/app.min.js"></script>

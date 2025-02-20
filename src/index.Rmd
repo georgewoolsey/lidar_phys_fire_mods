@@ -32,9 +32,9 @@ Code in support of "Using aerial LiDAR data for object-based physical fire model
 
 The objective of this study is to demonstrate the use of aerial LiDAR data to create inputs for physics-based fire models in frequent-fire forests of the southwestern United States. We review the methods used to extract tree location, species, and physical form from aerial LiDAR data. We evaluate this canopy crown detection methodology using a benchmark data set created to standardize evaluation metrics (Weinstein et al. 2021). We explain how to format this data for seamless integration with two commonly used object-based physical fire modeling tools. We demonstrate the end-to-end process using a case study from the southwestern United States.
 
-## Data
+## Data{#data_desc}
 
-LiDAR data from the southwest US
+Lidar data from the Mogollon Rim area of the Coconino National Forest about 20 km north of Payson, Arizona, USA was acquired from the [USGS LidarExplorer](https://www.usgs.gov/tools/lidarexplorer). The [aerial lidar data](https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/AZ_USFS_3DEP_Processing_2019_D20/AZ_USFS_3DEP_Processing_2019) was collected between August 2013 and October 2014 under [lidar project "AZ_USFS_3DEP_Processing_2019_D20"](https://prd-tnm.s3.amazonaws.com/index.html?prefix=StagedProducts/Elevation/metadata/AZ_USFS_3DEP_Processing_2019_D20/AZ_USFS_3DEP_Processing_2019) (project ID: 195122).
 
 ```{r, include=FALSE, echo=FALSE}
 knitr::write_bib(c(

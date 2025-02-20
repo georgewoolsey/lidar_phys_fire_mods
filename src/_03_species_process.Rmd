@@ -242,7 +242,7 @@ get_foresttype_raw <- function(savedir=NULL,force=F){
   # exporting the entire image at a resolution better than 808x808 is not possible with the image server data limits
   # let's try chunking up the area, downloading tiles, then mosaicing to get a better resolution
   # math to set the size parameter
-  map_ext <- c(-1.4469E7,2480613,-7114771,6868893)
+  map_ext <- c(-14469331.213417,2480613.686445,-7114771.213417,6868893.686445)
   (w <- map_ext[3]-map_ext[1])
   (h <- map_ext[4]-map_ext[2])
   
@@ -256,13 +256,13 @@ get_foresttype_raw <- function(savedir=NULL,force=F){
   # chunk this
   # x combinations
     x_l <- dplyr::tibble(
-        xmin = seq(from = map_ext[1], to = map_ext[3], length.out = 15)
+        xmin = seq(from = map_ext[1], to = map_ext[3], length.out = 5)
       ) %>%
       dplyr::mutate(xmax = dplyr::lead(xmin, n = 1)) %>%
       dplyr::filter(!is.na(xmax))
   # y combinations
     y_l <- dplyr::tibble(
-        ymin = seq(from = map_ext[2], to = map_ext[4], length.out = 15)
+        ymin = seq(from = map_ext[2], to = map_ext[4], length.out = 2)
       ) %>%
       dplyr::mutate(ymax = dplyr::lead(ymin, n = 1)) %>%
       dplyr::filter(!is.na(ymax))
@@ -279,6 +279,12 @@ get_foresttype_raw <- function(savedir=NULL,force=F){
   #   ggplot() +
   #   geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = as.factor(n)), color = "black") +
   #   theme(legend.position = "none")
+  # # print chunk (t,l,r,b)
+  # chunk_df %>%
+  #   dplyr::mutate(
+  #     hey=paste(ymax,xmin,xmax,ymin, sep = ",", recycle0 = T)
+  #   ) %>%
+  #   dplyr::pull(hey)
   
   # function to build the api string and download
   dl_ans <- 1:nrow(chunk_df) %>% 
@@ -2020,7 +2026,7 @@ mapview::mapview(tl_temp, zcol = "treeID", legend = F, layer.name = "trees")
 
 let's test the `trees_species()` function with these trees that aren't anywhere near a forest and expand the `max_search_dist_m` parameter to allow for species very far away to be attached to this tree list
 
-```{r, results=F, echo=FALSE}
+```{r, results=F}
 trees_species_ans <- cloud2trees::trees_type(
   tl_temp
   , max_search_dist_m = 1000*50
