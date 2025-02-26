@@ -1,6 +1,6 @@
-# Validate Point Cloud Processing
+# Validate Tree 
 
-In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package (Woolsey and Tinkham, 2024) which incorporates the process outlined in [Viedma et al. 2024](https://doi.org/10.1111/2041-210X.14427) for crown base height (CBH) calculation.
+In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package
 
 First, load the standard libraries
 
@@ -18,17 +18,12 @@ library(mapview) # interactive html maps
 library(kableExtra) # tables
 library(patchwork) # combine plots
 library(ggnewscale) # ggnewscale
-library(rgl) # rgl plotting
 
 # spatial analysis
-library(terra) # raster
 library(sf) # simple features
 library(lidR) # lidar data
 library(cloud2trees) # tha cloud2trees
 library(NeonTreeEvaluation) # benchmark data
-
-# models
-library(brms) # bayesian modelling
 ```
 
 ```{r, include=F, warning=F, message=F}

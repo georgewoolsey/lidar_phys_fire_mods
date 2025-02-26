@@ -218,7 +218,7 @@ crowns_sf <-
     , full.names = T
   ) %>% 
   normalizePath() %>% 
-  .[1:3] %>% 
+  # .[1:3] %>% 
   purrr::map(\(x)
     sf::st_read(
       dsn = x
@@ -234,7 +234,7 @@ treetops_sf <-
     , full.names = T
   ) %>% 
   normalizePath() %>% 
-  .[1:3] %>% 
+  # .[1:3] %>% 
   purrr::map(\(x)
     sf::st_read(
       dsn = x
@@ -267,28 +267,27 @@ The `cloud2trees()` function dropped off a lot of additional data in a folder ti
 
 ```{r}
 # load processed_tracking_data.csv
-processing_temp <- readr::read_csv(
+processing_data <- readr::read_csv(
     file = "../data/point_cloud_processing_delivery/processed_tracking_data.csv"
     , progress = F
     , show_col_types = F
-  ) %>% 
-  dplyr::select(1:4)
+  )
 # what?
-processing_temp %>% dplyr::glimpse()
+processing_data %>% dplyr::select(1:4) %>% dplyr::glimpse()
 ```
 
 let's do some math
 
 ```{r}
 # total tree extraction time
-trees_mins_temp <- processing_temp$timer_cloud2raster_mins[1] + 
-  processing_temp$timer_raster2trees_mins[1]
+trees_mins_temp <- processing_data$timer_cloud2raster_mins[1] + 
+  processing_data$timer_raster2trees_mins[1]
 # ha
-ha_temp <- round(processing_temp$las_area_m2[1]/10000)
+ha_temp <- round(processing_data$las_area_m2[1]/10000)
 # secs per ha
 rate_temp <- (trees_mins_temp*60) / ha_temp
 # point density
-dens_temp <- processing_temp$number_of_points[1] / processing_temp$las_area_m2[1]
+dens_temp <- processing_data$number_of_points[1] / processing_data$las_area_m2[1]
 ```
 
 Tree extraction over **`r scales::comma(ha_temp, accuracy = 1)`** hectares took a total of **`r scales::comma(trees_mins_temp, accuracy = 0.1)`** minutes at processing rate of **`r scales::comma(rate_temp, accuracy = 0.01)`** seconds per hectare on lidar data with a point density of **`r scales::comma(dens_temp, accuracy = 0.1)`** points per square meter.
@@ -310,24 +309,84 @@ trees_dbh_ans <- cloud2trees::trees_dbh()
 
 The `trees_cbh()` function does work
 
-```{r, eval=FALSE}
-# ?cloud2trees::trees_cbh
-trees_cbh_ans <- cloud2trees::trees_cbh(
-  trees_poly = cloud2trees_ans$crowns_sf
-  , norm_las = "../data/point_cloud_processing_delivery/norm_las/"
-  , tree_sample_n = 333
-  , which_cbh = "lowest"
-  , estimate_missing_cbh = TRUE
-  , min_vhp_n = 3
-  , voxel_grain_size_m = 1
-  , dist_btwn_bins_m = 1
-  , min_fuel_layer_ht_m = 1
-  , lad_pct_gap = 25
-  , lad_pct_base = 25
-  , num_jump_steps = 1
-  , min_lad_pct = 10
-  , frst_layer_min_ht_m = 1
-  , force_same_crs = T
-)
+```{r}
+# where should we save the file?
+cbh_fn <- "../data/point_cloud_processing_delivery/cbh_data.csv"
+# if we don't already have the data, run it
+if(!file.exists(cbh_fn)){
+  # sample size
+  nsamp_temp <- 100000
+  # time it
+  st_temp <- Sys.time()
+  # run it
+  trees_cbh_ans <- cloud2trees::trees_cbh(
+    trees_poly = cloud2trees_ans$crowns_sf
+    , norm_las = "../data/point_cloud_processing_delivery/norm_las/"
+    , tree_sample_n = nsamp_temp
+    # , tree_sample_prop = 0.08
+    , which_cbh = "lowest"
+    , estimate_missing_cbh = TRUE
+    , min_vhp_n = 3
+    , voxel_grain_size_m = 1
+    , dist_btwn_bins_m = 1
+    , min_fuel_layer_ht_m = 1
+    , lad_pct_gap = 25
+    , lad_pct_base = 25
+    , num_jump_steps = 1
+    , min_lad_pct = 10
+    , frst_layer_min_ht_m = 1
+    , force_same_crs = T
+  )
+  # timer
+  ## author note: test 1 with 20k sample took 58.56778 mins
+  mins_temp <- difftime(Sys.time(),st_temp,units = "mins") %>% as.numeric()
+  processing_data$timer_trees_cbh_mins <- mins_temp
+  processing_data$sttng_cbh_tree_sample_n <- nsamp_temp
+  processing_data$sttng_cbh_tree_sample_prop <- NA
+  # save cbh
+  trees_cbh_ans %>% sf::st_drop_geometry() %>% 
+    write.csv(file = cbh_fn, row.names = F, append = F)
+  # save tracking
+  processing_data %>% 
+    write.csv(
+      file = "../data/point_cloud_processing_delivery/processed_tracking_data.csv"
+      , row.names = F, append = F
+    )
+}else{
+  # cbh data
+  trees_cbh_ans <- readr::read_csv(cbh_fn, progress = F, show_col_types = F)
+  # re-cast treeID if needed
+  if(
+    !inherits(
+      trees_cbh_ans$treeID
+      , class(cloud2trees_ans$crowns_sf$treeID)
+    )
+  ){
+    if(inherits(cloud2trees_ans$crowns_sf$treeID, "character")){
+      trees_cbh_ans$treeID <- as.character(trees_cbh_ans$treeID)
+    }else if(inherits(cloud2trees_ans$crowns_sf$treeID, "numeric")){
+      trees_cbh_ans$treeID <- as.numeric(trees_cbh_ans$treeID)
+    }
+  }  
+}
 ```
+
+CBH extraction for **`r scales::comma(processing_data$sttng_cbh_tree_sample_n, accuracy = 1)`** trees took a total of **`r scales::comma(processing_data$timer_trees_cbh_mins, accuracy = 0.1)`** minutes at processing rate of **`r scales::comma(processing_data$timer_trees_cbh_mins/(processing_data$sttng_cbh_tree_sample_n/1000), accuracy = 0.01)`** minutes per 1,000 trees...this is not fast and mostly a limitation of the `LadderFuelsR` which only allows for processing one tree at a time. Perhaps the author of `cloud2trees` will enable parallel processing at some point in the [`future`](https://future.futureverse.org/index.html)??? 
+
+Let's see what we got back from `trees_cbh()`
+
+```{r}
+trees_cbh_ans %>% 
+  dplyr::select(treeID, tree_cbh_m, is_training_cbh) %>%
+  dplyr::glimpse()
+```
+
+We requested CBH extraction for **`r scales::comma(processing_data$sttng_cbh_tree_sample_n, accuracy = 1)`** trees. For how many trees was CBH successfully extracted from the point cloud?
+
+```{r}
+trees_cbh_ans %>% 
+  dplyr::count(is_training_cbh)
+```
+
+That's not a great success ;( ... Someone should do something (or should they?)
 
