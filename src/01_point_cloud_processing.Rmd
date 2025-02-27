@@ -76,7 +76,7 @@ lidR::readLAScatalog(f) %>%
   mapview::mapview(popup = F, layer.name = "point cloud tile")
 ```
 
-## Individial Tree Detection Tuning: `itd_tuning()`
+## Individial Tree Detection Tuning: `itd_tuning()`{#itd}
 
 The `cloud2trees` package performs individual tree detection using `lidR::locate_trees()` with the `lidR::lmf()` algorithm. The local maximum filter algorithm allows for a constant window size or a variable window size defined by a function. See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
 
@@ -315,7 +315,7 @@ cbh_fn <- "../data/point_cloud_processing_delivery/cbh_data.csv"
 # if we don't already have the data, run it
 if(!file.exists(cbh_fn)){
   # sample size
-  nsamp_temp <- 100000
+  nsamp_temp <- 133333
   # time it
   st_temp <- Sys.time()
   # run it

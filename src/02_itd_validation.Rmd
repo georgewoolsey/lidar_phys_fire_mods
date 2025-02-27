@@ -18,6 +18,7 @@ library(mapview) # interactive html maps
 library(kableExtra) # tables
 library(patchwork) # combine plots
 library(ggnewscale) # ggnewscale
+library(rgl) # rgl plotting
 
 # spatial analysis
 library(sf) # simple features
@@ -244,7 +245,7 @@ let's only keep NEON sites with >50% of the woody vegetation sampled as conifer
 min_conifer_pct <- .5
 # data frame of sites
 conifer_sites <- conifer_sites %>%
-  dplyr::filter(pct_conifer>=min_conifer_pct)
+  dplyr::filter(pct_conifer>min_conifer_pct)
 ```
 
 finally, we'll filter our lidar processing data for only these conifer sites
@@ -267,7 +268,7 @@ lidar_df %>%
   kableExtra::kable_styling()
 ```
 
-where are these though?
+what is the spatial distribution of these sites?
 
 ```{r}
 lidar_df %>% 
@@ -288,9 +289,572 @@ gc()
 
 ## Example validation process
 
-now that we have our lidar data that we can test our process against, let's walk through the validation for a single plot
+now that we have our lidar data that we can test our point cloud-based tree detection and crown segmentation process against, let's walk through the validation for a single plot
+
+we'll test with a single point cloud in our filtered list from conifer sites with validation data
 
 ```{r}
-
+lidar_df_row <- 1
+# lidar_df$f_path[47] %>% lidR::readLAS() %>% lidR::st_crs()
 ```
 
+### Preliminaries
+
+#### View the point cloud
+
+this step isn't necessary for validation, but let's see what this point cloud data looks like
+
+We can plot the point cloud with and color by the point height
+
+```{r, rgl = TRUE}
+lidar_df$f_path[lidar_df_row] %>% 
+  lidR::readLAS() %>% 
+  lidR::plot(
+    color = "Z", breaks = "quantile", bg = "white", legend = T
+   , pal = harrypotter::hp(n=50, house = "gryffindor")
+  )
+```
+
+there are trees in there for sure (and conifer trees by the looks of it)
+
+let's look at the co-registered RGB imagery (notice that the `NeonTreeEvaluation` commands rely on the deprecated `raster` package :\)
+```{r}
+# read rgb
+rgb_temp <- lidar_df$plot_name[lidar_df_row] %>%
+  NeonTreeEvaluation::get_data(type = "rgb") %>% 
+  raster::stack()
+
+# read image annotated crown data and make polygons
+polys_temp <-
+  lidar_df$plot_name[lidar_df_row] %>%
+  NeonTreeEvaluation::get_data(type = "annotations") %>% 
+  NeonTreeEvaluation::xml_parse() 
+polys_temp <- NeonTreeEvaluation::boxes_to_spatial_polygons(polys_temp,rgb_temp)
+
+# plot
+terra::plotRGB(rgb_temp %>% terra::rast())
+terra::plot(
+  polys_temp %>% terra::vect()
+  , col = NA, border = "red"
+  , lwd = 2 , add = TRUE
+)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+```{r, include=FALSE, eval=FALSE}
+###### this terra + sf doesn't work because NeonTreeEvaluation::xml_parse returns data in local coordinates
+###### .... would need to add these to the coordinates in the rgb raster :/
+
+# function to convert numbers to bbox polygon
+bbox_poly <- function(xmin,ymin,xmax,ymax) {
+  # points
+  lower_left_pt <- sf::st_point(c(xmin,ymin))
+  upper_right_pt <- sf::st_point(c(xmax,ymax))
+  # to bbox polygon
+  sf::st_sfc(lower_left_pt, upper_right_pt) %>% 
+    sf::st_bbox() %>% 
+    sf::st_as_sfc() 
+}
+# read rgb
+rgb_temp <- lidar_df$plot_name[lidar_df_row] %>%
+  NeonTreeEvaluation::get_data(type = "rgb") %>% 
+  terra::rast()
+
+# read image annotated crown data and make polygons
+# polys_temp <- 
+  lidar_df$plot_name[lidar_df_row] %>%
+  NeonTreeEvaluation::get_data(type = "annotations") %>% 
+  NeonTreeEvaluation::xml_parse() %>% 
+  dplyr::mutate(id = dplyr::row_number()) %>% 
+  dplyr::select(id,xmin,ymin,xmax,ymax) %>% 
+  dplyr::rowwise(id) %>% 
+  dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
+  dplyr::ungroup() %>% 
+  sf::st_set_geometry("geometry") %>% 
+  sf::st_set_crs(xxxxxx)
+# plot
+terra::plotRGB(rgb_temp, axes = T)
+terra::plot(
+  polys_temp %>% terra::vect() %>% terra::set.crs(terra::crs(rgb_temp))
+  , border = "red"
+  , add = TRUE
+)
+```
+
+#### ITD variable window
+
+We discussed our method for individual tree detection (ITD) in [this prior section](#itd). For our validation, we'll be using the default window size in the `cloud2trees::cloud2trees()` and `cloud2trees::raster2trees()` settings.
+
+Let's see what that looks like
+
+```{r}
+ws_temp <- cloud2trees::itd_ws_functions()[["exp_fn"]]
+ggplot() +
+  geom_function(fun=ws_temp, lwd=1.2, color = "navy") +
+  xlim(-5,60) +
+  labs(
+    x = "heights", y = "ws"
+    , subtitle = "`cloud2trees` default ITD variable window function"
+  ) +
+  theme_light()
+```
+
+### Filter for "canopy" trees
+
+First, we'll process the point cloud and get a tree list using our `cloud2trees::cloud2trees()` method with all defaults except we'll raise the minimum height of trees to search to 3 m. The ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark was developed specifically for "canopy" trees and the field-collected stems evaluation data only includes >10 cm DBH trees:
+
+>NEON field crews sample all trees within a plot that are greater than 10cm DBH, regardless of whether the tree crown can be seen in the remote sensing image data. While understory tree detection is an important area of future work, the scope of this benchmark is focused on crowns in the canopy that are visible from above. (p. 10)
+
+In order to set up our point cloud-based algorithm to find "canopy" trees, we'll identify the shortest live tree in the field-collected stems data to set our `min_height` in `cloud2trees::cloud2trees()`
+
+we'll use the filters found in `clean_field_data()` from [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package/blob/724bdb0a9a3ea6433450f62c69a8fadce9ccdb66/R/evaluate_field_stems.R) as an internal function
+
+```{r}
+# get non-na heights from neon field measured trees
+neon_field_heights <- NeonTreeEvaluation::field %>% 
+  # filters found in `clean_field_data()`
+  dplyr::filter(
+    !is.na(itcEasting)
+    , !stringr::str_detect(eventID,"2014")
+    , growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling")
+    , stemDiameter>15
+    , (height>3|is.na(height))
+  ) %>%
+  # getting only non-na
+  dplyr::filter(!is.na(height)) %>% 
+  dplyr::pull(height)
+```
+
+look at the summary of height data
+
+```{r}
+summary(neon_field_heights)
+```
+
+we'll set our minimum height to detect trees at the 5th percentile value
+
+```{r}
+(neon_min_ht <- quantile(neon_field_heights, probs = 0.05) %>% round())
+```
+
+what does this look like?
+
+```{r}
+dplyr::tibble(ht=neon_field_heights) %>% 
+  ggplot(aes(x = ht)) +
+    geom_density(color = "gold",fill = "gold", alpha = 0.7, lwd = 1.2) +
+    geom_vline(xintercept = neon_min_ht, linetype = "dashed") +
+    annotate(
+      "text", x = neon_min_ht, y = 0.07
+      , label = paste0("5th percentile: ",neon_min_ht,"m")
+      , hjust = 0
+    ) +
+    scale_x_continuous(breaks = scales::breaks_extended(10)) +
+    labs(
+      x = "height (m)"
+      , subtitle = "heights of \"canopy\" trees in NeonTreeEvaluation"
+    ) +
+    theme_light()
+```
+
+### `cloud2trees::cloud2trees()`
+
+
+```{r}
+ans <- cloud2trees::cloud2trees(
+  input_las_dir = lidar_df$f_path[lidar_df_row]
+  , output_dir = tempdir()
+  , min_height = neon_min_ht
+)
+```
+
+quick check our our heights
+
+```{r}
+ans$crowns_sf$tree_height_m %>% summary()
+```
+
+### Format extracted tree polygons
+
+we need to format our extracted trees for `NeonTreeEvaluation` evaluation and submission
+
+first, we'll simplify multipolygon crowns
+
+```{r}
+ans$crowns_sf <- cloud2trees::simplify_multipolygon_crowns(ans$crowns_sf)
+```
+
+check out our extracted trees
+
+```{r}
+ggplot2::ggplot() +
+  ggplot2::geom_tile(
+    data = ans$chm_rast %>%
+      terra::as.data.frame(xy=T) %>%
+      dplyr::rename(f=3)
+    , mapping = ggplot2::aes(x = x, y = y, fill = f)
+    , na.rm = T
+  ) +
+  harrypotter::scale_fill_hp(
+    option = "gryffindor"
+    , breaks = scales::breaks_extended(n=10)
+  ) +
+  ggplot2::geom_sf(
+    data = ans$crowns_sf
+    , fill = NA, color = "gray33", lwd = 1
+  ) +
+  ggplot2::scale_x_continuous(expand = c(0, 0)) +
+  ggplot2::scale_y_continuous(expand = c(0, 0)) +
+  ggplot2::labs(x = "", y = "", fill = "CHM (m)") +
+  ggplot2::theme_light() +
+  ggplot2::theme(axis.text = ggplot2::element_blank())
+```
+
+we'll reserve judgement and let the data talk
+
+format the data for `NeonTreeEvaluation` submission and evaluation
+
+```{r}
+return_sf <-
+  ans$crowns_sf %>% 
+  sf::st_set_geometry("geometry") %>% 
+  dplyr::rowwise("treeID") %>% 
+  dplyr::mutate(
+    xmin = sf::st_bbox(geometry)[1]
+    , ymin = sf::st_bbox(geometry)[2]
+    , xmax = sf::st_bbox(geometry)[3]
+    , ymax = sf::st_bbox(geometry)[4]
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    label = "Tree"
+    , plot_name = lidar_df$plot_name[lidar_df_row]
+  ) %>% 
+  dplyr::select(xmin,xmax,ymin,ymax,label,plot_name) %>% 
+  sf::st_set_crs(NA)
+# what?
+return_sf %>% dplyr::glimpse()
+```
+
+does this match the submission polygon data from the `NeonTreeEvaluation` package?
+
+```{r}
+NeonTreeEvaluation::submission_polygons %>% dplyr::glimpse()
+```
+
+yes, except for the "score" column which I'm pretty sure is an artifact from after evaluation?
+
+### Test evaluation
+
+We compared our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. (2021): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.
+
+#### Scores for an image-annotated crowns
+
+The main data source are image-annotated crowns, in which a single observer annotated visible trees in 200 40m x 40m images from across the United States. Get the benchmark score image-annotated "ground truth" data.
+
+*in testing, including the `sf` polygon data did not work...switching to the bbox method with `sf::st_drop_geometry()`*
+
+```{r}
+rslt_img_annttd_crwns <- NeonTreeEvaluation::evaluate_image_crowns(
+  predictions = return_sf %>% sf::st_drop_geometry()
+  , show = T
+  , summarize = T
+)
+```
+
+in the plot (if there is a plot), "red" boxes are crowns our point cloud-based method extracted and "black" are the image annotated crowns
+
+it looks like the overlay is generally the same but we are still extracting trees that may not be considered "canopy" trees ;\
+
+what is in the return from `NeonTreeEvaluation::evaluate_image_crowns()` ?
+
+```{r}
+rslt_img_annttd_crwns %>% names()
+```
+
+`overall`: must be across all NEON sites, plots, and trees included for evaluation
+
+```{r}
+rslt_img_annttd_crwns$overall
+```
+
+`by_site`: must be across plots, and trees included for evaluation in a NEON sites
+
+```{r}
+rslt_img_annttd_crwns$by_site
+```
+
+`plot_level`: must be across trees included for evaluation in a NEON site, plot combination
+
+```{r}
+rslt_img_annttd_crwns$plot_level
+```
+
+count_error is the number of predicted trees minus the number of "ground truth" trees but in graphical form so we'll skip it
+
+#### Scores for an field-annotated crowns
+
+The second data source is a small number of field-annotated crowns from two geographic sites. These crowns were drawn on a tablet while physically standing in the field, thereby reducing the uncertainty in crown segmentation.
+
+*not all plots have field-annotated crowns* 
+
+`NeonTreeEvaluation::evaluate_field_crowns()` returns an error if "No plot names matching the field crown data, see list_field_crowns for paths to RGB field crown imagery."... so, we'll have to capture errors in our checks?
+
+```{r}
+# safe it
+safe_evaluate_field_crowns <- purrr::safely(NeonTreeEvaluation::evaluate_field_crowns)
+# test it
+rslt_fld_crwns <- safe_evaluate_field_crowns(
+  predictions = return_sf %>% sf::st_drop_geometry()
+  , show = T
+  , summarize = T
+)
+```
+
+did it do it?
+
+```{r}
+rslt_fld_crwns$error
+```
+
+nope!
+
+#### Scores for an field-collected stems
+
+The third data source is the NEON Woody Vegetation Structure Dataset. Each tree stem is represented by a single point. This data has been filtered to represent overstory trees visible in the remote sensing imagery.
+
+*not all plots have field-collected stems* 
+
+`NeonTreeEvaluation::evaluate_field_stems()` returns an error if "No submitted plot_names with matching field stem data, see list_field_stems()"... so, we'll have to capture errors in our checks?
+
+```{r}
+# safe it
+safe_evaluate_field_stems <- purrr::safely(NeonTreeEvaluation::evaluate_field_stems)
+# test it
+rslt_fld_stems <- safe_evaluate_field_stems(
+  predictions = return_sf %>% sf::st_drop_geometry()
+  , show = T
+  , summarize = T
+)
+```
+
+did it do it?
+
+```{r}
+rslt_fld_stems$error
+```
+
+nope!
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(ans, lidar_df_row, min_conifer_pct)
+remove(rslt_img_annttd_crwns,rslt_fld_crwns,rslt_fld_stems)
+gc()
+```
+
+### Function to extract trees
+
+let's create a function to extract trees and format for evaluation using our `lidar_df` data which includes a data frame of file paths with the appropriate plot name
+
+```{r}
+cloud2trees_for_eval <- function(lidar_df_row, lidar_df, min_height) {
+  # message
+  message(paste0("doing the work for ...... ", lidar_df$plot_name[lidar_df_row]))
+  # run c2t
+  qc2t <- purrr::safely(cloud2trees::cloud2trees)
+  ans <- qc2t(
+    input_las_dir = lidar_df$f_path[lidar_df_row]
+    , output_dir = tempdir()
+    , min_height = neon_min_ht
+    , ws = cloud2trees::itd_ws_functions()[["log_fn"]]
+  )
+  if(!is.null(ans$error)){return(NULL)}
+  ans <- ans$result
+  # simp
+  ans$crowns_sf <- cloud2trees::simplify_multipolygon_crowns(ans$crowns_sf)
+  # return
+  return_sf <-
+    ans$crowns_sf %>% 
+    sf::st_set_geometry("geometry") %>% 
+    dplyr::rowwise("treeID") %>% 
+    dplyr::mutate(
+      xmin = sf::st_bbox(geometry)[1]
+      , ymin = sf::st_bbox(geometry)[2]
+      , xmax = sf::st_bbox(geometry)[3]
+      , ymax = sf::st_bbox(geometry)[4]
+    ) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(
+      label = "Tree"
+      , plot_name = lidar_df$plot_name[lidar_df_row]
+    ) %>% 
+    dplyr::select(xmin,xmax,ymin,ymax,label,plot_name) %>% 
+    sf::st_set_crs(NA)
+  # give the workers a rest
+  Sys.sleep(2)
+  return(return_sf)
+}
+```
+
+### Build evaluation data
+
+let's run each point cloud through our lidar-based tree detection implemented via `cloud2trees::cloud2trees()`
+
+```{r, include=FALSE, eval=FALSE}
+xxxx <- c("2018_TEAK_3_315000_4107000_image_237" ,"2018_TEAK_3_316000_4097000_image_35",  "2018_TEAK_3_322000_4107000_image_518"
+,"NIWO_002_2018"                        ,"OSBS_029_2019"  )
+temp_temp <- lidar_df %>% dplyr::filter(plot_name %in% xxxx)
+my_submission3 <- 
+    1:nrow(temp_temp) %>% # uncomment this when it gets real
+    purrr::map(\(x) 
+      cloud2trees_for_eval(
+        lidar_df_row = x
+        , lidar_df = temp_temp
+        , min_height = neon_min_ht
+      )
+    ) %>% 
+    dplyr::bind_rows()
+```
+
+
+```{r, results=FALSE, warning=FALSE, message=FALSE}
+# where should we save the file?
+submission_fn <- "../data/NeonTreeEvaluation_submission.gpkg"
+# if we don't already have the data, run it
+if(!file.exists(submission_fn)){
+  my_submission <- 
+    # 1:nrow(lidar_df) %>% # uncomment this when it gets real
+    sample(1:nrow(lidar_df), size = 22) %>% 
+    purrr::map(\(x) 
+      cloud2trees_for_eval(
+        lidar_df_row = x
+        , lidar_df = lidar_df
+        , min_height = neon_min_ht
+      )
+    ) %>% 
+    dplyr::bind_rows()
+  # save it 
+  sf::st_write(my_submission, submission_fn)
+}else{
+  my_submission <- sf::st_read(submission_fn)
+}
+```
+
+what did we get?
+
+```{r}
+my_submission %>% dplyr::glimpse()
+```
+
+trees detected by plot
+
+```{r}
+my_submission %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(plot_name)
+```
+
+### Evaluation
+
+#### Scores for an image-annotated crowns
+
+The main data source are image-annotated crowns, in which a single observer annotated visible trees in 200 40m x 40m images from across the United States. Get the benchmark score image-annotated "ground truth" data.
+
+*in testing, including the `sf` polygon data did not work...switching to the bbox method with `sf::st_drop_geometry()`*
+
+```{r}
+rslt_img_annttd_crwns3 <- NeonTreeEvaluation::evaluate_image_crowns(
+  predictions = my_submission3 %>% sf::st_drop_geometry()
+  , show = T
+  , summarize = T
+)
+```
+
+in the plot (if there is a plot), "red" boxes are crowns our point cloud-based method extracted and "black" are the image annotated crowns
+
+it looks like the overlay is generally the same but we are still extracting trees that may not be considered "canopy" trees ;\
+
+what is in the return from `NeonTreeEvaluation::evaluate_image_crowns()` ?
+
+```{r}
+rslt_img_annttd_crwns %>% names()
+```
+
+`overall`: must be across all NEON sites, plots, and trees included for evaluation
+
+```{r}
+rslt_img_annttd_crwns3$overall
+```
+
+`by_site`: must be across plots, and trees included for evaluation in a NEON sites
+
+```{r}
+rslt_img_annttd_crwns$by_site
+```
+
+`plot_level`: must be across trees included for evaluation in a NEON site, plot combination
+
+```{r}
+rslt_img_annttd_crwns$plot_level
+```
+
+count_error is the number of predicted trees minus the number of "ground truth" trees but in graphical form so we'll skip it
+
+#### Scores for an field-annotated crowns
+
+The second data source is a small number of field-annotated crowns from two geographic sites. These crowns were drawn on a tablet while physically standing in the field, thereby reducing the uncertainty in crown segmentation.
+
+*not all plots have field-annotated crowns* 
+
+`NeonTreeEvaluation::evaluate_field_crowns()` returns an error if "No plot names matching the field crown data, see list_field_crowns for paths to RGB field crown imagery."... so, we'll have to capture errors in our checks?
+
+```{r}
+# safe it
+safe_evaluate_field_crowns <- purrr::safely(NeonTreeEvaluation::evaluate_field_crowns)
+# test it
+rslt_fld_crwns <- safe_evaluate_field_crowns(
+  predictions = return_sf %>% sf::st_drop_geometry()
+  , show = T
+  , summarize = T
+)
+```
+
+did it do it?
+
+```{r}
+rslt_fld_crwns$error
+```
+
+nope!
+
+#### Scores for an field-collected stems
+
+The third data source is the NEON Woody Vegetation Structure Dataset. Each tree stem is represented by a single point. This data has been filtered to represent overstory trees visible in the remote sensing imagery.
+
+*not all plots have field-collected stems* 
+
+`NeonTreeEvaluation::evaluate_field_stems()` returns an error if "No submitted plot_names with matching field stem data, see list_field_stems()"... so, we'll have to capture errors in our checks?
+
+```{r}
+# safe it
+safe_evaluate_field_stems <- purrr::safely(NeonTreeEvaluation::evaluate_field_stems)
+# test it
+rslt_fld_stems <- safe_evaluate_field_stems(
+  predictions = return_sf %>% sf::st_drop_geometry()
+  , show = T
+  , summarize = T
+)
+```
+
+did it do it?
+
+```{r}
+rslt_fld_stems$error
+```
+
+nope!
