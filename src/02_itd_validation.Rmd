@@ -5,6 +5,7 @@ In this section we'll use the benchmark data made available in the [`NeonTreeEva
 First, load the standard libraries
 
 ```{r, warning=FALSE, message=FALSE}
+# katie lyneis
 # bread-and-butter
 library(tidyverse) # the tidyverse
 library(viridis) # viridis colors
@@ -253,7 +254,19 @@ finally, we'll filter our lidar processing data for only these conifer sites
 ```{r}
 lidar_df <- lidar_df %>% 
   dplyr::inner_join(conifer_sites, by = "siteID") %>% 
-  sf::st_as_sf(coords = c("longitude","latitude"), crs = 4326, remove = F)
+  sf::st_as_sf(coords = c("longitude","latitude"), crs = 4326, remove = F) %>% 
+  # filter out corrupt las files
+  dplyr::filter(
+    !plot_name %in% c(
+      "NIWO_005_2018"
+      , "SOAP_014_2018"
+      , "MOAB_003_2018"
+      , "NIWO_009_2018"
+      , "TEAK_028_2018"
+      , "YELL_058_2020"
+      , "RMNP_011_2018"
+    )
+  )
 ```
 
 what NEON sites have conifers and the most lidar plots
@@ -392,7 +405,7 @@ We discussed our method for individual tree detection (ITD) in [this prior secti
 Let's see what that looks like
 
 ```{r}
-ws_temp <- cloud2trees::itd_ws_functions()[["exp_fn"]]
+ws_temp <- cloud2trees::itd_ws_functions()[["log_fn"]]
 ggplot() +
   geom_function(fun=ws_temp, lwd=1.2, color = "navy") +
   xlim(-5,60) +
@@ -401,6 +414,51 @@ ggplot() +
     , subtitle = "`cloud2trees` default ITD variable window function"
   ) +
   theme_light()
+```
+
+```{r, include=FALSE, eval=FALSE}
+itd_ws_functions()[["log_fn"]]
+my_fn2 <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      # , x < 2 ~ 0.6
+      # , x < 5.4 ~ 0.9 + (x * 0.24)
+      , x > 100 ~ 5
+      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
+      , TRUE ~ exp(-(2.2 * (1/x)) + (x^0.1))
+    )
+    return(y)
+}
+my_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      # , x < 2 ~ 0.6
+      # , x < 5.4 ~ 0.9 + (x * 0.24)
+      , x > 100 ~ 5
+      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
+      , TRUE ~ exp(-(1 * (1/x)) + (x^0.1))
+    )
+    return(y)
+}
+my_fn3 <- function (x) 
+{
+    y <- dplyr::case_when(is.na(x) ~ 0.001, x < 0 ~ 0.001, x < 
+        2 ~ 0.6, x > 16.5 ~ 4, TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17)))
+    return(y)
+}
+
+ # can we plot all functions?
+  ggplot2::ggplot() +
+    ggplot2::geom_function(ggplot2::aes(color="lin_fn"), fun = itd_ws_functions()[["lin_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="exp_fn"), fun = itd_ws_functions()[["exp_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="log_fn"), fun = itd_ws_functions()[["log_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="my_fn3"), fun = my_fn3) +
+    ggplot2::geom_function(ggplot2::aes(color="my_fn2"), fun = my_fn2) +
+    ggplot2::geom_function(ggplot2::aes(color="my_fn"), fun = my_fn) +
+    ggplot2::xlim(-1,60)
+
 ```
 
 ### Filter for "canopy" trees
@@ -414,8 +472,10 @@ In order to set up our point cloud-based algorithm to find "canopy" trees, we'll
 we'll use the filters found in `clean_field_data()` from [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package/blob/724bdb0a9a3ea6433450f62c69a8fadce9ccdb66/R/evaluate_field_stems.R) as an internal function
 
 ```{r}
+percentile_for_ht <- 0.05
 # get non-na heights from neon field measured trees
-neon_field_heights <- NeonTreeEvaluation::field %>% 
+neon_field_heights <-
+  NeonTreeEvaluation::field %>% 
   # filters found in `clean_field_data()`
   dplyr::filter(
     !is.na(itcEasting)
@@ -425,50 +485,67 @@ neon_field_heights <- NeonTreeEvaluation::field %>%
     , (height>3|is.na(height))
   ) %>%
   # getting only non-na
-  dplyr::filter(!is.na(height)) %>% 
-  dplyr::pull(height)
+  dplyr::filter(!is.na(height))
+# get 5th tile ht by site
+neon_site_heights <- 
+  neon_field_heights %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    site_prcntl_ht = quantile(floor(height), probs = percentile_for_ht, na.rm = T)
+  ) %>% 
+  dplyr::ungroup()
 ```
 
-look at the summary of height data
+look at the summary of height data across all sites and plots
 
 ```{r}
-summary(neon_field_heights)
+summary(neon_field_heights$height)
 ```
 
-we'll set our minimum height to detect trees at the 5th percentile value
+what does this look like for each NEON site?
 
 ```{r}
-(neon_min_ht <- quantile(neon_field_heights, probs = 0.05) %>% round())
-```
-
-what does this look like?
-
-```{r}
-dplyr::tibble(ht=neon_field_heights) %>% 
-  ggplot(aes(x = ht)) +
+neon_field_heights %>% 
+  dplyr::inner_join(neon_site_heights) %>% 
+  ggplot(aes(x = height, group = siteID)) +
     geom_density(color = "gold",fill = "gold", alpha = 0.7, lwd = 1.2) +
-    geom_vline(xintercept = neon_min_ht, linetype = "dashed") +
-    annotate(
-      "text", x = neon_min_ht, y = 0.07
-      , label = paste0("5th percentile: ",neon_min_ht,"m")
-      , hjust = 0
-    ) +
-    scale_x_continuous(breaks = scales::breaks_extended(10)) +
+    geom_vline(aes(xintercept = site_prcntl_ht), linetype = "dashed") +
+    facet_wrap(facets = vars(siteID), ncol = 7, scales = "free") +
+    scale_x_continuous(breaks = scales::breaks_extended(6)) +
     labs(
-      x = "height (m)"
-      , subtitle = "heights of \"canopy\" trees in NeonTreeEvaluation"
+      x = "height (m)", y = ""
+      , subtitle = paste0(
+        "heights of \"canopy\" trees in NeonTreeEvaluation with "
+        , scales::number(percentile_for_ht*100, accuracy = 1)
+        , "th percentile by site"
+      )
     ) +
-    theme_light()
+    theme_light() +
+    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
 ```
+
+what is the overall `r scales::number(percentile_for_ht*100, accuracy = 1)`th percentile to use for minimum height?
+
+```{r}
+(neon_min_ht <- quantile(neon_field_heights$height, probs = percentile_for_ht) %>% floor())
+```
+
+let's attach this to our data frame of lidar data files
+
+```{r}
+lidar_df <- lidar_df %>% 
+  dplyr::left_join(neon_site_heights, by = "siteID") %>% 
+  dplyr::mutate(site_prcntl_ht = dplyr::coalesce(site_prcntl_ht,neon_min_ht))
+```
+
 
 ### `cloud2trees::cloud2trees()`
-
 
 ```{r}
 ans <- cloud2trees::cloud2trees(
   input_las_dir = lidar_df$f_path[lidar_df_row]
   , output_dir = tempdir()
-  , min_height = neon_min_ht
+  , min_height = lidar_df$site_prcntl_ht[lidar_df_row]
 )
 ```
 
@@ -657,12 +734,16 @@ remove(rslt_img_annttd_crwns,rslt_fld_crwns,rslt_fld_stems)
 gc()
 ```
 
+## Full validation process
+
+Above, we tested the validation process for a single sample plot. Here we'll create a function to detect trees and delineate tree crowns using our `cloud2trees::cloud2trees()` method to apply over all sample plots. Then we'll compare our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. (2021): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.
+
 ### Function to extract trees
 
 let's create a function to extract trees and format for evaluation using our `lidar_df` data which includes a data frame of file paths with the appropriate plot name
 
 ```{r}
-cloud2trees_for_eval <- function(lidar_df_row, lidar_df, min_height) {
+cloud2trees_for_eval <- function(lidar_df_row, lidar_df, ws, min_height = NA) {
   # message
   message(paste0("doing the work for ...... ", lidar_df$plot_name[lidar_df_row]))
   # run c2t
@@ -670,8 +751,8 @@ cloud2trees_for_eval <- function(lidar_df_row, lidar_df, min_height) {
   ans <- qc2t(
     input_las_dir = lidar_df$f_path[lidar_df_row]
     , output_dir = tempdir()
-    , min_height = neon_min_ht
-    , ws = cloud2trees::itd_ws_functions()[["log_fn"]]
+    , min_height = dplyr::coalesce(min_height, lidar_df$site_prcntl_ht[lidar_df_row], 2)
+    , ws = ws
   )
   if(!is.null(ans$error)){return(NULL)}
   ans <- ans$result
@@ -709,37 +790,38 @@ let's run each point cloud through our lidar-based tree detection implemented vi
 xxxx <- c("2018_TEAK_3_315000_4107000_image_237" ,"2018_TEAK_3_316000_4097000_image_35",  "2018_TEAK_3_322000_4107000_image_518"
 ,"NIWO_002_2018"                        ,"OSBS_029_2019"  )
 temp_temp <- lidar_df %>% dplyr::filter(plot_name %in% xxxx)
-my_submission3 <- 
+my_submission6 <- 
     1:nrow(temp_temp) %>% # uncomment this when it gets real
     purrr::map(\(x) 
       cloud2trees_for_eval(
         lidar_df_row = x
         , lidar_df = temp_temp
-        , min_height = neon_min_ht
+        # , min_height = neon_min_ht
+        , ws = my_fn3
       )
     ) %>% 
     dplyr::bind_rows()
 ```
-
 
 ```{r, results=FALSE, warning=FALSE, message=FALSE}
 # where should we save the file?
 submission_fn <- "../data/NeonTreeEvaluation_submission.gpkg"
 # if we don't already have the data, run it
 if(!file.exists(submission_fn)){
+# if(T){
   my_submission <- 
     # 1:nrow(lidar_df) %>% # uncomment this when it gets real
-    sample(1:nrow(lidar_df), size = 22) %>% 
+    sample(1:nrow(lidar_df), size = 111) %>% 
     purrr::map(\(x) 
       cloud2trees_for_eval(
         lidar_df_row = x
         , lidar_df = lidar_df
-        , min_height = neon_min_ht
+        , ws = cloud2trees::itd_ws_functions()[["log_fn"]]
       )
     ) %>% 
     dplyr::bind_rows()
   # save it 
-  sf::st_write(my_submission, submission_fn)
+  sf::st_write(my_submission, submission_fn, append = F)
 }else{
   my_submission <- sf::st_read(submission_fn)
 }
@@ -756,78 +838,158 @@ trees detected by plot
 ```{r}
 my_submission %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::count(plot_name)
+  dplyr::count(plot_name) %>% 
+  dplyr::slice_sample(n=14) %>% 
+  dplyr::arrange(plot_name) %>% 
+  kableExtra::kbl(caption = "cloud2trees ITD results by plot", digits = 0) %>% 
+  kableExtra::kable_styling()
 ```
 
-### Evaluation
+### Full evaluation
+
+We compared our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. (2021): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.
 
 #### Scores for an image-annotated crowns
 
-The main data source are image-annotated crowns, in which a single observer annotated visible trees in 200 40m x 40m images from across the United States. Get the benchmark score image-annotated "ground truth" data.
+The main data source are image-annotated crowns, in which a single observer annotated visible trees in *200 40m x 40m* images from across the United States. Get the benchmark score image-annotated "ground truth" data.
 
 *in testing, including the `sf` polygon data did not work...switching to the bbox method with `sf::st_drop_geometry()`*
 
-```{r}
-rslt_img_annttd_crwns3 <- NeonTreeEvaluation::evaluate_image_crowns(
-  predictions = my_submission3 %>% sf::st_drop_geometry()
-  , show = T
+```{r, results=F, message=FALSE}
+rslt_img_annttd_crwns <- NeonTreeEvaluation::evaluate_image_crowns(
+  predictions = my_submission %>% sf::st_drop_geometry()
+  , show = F
   , summarize = T
 )
 ```
 
 in the plot (if there is a plot), "red" boxes are crowns our point cloud-based method extracted and "black" are the image annotated crowns
 
-it looks like the overlay is generally the same but we are still extracting trees that may not be considered "canopy" trees ;\
-
-what is in the return from `NeonTreeEvaluation::evaluate_image_crowns()` ?
-
-```{r}
-rslt_img_annttd_crwns %>% names()
-```
-
 `overall`: must be across all NEON sites, plots, and trees included for evaluation
 
 ```{r}
-rslt_img_annttd_crwns3$overall
+rslt_img_annttd_crwns$overall %>% 
+  kableExtra::kbl(
+    caption = "Overall: cloud2trees ITD performance versus image-annotated crowns"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
 ```
 
 `by_site`: must be across plots, and trees included for evaluation in a NEON sites
 
 ```{r}
-rslt_img_annttd_crwns$by_site
+rslt_img_annttd_crwns$by_site %>% 
+  kableExtra::kbl(
+    caption = "NEON site-level: cloud2trees ITD performance versus image-annotated crowns"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
 ```
 
 `plot_level`: must be across trees included for evaluation in a NEON site, plot combination
 
 ```{r}
-rslt_img_annttd_crwns$plot_level
+rslt_img_annttd_crwns$plot_level %>% 
+  dplyr::ungroup() %>% 
+  dplyr::slice_sample(n=14) %>% 
+  dplyr::arrange(plot_name) %>% 
+  kableExtra::kbl(
+    caption = "NEON plot-level: cloud2trees ITD performance versus image-annotated crowns"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
 ```
 
-count_error is the number of predicted trees minus the number of "ground truth" trees but in graphical form so we'll skip it
+how many plots did we evaluate that met all criteria?:
+
+*had point cloud data in the benchmark
+*was from a NEON site with primarily conifer trees
+*had image-annotated crowns for evaluation
+
+```{r}
+# how many plots did we evaluate that met all criteria?
+rslt_img_annttd_crwns$plot_level %>% 
+  dplyr::ungroup() %>% 
+  dplyr::distinct(plot_name) %>% 
+  nrow()
+```
+
+how many plots were evaluated using `cloud2trees::cloud2trees()` by NEON site?
+
+```{r}
+img_annttd_crwn_plots_temp <- lidar_df %>% 
+  dplyr::inner_join(
+    rslt_img_annttd_crwns$plot_level %>% 
+      dplyr::ungroup() %>% 
+      dplyr::distinct(plot_name)
+    , by = "plot_name"
+  )
+# plots evaluated by neon site
+img_annttd_crwn_plots_temp %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(siteID) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  kableExtra::kbl(
+    caption = "Number of 40m x 40m plots with image-annotated crowns evaluated using cloud2trees by NEON site"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+where are these NEON sites evaluated using `cloud2trees::cloud2trees()`?
+
+```{r}
+img_annttd_crwn_plots_temp %>% 
+  dplyr::count(siteID) %>% 
+  mapview::mapview(
+    cex = "n", legend = F
+    , layer.name = "NEON site"
+  )
+```
+
+let's review some figures comparing the image-annotated crowns versus the bounding box of our delineated crown polygons
+
+*in the RGB plots: "red" boxes are crowns from our point cloud-based method extracted and "black" are the image annotated crowns*
+
+```{r, message=FALSE, results=F, warning=FALSE,fig.show='asis'}
+rslt_img_annttd_crwns$plot_level %>% 
+  dplyr::ungroup() %>% 
+  dplyr::slice_sample(n=4) %>% 
+  dplyr::pull(plot_name) %>% 
+  purrr::map(\(x) NeonTreeEvaluation::image_crowns(
+    predictions = my_submission %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(plot_name==x)
+    , show = T
+    , project_boxes = F
+  ))
+```
+
+*in the RGB plots: "red" boxes are crowns from our point cloud-based method extracted and "black" are the image annotated crowns*
 
 #### Scores for an field-annotated crowns
 
 The second data source is a small number of field-annotated crowns from two geographic sites. These crowns were drawn on a tablet while physically standing in the field, thereby reducing the uncertainty in crown segmentation.
 
-*not all plots have field-annotated crowns* 
-
-`NeonTreeEvaluation::evaluate_field_crowns()` returns an error if "No plot names matching the field crown data, see list_field_crowns for paths to RGB field crown imagery."... so, we'll have to capture errors in our checks?
+*none of the field-annotated crown sites have aerial lidar data* 
 
 ```{r}
-# safe it
-safe_evaluate_field_crowns <- purrr::safely(NeonTreeEvaluation::evaluate_field_crowns)
-# test it
-rslt_fld_crwns <- safe_evaluate_field_crowns(
-  predictions = return_sf %>% sf::st_drop_geometry()
-  , show = T
-  , summarize = T
-)
-```
-
-did it do it?
-
-```{r}
-rslt_fld_crwns$error
+# i did some digging around and the lidar data is here
+lidar_dir_temp <- system.file(package = "NeonTreeEvaluation", "extdata", "NeonTreeEvaluation", "evaluation", "LiDAR")
+# files
+lidar_files_temp <- lidar_dir_temp %>% 
+  list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% 
+  basename() %>% 
+  stringr::str_remove_all("\\.(laz|las)$") %>% 
+  unique()
+# what sites have field annotated crowns?
+fc_temp <- NeonTreeEvaluation::list_field_crowns() %>% 
+  stringr::str_match(pattern="(\\w+).tif") %>% 
+  .[,2]
+# are any lidar files available for these sites?
+lidar_files_temp[lidar_files_temp %in% fc_temp] %>% 
+  length()
 ```
 
 nope!
@@ -836,25 +998,479 @@ nope!
 
 The third data source is the NEON Woody Vegetation Structure Dataset. Each tree stem is represented by a single point. This data has been filtered to represent overstory trees visible in the remote sensing imagery.
 
-*not all plots have field-collected stems* 
+*not all plots have field-collected stems*
 
 `NeonTreeEvaluation::evaluate_field_stems()` returns an error if "No submitted plot_names with matching field stem data, see list_field_stems()"... so, we'll have to capture errors in our checks?
 
-```{r}
+```{r, eval=FALSE, include=FALSE}
 # safe it
 safe_evaluate_field_stems <- purrr::safely(NeonTreeEvaluation::evaluate_field_stems)
 # test it
-rslt_fld_stems <- safe_evaluate_field_stems(
-  predictions = return_sf %>% sf::st_drop_geometry()
-  , show = T
+rslt_fld_stems <- 
+safe_evaluate_field_stems(
+  predictions = my_submission %>% sf::st_drop_geometry()
+  , show = F
   , summarize = T
 )
+
+###########################################
+# evaluate_field_stems<-function(
+  predictions = my_submission %>% sf::st_drop_geometry()
+  project=TRUE
+  show=F
+  summarize=T
+# ){
+
+  if(!"plot_name" %in% colnames(predictions)){
+    stop("column named 'plot_name' is required (.e.g 'MLBS_052_2018') to match images to annotation)")
+  }
+
+  #Check for data
+  check_download()
+  field = clean_field_data(NeonTreeEvaluation::field)
+
+  site_plots<-field %>% group_by(plotID,individualID) %>%
+    summarize(samples=length(unique(eventID))) %>%
+    filter(samples>1) %>%
+    ungroup() %>%
+    mutate(plotID=as.character(plotID))
+  
+  site_plots %>% dplyr::glimpse()
+  
+  results<-list()
+  plot_names <- unique(site_plots$plotID)
+  plots_to_run<-unique(predictions$plot_name[stringr::str_match(predictions$plot_name,"(\\w+)_\\d+")[,2] %in% plot_names])
+  plots_to_run
+  
+  
+  # if(length(plots_to_run)==0){
+  #   stop("No submitted plot_names with matching field stem data, see list_field_stems()")
+  # }
+  plot_name = stringr::str_match(plots_to_run[2],"(\\w+)_\\d+")[,2]
+    print(plot_name)
+    plot_predictions <- predictions %>% filter(plot_name == plots_to_run[2])
+    plot_predictions
+    # results[[plot_name]]<-
+      process_plot(predictions=plot_predictions,plot_name=plot_name, show=show, image_name = plots_to_run[2])
+  
+      
+      
+      
+      
+# process_plot<-function(
+    predictions = plot_predictions
+    plot_name = plot_name
+    image_name = plots_to_run[2]
+    show = show
+  # ){
+  #matching RGB tile
+  rgb_images<-list_rgb()
+  (rgb_path<-rgb_images[stringr::str_detect(rgb_images,image_name)])
+  if(length(rgb_path)==0){return(NULL)}
+  r<-raster::stack(rgb_path)
+
+  #Field data, min height threshold is 3.
+  (field_points<-field %>% filter(plotID==plot_name) %>%
+    sf::st_as_sf(.,coords=c("itcEasting","itcNorthing")) %>% filter(height>3))
+  
+  field_points %>% dplyr::glimpse()
+
+  sf::st_crs(field_points)<-raster::crs(r)
+
+  if(nrow(predictions)==0){
+    warning(paste("No predictions made for plot",plot_name))
+    return(NULL)
+    }
+
+  #check sf polygon or csv file
+  (is_polygons = any(class(predictions) == "sf"))
+  #If is_polygons, project must be true
+  is_polygons
+  if(is_polygons){
+    spatial_boxes <- sf_to_spatial_polygons(predictions, r)
+  } else{
+    spatial_boxes<- predictions %>%
+      NeonTreeEvaluation::boxes_to_spatial_polygons(.,r) %>%
+      sf::st_as_sf() %>%
+      dplyr::mutate(height=predictions$height, score=predictions$score)
+  }
+  predictions %>% dplyr::glimpse()
+  spatial_boxes %>% dplyr::glimpse()
+  spatial_boxes %>% ggplot() + geom_sf()
+  
+  terra::plotRGB(r %>% terra::rast(), axes=T)
+  spatial_boxes %>% terra::vect() %>% terra::plot(col = NA, border = "red"
+  , lwd = 2 , add = T)
+  
+  
+bbox_poly <- function(xmin,ymin,xmax,ymax) {
+  # points
+  lower_left_pt <- sf::st_point(c(xmin,ymin))
+  upper_right_pt <- sf::st_point(c(xmax,ymax))
+  # to bbox polygon
+  sf::st_sfc(lower_left_pt, upper_right_pt) %>% 
+    sf::st_bbox() %>% 
+    sf::st_as_sfc() 
+}
+# read image annotated crown data and make polygons
+polys_temp <-
+  predictions %>% 
+  dplyr::mutate(crown_id = dplyr::row_number()) %>% 
+  dplyr::select(crown_id,xmin,ymin,xmax,ymax) %>% 
+  dplyr::rowwise(crown_id) %>% 
+  dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
+  dplyr::ungroup() %>% 
+  sf::st_set_geometry("geometry") %>% 
+  sf::st_set_crs(sf::st_crs(field_points)) %>% 
+  dplyr::mutate(dummy = 0)
+polys_temp %>% ggplot() + geom_sf()
+  
+  
+  #Filter the field data for erroneous temporal connections, the CHM must have positive heights, see OSBS_022, can use as an example of all sorts of challenges.
+  CHM_images <- list_chm()
+  CHM_path <- CHM_images[stringr::str_detect(CHM_images,image_name)]
+
+  if(length(CHM_path)==0){
+    warning(paste("No LiDAR data found made for plot",image_name))
+    return(NULL)}
+
+  chm <- raster::raster(CHM_path)
+
+  #Thresholds
+  field_points$CHM_height <- raster::extract(chm,field_points)
+field_points %>% dplyr::glimpse()
+  #Could it be seen?
+  (field_points<-field_points %>%
+    filter(abs(CHM_height-height)<4))
+
+  #if no points left, skip plot
+  if(nrow(field_points) == 0){
+    return(NULL)
+  }
+  #Min height based on the predictions
+  #field_points<-field_points[field_points$height > quantile(spatial_boxes$height,0.01),]
+  (unique_locations<-field_points %>%
+    distinct(individualID,.keep_all = T)
+)
+
+
+xxx <- cloud2trees::cloud2trees(output_dir = tempdir(), input_las_dir = lidar_df %>% 
+    dplyr::filter(plot_name == plots_to_run[2]) %>% 
+    dplyr::pull(f_path) %>% 
+    .[1])
+
+xxx$treetops_sf %>% ggplot() + geom_sf()
+xxx$crowns_sf <- cloud2trees::simplify_multipolygon_crowns(xxx$crowns_sf)
+# return
+  return_sf <-
+    xxx$crowns_sf %>% 
+    sf::st_set_geometry("geometry") %>% 
+    dplyr::rowwise("treeID") %>% 
+    dplyr::mutate(
+      xmin = sf::st_bbox(geometry)[1]
+      , ymin = sf::st_bbox(geometry)[2]
+      , xmax = sf::st_bbox(geometry)[3]
+      , ymax = sf::st_bbox(geometry)[4]
+    ) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(
+      label = "Tree"
+      , plot_name = plots_to_run[2]
+    ) %>% 
+    dplyr::select(xmin,xmax,ymin,ymax,label,plot_name) %>% 
+    sf::st_set_crs(NA)
+return_sf %>% ggplot() + geom_sf()
+
+polys_temp <-
+  return_sf %>% 
+  dplyr::mutate(crown_id = dplyr::row_number()) %>% 
+  dplyr::select(crown_id,xmin,ymin,xmax,ymax) %>% 
+  dplyr::rowwise(crown_id) %>% 
+  dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
+  dplyr::ungroup() %>% 
+  sf::st_set_geometry("geometry")
+polys_temp %>% ggplot() + geom_sf()
+
+# polys_temp <-
+  my_submission %>% 
+  dplyr::filter(plot_name == plots_to_run[2]) 
+  %>% 
+  dplyr::mutate(crown_id = dplyr::row_number()) %>% 
+  dplyr::select(crown_id,xmin,ymin,xmax,ymax) %>% 
+  dplyr::rowwise(crown_id) %>% 
+  dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
+  dplyr::ungroup() %>% 
+  sf::st_set_geometry("geometry")
+
+lidar_df %>% 
+    dplyr::filter(plot_name == plots_to_run[2]) %>% 
+    dplyr::pull(f_path) %>% 
+    .[1] %>% 
+    lidR::readLAS() %>% 
+    lidR::st_bbox() %>% 
+    sf::st_as_sfc() %>% 
+    terra::vect() %>% 
+    terra::plot(col = NA , border = "blue", lwd = 4)
+  terra::plotRGB(r %>% terra::rast(), axes=T, add = T)
+  unique_locations %>% terra::vect() %>% terra::plot(col = "red", add = T)
+  xxx$crowns_sf %>% terra::vect() %>% terra::plot(col=NA,lwd = 2,border = "gold", add = T)
+  # return_sf %>% terra::vect() %>% terra::plot(col=NA,lwd = 1,border = "white", add = T)
+  # polys_temp %>% terra::vect() %>% terra::plot(col=NA,lwd = 1,border = "white", add = T)
+  my_submission %>% dplyr::filter(plot_name == plots_to_run[2]) %>% terra::vect() %>% terra::plot(col=NA,lwd = 5,border = "white", add = T) 
+
+  
+  
+  joined <- sf::st_join(unique_locations, spatial_boxes)
+  joined <- joined %>% filter(!is.na(crown_id)) %>%
+    group_by(crown_id) %>% slice(1)
+joined
+  missing <- unique_locations %>% filter(!uid %in% joined$uid)
+
+  # if(show){
+    raster::plotRGB(r)
+    plot(sf::st_geometry(spatial_boxes),add=T, border="red", lwd=3)
+    plot(sf::st_geometry(joined),add=T,col="yellow",pch=20, cex=2)
+
+    #Missing
+    plot(sf::st_geometry(missing),add=T,col="blue",pch=20, cex=2)
+  # }
+
+  #Stem recall rate
+  tree_in_prediction <-unique_locations  %>%
+    sf::st_intersects(x=.,y=spatial_boxes)
+tree_in_prediction
+  #Which match, do not allow multiples to double count.
+  matches<-lengths(tree_in_prediction)
+  matches[matches>1]<-1
+
+  #unique matches
+  joined_df<-sf::st_join(spatial_boxes,unique_locations)
+  single_matches<-joined_df %>%
+    group_by(crown_id) %>%
+    filter(height == max(height))
+
+  single_recall<-nrow(single_matches)/nrow(unique_locations)
+
+  #Create point matches between data and predictions
+  matched_df<-matched_pairs(spatial_boxes, field_points) %>%
+    mutate(plot_name=plot_name)
+
+  if(nrow(matched_df)>0){
+    siteID=unique(matched_df$siteID)
+    result<-data.frame(siteID=siteID,plot_name=plot_name,recall=single_recall, n=nrow(unique_locations))
+    return(result)
+  } else{
+    warning(paste("No matching prediction between  data found made for plot",plot_name))
+    return(NULL)
+  }
+      
+      
+      
+      
+      
+      
+      
+      
+      
+  for(image_name in plots_to_run){
+    plot_name = stringr::str_match(image_name,"(\\w+)_\\d+")[,2]
+    print(plot_name)
+    plot_predictions <- predictions %>% filter(plot_name == image_name)
+    results[[plot_name]]<-process_plot(predictions=plot_predictions,plot_name=plot_name, show=show, image_name=image_name) #### error here
+  }
+  results<-results[!sapply(results,is.null)]
+  results
+  results<-bind_rows(results)
+
+  if(summarize){
+    df <-list()
+    df[["overall"]] <- results %>% summarize(recall=mean(recall))
+    df[["by_site"]] <- results %>% group_by(Site=siteID) %>% summarize(recall=mean(recall))
+    df[["plot_level"]] <-results
+    return(df)
+  } else{
+    return(results)
+  }
+}
+
+
+evaluate_field_stems<-function(predictions,project=TRUE, show=T, summarize=T){
+
+  if(!"plot_name" %in% colnames(predictions)){
+    stop("column named 'plot_name' is required (.e.g 'MLBS_052_2018') to match images to annotation)")
+  }
+
+  #Check for data
+  check_download()
+  field = clean_field_data(NeonTreeEvaluation::field)
+
+  site_plots<-field %>% group_by(plotID,individualID) %>%
+    summarize(samples=length(unique(eventID))) %>%
+    filter(samples>1) %>%
+    ungroup() %>%
+    mutate(plotID=as.character(plotID))
+
+  results<-list()
+  plot_names <- unique(site_plots$plotID)
+  plots_to_run<-unique(predictions$plot_name[stringr::str_match(predictions$plot_name,"(\\w+)_\\d+")[,2] %in% plot_names])
+
+  if(length(plots_to_run)==0){
+    stop("No submitted plot_names with matching field stem data, see list_field_stems()")
+  }
+  for(image_name in plots_to_run){
+    plot_name = stringr::str_match(image_name,"(\\w+)_\\d+")[,2]
+    print(plot_name)
+    plot_predictions <- predictions %>% filter(plot_name == image_name)
+    results[[plot_name]]<-process_plot(predictions=plot_predictions,plot_name=plot_name, show=show, image_name=image_name)
+  }
+  results<-results[!sapply(results,is.null)]
+  results<-bind_rows(results)
+
+  if(summarize){
+    df <-list()
+    df[["overall"]] <- results %>% summarize(recall=mean(recall))
+    df[["by_site"]] <- results %>% group_by(Site=siteID) %>% summarize(recall=mean(recall))
+    df[["plot_level"]] <-results
+    return(df)
+  } else{
+    return(results)
+  }
+}
+
+process_plot<-function(predictions, plot_name, image_name, show){
+  #matching RGB tile
+  rgb_images<-list_rgb()
+  rgb_path<-rgb_images[stringr::str_detect(rgb_images,image_name)]
+  if(length(rgb_path)==0){return(NULL)}
+  r<-raster::stack(rgb_path)
+
+  #Field data, min height threshold is 3.
+  field_points<-field %>% filter(plotID==plot_name) %>%
+    sf::st_as_sf(.,coords=c("itcEasting","itcNorthing")) %>% filter(height>3)
+
+  sf::st_crs(field_points)<-raster::crs(r)
+
+  if(nrow(predictions)==0){
+    warning(paste("No predictions made for plot",plot_name))
+    return(NULL)
+    }
+
+  #check sf polygon or csv file
+  is_polygons = any(class(predictions) == "sf")
+  #If is_polygons, project must be true
+  if(is_polygons){
+    spatial_boxes <- sf_to_spatial_polygons(predictions, r)
+  } else{
+    spatial_boxes<- predictions %>%
+      NeonTreeEvaluation::boxes_to_spatial_polygons(.,r) %>%
+      sf::st_as_sf() %>%
+      mutate(height=predictions$height, score=predictions$score)
+  }
+
+  #Filter the field data for erroneous temporal connections, the CHM must have positive heights, see OSBS_022, can use as an example of all sorts of challenges.
+  CHM_images <- list_chm()
+  CHM_path <- CHM_images[stringr::str_detect(CHM_images,image_name)]
+
+  if(length(CHM_path)==0){
+    warning(paste("No LiDAR data found made for plot",image_name))
+    return(NULL)}
+
+  chm <- raster::raster(CHM_path)
+
+  #Thresholds
+  field_points$CHM_height <- raster::extract(chm,field_points)
+
+  #Could it be seen?
+  field_points<-field_points %>%
+    filter(abs(CHM_height-height)<4)
+
+  #if no points left, skip plot
+  if(nrow(field_points) == 0){
+    return(NULL)
+  }
+
+  #Min height based on the predictions
+  #field_points<-field_points[field_points$height > quantile(spatial_boxes$height,0.01),]
+  unique_locations<-field_points %>%
+    distinct(individualID,.keep_all = T)
+
+  joined <- sf::st_join(unique_locations, spatial_boxes)
+  joined <- joined %>% filter(!is.na(crown_id)) %>%
+    group_by(crown_id) %>% slice(1)
+
+  missing <- unique_locations %>% filter(!uid %in% joined$uid)
+
+  if(show){
+    raster::plotRGB(r)
+    plot(sf::st_geometry(spatial_boxes),add=T, border="red", lwd=3)
+    plot(sf::st_geometry(joined),add=T,col="yellow",pch=20, cex=2)
+
+    #Missing
+    plot(sf::st_geometry(missing),add=T,col="blue",pch=20, cex=2)
+  }
+
+  #Stem recall rate
+  tree_in_prediction <-unique_locations  %>%
+    sf::st_intersects(x=.,y=spatial_boxes)
+
+  #Which match, do not allow multiples to double count.
+  matches<-lengths(tree_in_prediction)
+  matches[matches>1]<-1
+
+  #unique matches
+  joined_df<-sf::st_join(spatial_boxes,unique_locations)
+  single_matches<-joined_df %>%
+    group_by(crown_id) %>%
+    filter(height == max(height))
+
+  single_recall<-nrow(single_matches)/nrow(unique_locations)
+
+  #Create point matches between data and predictions
+  matched_df<-matched_pairs(spatial_boxes, field_points) %>%
+    mutate(plot_name=plot_name)
+
+  if(nrow(matched_df)>0){
+    siteID=unique(matched_df$siteID)
+    result<-data.frame(siteID=siteID,plot_name=plot_name,recall=single_recall, n=nrow(unique_locations))
+    return(result)
+  } else{
+    warning(paste("No matching prediction between  data found made for plot",plot_name))
+    return(NULL)
+  }
+}
+
+clean_field_data<-function(field){
+  field$area<-field$maxCrownDiameter*field$ninetyCrownDiameter
+  field<-field %>%  filter(!is.na(itcEasting),!stringr::str_detect(eventID,"2014"),growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling"),stemDiameter>15) %>%
+    droplevels() %>%
+    filter(height>3|is.na(height))
+
+  #Limit difference in heights
+  to_remove<-field %>% group_by(individualID) %>%
+    summarize(mean=mean(height),sum_difference = abs(sum(diff(height)))) %>%
+    filter(sum_difference > 8)
+  field<-field %>%
+    filter(!individualID %in% to_remove$individualID)
+}
+
+matched_pairs<-function(spatial_boxes,field_points){
+
+  #Spatial join
+  possible_matches<-sf::st_join(spatial_boxes,field_points,left=FALSE)
+
+  #If there are heights, take the tallest height
+  tallest_points<-possible_matches %>%
+    group_by(crown_id) %>%
+    mutate(height_diff= CHM_height - height) %>%
+    arrange(height_diff) %>% slice(1)  %>%
+    as.data.frame() %>%
+    dplyr::select(crown_id, individualID)
+
+  matched_height<-possible_matches %>% inner_join(tallest_points)
+
+  return(matched_height)
+}
+
+
+
 ```
-
-did it do it?
-
-```{r}
-rslt_fld_stems$error
-```
-
-nope!

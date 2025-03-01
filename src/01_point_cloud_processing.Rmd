@@ -315,7 +315,7 @@ cbh_fn <- "../data/point_cloud_processing_delivery/cbh_data.csv"
 # if we don't already have the data, run it
 if(!file.exists(cbh_fn)){
   # sample size
-  nsamp_temp <- 133333
+  nsamp_temp <- 99999
   # time it
   st_temp <- Sys.time()
   # run it

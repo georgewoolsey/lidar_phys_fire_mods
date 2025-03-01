@@ -185,7 +185,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="2" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html"><i class="fa fa-check"></i><b>2</b> Point Cloud Processing</a>
 <ul>
 <li class="chapter" data-level="2.1" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#lidar-data-location"><i class="fa fa-check"></i><b>2.1</b> Lidar Data Location</a></li>
-<li class="chapter" data-level="2.2" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#individial-tree-detection-tuning-itd_tuning"><i class="fa fa-check"></i><b>2.2</b> Individial Tree Detection Tuning: <code>itd_tuning()</code></a></li>
+<li class="chapter" data-level="2.2" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#individial-tree-detection-tuning-itd_tuning"><i class="fa fa-check"></i><b>2.2</b> Individial Tree Detection Tuning: <code id="itd">itd_tuning()</code></a></li>
 <li class="chapter" data-level="2.3" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#point-cloud-tree-extraction-cloud2trees"><i class="fa fa-check"></i><b>2.3</b> Point Cloud Tree Extraction: <code>cloud2trees()</code></a></li>
 <li class="chapter" data-level="2.4" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#dbh-modeling-trees_dbh"><i class="fa fa-check"></i><b>2.4</b> DBH Modeling: <code>trees_dbh()</code></a></li>
 <li class="chapter" data-level="2.5" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#cbh-modeling-trees_cbh"><i class="fa fa-check"></i><b>2.5</b> CBH Modeling: <code>trees_cbh()</code></a></li>
@@ -194,7 +194,20 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <ul>
 <li class="chapter" data-level="3.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#neontreeevaluation-overview"><i class="fa fa-check"></i><b>3.1</b> <code>NeonTreeEvaluation</code> overview</a></li>
 <li class="chapter" data-level="3.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#lidar-data-in-neontreeevaluation"><i class="fa fa-check"></i><b>3.2</b> lidar data in <code>NeonTreeEvaluation</code></a></li>
-<li class="chapter" data-level="3.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#example-validation-process"><i class="fa fa-check"></i><b>3.3</b> Example validation process</a></li>
+<li class="chapter" data-level="3.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#example-validation-process"><i class="fa fa-check"></i><b>3.3</b> Example validation process</a>
+<ul>
+<li class="chapter" data-level="3.3.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#preliminaries"><i class="fa fa-check"></i><b>3.3.1</b> Preliminaries</a></li>
+<li class="chapter" data-level="3.3.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#filter-for-canopy-trees"><i class="fa fa-check"></i><b>3.3.2</b> Filter for “canopy” trees</a></li>
+<li class="chapter" data-level="3.3.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#cloud2treescloud2trees"><i class="fa fa-check"></i><b>3.3.3</b> <code>cloud2trees::cloud2trees()</code></a></li>
+<li class="chapter" data-level="3.3.4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#format-extracted-tree-polygons"><i class="fa fa-check"></i><b>3.3.4</b> Format extracted tree polygons</a></li>
+<li class="chapter" data-level="3.3.5" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#test-evaluation"><i class="fa fa-check"></i><b>3.3.5</b> Test evaluation</a></li>
+</ul></li>
+<li class="chapter" data-level="3.4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#full-validation-process"><i class="fa fa-check"></i><b>3.4</b> Full validation process</a>
+<ul>
+<li class="chapter" data-level="3.4.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#function-to-extract-trees"><i class="fa fa-check"></i><b>3.4.1</b> Function to extract trees</a></li>
+<li class="chapter" data-level="3.4.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#build-evaluation-data"><i class="fa fa-check"></i><b>3.4.2</b> Build evaluation data</a></li>
+<li class="chapter" data-level="3.4.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#full-evaluation"><i class="fa fa-check"></i><b>3.4.3</b> Full evaluation</a></li>
+</ul></li>
 </ul></li>
 </ul>
 
@@ -216,7 +229,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="header">
 <h1 class="title">Aerial LiDAR for Fire Model Inputs</h1>
 <p class="author"><em>George Woolsey</em></p>
-<p class="date"><em>25 February, 2025</em></p>
+<p class="date"><em>28 February, 2025</em></p>
 </div>
 <div id="introduction" class="section level1 hasAnchor" number="1">
 <h1><span class="header-section-number">Section 1</span> Introduction<a href="index.html#introduction" class="anchor-section" aria-label="Anchor link to header"></a></h1>
@@ -251,42 +264,42 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <script>
 gitbook.require(["gitbook"], function(gitbook) {
 gitbook.start({
-"sharing": {
-"github": false,
-"facebook": true,
-"twitter": true,
-"linkedin": false,
-"weibo": false,
-"instapaper": false,
-"vk": false,
-"whatsapp": false,
-"all": ["facebook", "twitter", "linkedin", "weibo", "instapaper"]
-},
-"fontsettings": {
-"theme": "white",
-"family": "sans",
-"size": 2
-},
-"edit": {
-"link": null,
-"text": null
-},
-"history": {
-"link": null,
-"text": null
-},
-"view": {
-"link": null,
-"text": null
-},
-"download": null,
-"search": {
-"engine": "fuse",
-"options": null
-},
-"toc": {
-"collapse": "subsection"
-}
+  "sharing": {
+    "github": false,
+    "facebook": true,
+    "twitter": true,
+    "linkedin": false,
+    "weibo": false,
+    "instapaper": false,
+    "vk": false,
+    "whatsapp": false,
+    "all": ["facebook", "twitter", "linkedin", "weibo", "instapaper"]
+  },
+  "fontsettings": {
+    "theme": "white",
+    "family": "sans",
+    "size": 2
+  },
+  "edit": {
+    "link": null,
+    "text": null
+  },
+  "history": {
+    "link": null,
+    "text": null
+  },
+  "view": {
+    "link": null,
+    "text": null
+  },
+  "download": null,
+  "search": {
+    "engine": "fuse",
+    "options": null
+  },
+  "toc": {
+    "collapse": "subsection"
+  }
 });
 });
 </script>
