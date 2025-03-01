@@ -807,11 +807,11 @@ my_submission6 <-
 # where should we save the file?
 submission_fn <- "../data/NeonTreeEvaluation_submission.gpkg"
 # if we don't already have the data, run it
-if(!file.exists(submission_fn)){
-# if(T){
+# if(!file.exists(submission_fn)){
+if(T){
   my_submission <- 
     # 1:nrow(lidar_df) %>% # uncomment this when it gets real
-    sample(1:nrow(lidar_df), size = 111) %>% 
+    sample(1:nrow(lidar_df), size = 222) %>% 
     purrr::map(\(x) 
       cloud2trees_for_eval(
         lidar_df_row = x
@@ -862,8 +862,6 @@ rslt_img_annttd_crwns <- NeonTreeEvaluation::evaluate_image_crowns(
   , summarize = T
 )
 ```
-
-in the plot (if there is a plot), "red" boxes are crowns our point cloud-based method extracted and "black" are the image annotated crowns
 
 `overall`: must be across all NEON sites, plots, and trees included for evaluation
 
@@ -1000,299 +998,16 @@ The third data source is the NEON Woody Vegetation Structure Dataset. Each tree 
 
 *not all plots have field-collected stems*
 
-`NeonTreeEvaluation::evaluate_field_stems()` returns an error if "No submitted plot_names with matching field stem data, see list_field_stems()"... so, we'll have to capture errors in our checks?
-
-```{r, eval=FALSE, include=FALSE}
-# safe it
-safe_evaluate_field_stems <- purrr::safely(NeonTreeEvaluation::evaluate_field_stems)
-# test it
-rslt_fld_stems <- 
-safe_evaluate_field_stems(
-  predictions = my_submission %>% sf::st_drop_geometry()
-  , show = F
-  , summarize = T
-)
-
-###########################################
-# evaluate_field_stems<-function(
-  predictions = my_submission %>% sf::st_drop_geometry()
-  project=TRUE
-  show=F
-  summarize=T
-# ){
-
-  if(!"plot_name" %in% colnames(predictions)){
-    stop("column named 'plot_name' is required (.e.g 'MLBS_052_2018') to match images to annotation)")
-  }
-
-  #Check for data
-  check_download()
-  field = clean_field_data(NeonTreeEvaluation::field)
-
-  site_plots<-field %>% group_by(plotID,individualID) %>%
-    summarize(samples=length(unique(eventID))) %>%
-    filter(samples>1) %>%
-    ungroup() %>%
-    mutate(plotID=as.character(plotID))
-  
-  site_plots %>% dplyr::glimpse()
-  
-  results<-list()
-  plot_names <- unique(site_plots$plotID)
-  plots_to_run<-unique(predictions$plot_name[stringr::str_match(predictions$plot_name,"(\\w+)_\\d+")[,2] %in% plot_names])
-  plots_to_run
-  
-  
-  # if(length(plots_to_run)==0){
-  #   stop("No submitted plot_names with matching field stem data, see list_field_stems()")
-  # }
-  plot_name = stringr::str_match(plots_to_run[2],"(\\w+)_\\d+")[,2]
-    print(plot_name)
-    plot_predictions <- predictions %>% filter(plot_name == plots_to_run[2])
-    plot_predictions
-    # results[[plot_name]]<-
-      process_plot(predictions=plot_predictions,plot_name=plot_name, show=show, image_name = plots_to_run[2])
-  
-      
-      
-      
-      
-# process_plot<-function(
-    predictions = plot_predictions
-    plot_name = plot_name
-    image_name = plots_to_run[2]
-    show = show
-  # ){
-  #matching RGB tile
-  rgb_images<-list_rgb()
-  (rgb_path<-rgb_images[stringr::str_detect(rgb_images,image_name)])
-  if(length(rgb_path)==0){return(NULL)}
-  r<-raster::stack(rgb_path)
-
-  #Field data, min height threshold is 3.
-  (field_points<-field %>% filter(plotID==plot_name) %>%
-    sf::st_as_sf(.,coords=c("itcEasting","itcNorthing")) %>% filter(height>3))
-  
-  field_points %>% dplyr::glimpse()
-
-  sf::st_crs(field_points)<-raster::crs(r)
-
-  if(nrow(predictions)==0){
-    warning(paste("No predictions made for plot",plot_name))
-    return(NULL)
-    }
-
-  #check sf polygon or csv file
-  (is_polygons = any(class(predictions) == "sf"))
-  #If is_polygons, project must be true
-  is_polygons
-  if(is_polygons){
-    spatial_boxes <- sf_to_spatial_polygons(predictions, r)
-  } else{
-    spatial_boxes<- predictions %>%
-      NeonTreeEvaluation::boxes_to_spatial_polygons(.,r) %>%
-      sf::st_as_sf() %>%
-      dplyr::mutate(height=predictions$height, score=predictions$score)
-  }
-  predictions %>% dplyr::glimpse()
-  spatial_boxes %>% dplyr::glimpse()
-  spatial_boxes %>% ggplot() + geom_sf()
-  
-  terra::plotRGB(r %>% terra::rast(), axes=T)
-  spatial_boxes %>% terra::vect() %>% terra::plot(col = NA, border = "red"
-  , lwd = 2 , add = T)
-  
-  
-bbox_poly <- function(xmin,ymin,xmax,ymax) {
-  # points
-  lower_left_pt <- sf::st_point(c(xmin,ymin))
-  upper_right_pt <- sf::st_point(c(xmax,ymax))
-  # to bbox polygon
-  sf::st_sfc(lower_left_pt, upper_right_pt) %>% 
-    sf::st_bbox() %>% 
-    sf::st_as_sfc() 
-}
-# read image annotated crown data and make polygons
-polys_temp <-
-  predictions %>% 
-  dplyr::mutate(crown_id = dplyr::row_number()) %>% 
-  dplyr::select(crown_id,xmin,ymin,xmax,ymax) %>% 
-  dplyr::rowwise(crown_id) %>% 
-  dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
-  dplyr::ungroup() %>% 
-  sf::st_set_geometry("geometry") %>% 
-  sf::st_set_crs(sf::st_crs(field_points)) %>% 
-  dplyr::mutate(dummy = 0)
-polys_temp %>% ggplot() + geom_sf()
-  
-  
-  #Filter the field data for erroneous temporal connections, the CHM must have positive heights, see OSBS_022, can use as an example of all sorts of challenges.
-  CHM_images <- list_chm()
-  CHM_path <- CHM_images[stringr::str_detect(CHM_images,image_name)]
-
-  if(length(CHM_path)==0){
-    warning(paste("No LiDAR data found made for plot",image_name))
-    return(NULL)}
-
-  chm <- raster::raster(CHM_path)
-
-  #Thresholds
-  field_points$CHM_height <- raster::extract(chm,field_points)
-field_points %>% dplyr::glimpse()
-  #Could it be seen?
-  (field_points<-field_points %>%
-    filter(abs(CHM_height-height)<4))
-
-  #if no points left, skip plot
-  if(nrow(field_points) == 0){
-    return(NULL)
-  }
-  #Min height based on the predictions
-  #field_points<-field_points[field_points$height > quantile(spatial_boxes$height,0.01),]
-  (unique_locations<-field_points %>%
-    distinct(individualID,.keep_all = T)
-)
-
-
-xxx <- cloud2trees::cloud2trees(output_dir = tempdir(), input_las_dir = lidar_df %>% 
-    dplyr::filter(plot_name == plots_to_run[2]) %>% 
-    dplyr::pull(f_path) %>% 
-    .[1])
-
-xxx$treetops_sf %>% ggplot() + geom_sf()
-xxx$crowns_sf <- cloud2trees::simplify_multipolygon_crowns(xxx$crowns_sf)
-# return
-  return_sf <-
-    xxx$crowns_sf %>% 
-    sf::st_set_geometry("geometry") %>% 
-    dplyr::rowwise("treeID") %>% 
-    dplyr::mutate(
-      xmin = sf::st_bbox(geometry)[1]
-      , ymin = sf::st_bbox(geometry)[2]
-      , xmax = sf::st_bbox(geometry)[3]
-      , ymax = sf::st_bbox(geometry)[4]
-    ) %>% 
-    dplyr::ungroup() %>% 
-    dplyr::mutate(
-      label = "Tree"
-      , plot_name = plots_to_run[2]
-    ) %>% 
-    dplyr::select(xmin,xmax,ymin,ymax,label,plot_name) %>% 
-    sf::st_set_crs(NA)
-return_sf %>% ggplot() + geom_sf()
-
-polys_temp <-
-  return_sf %>% 
-  dplyr::mutate(crown_id = dplyr::row_number()) %>% 
-  dplyr::select(crown_id,xmin,ymin,xmax,ymax) %>% 
-  dplyr::rowwise(crown_id) %>% 
-  dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
-  dplyr::ungroup() %>% 
-  sf::st_set_geometry("geometry")
-polys_temp %>% ggplot() + geom_sf()
-
-# polys_temp <-
-  my_submission %>% 
-  dplyr::filter(plot_name == plots_to_run[2]) 
-  %>% 
-  dplyr::mutate(crown_id = dplyr::row_number()) %>% 
-  dplyr::select(crown_id,xmin,ymin,xmax,ymax) %>% 
-  dplyr::rowwise(crown_id) %>% 
-  dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
-  dplyr::ungroup() %>% 
-  sf::st_set_geometry("geometry")
-
-lidar_df %>% 
-    dplyr::filter(plot_name == plots_to_run[2]) %>% 
-    dplyr::pull(f_path) %>% 
-    .[1] %>% 
-    lidR::readLAS() %>% 
-    lidR::st_bbox() %>% 
-    sf::st_as_sfc() %>% 
-    terra::vect() %>% 
-    terra::plot(col = NA , border = "blue", lwd = 4)
-  terra::plotRGB(r %>% terra::rast(), axes=T, add = T)
-  unique_locations %>% terra::vect() %>% terra::plot(col = "red", add = T)
-  xxx$crowns_sf %>% terra::vect() %>% terra::plot(col=NA,lwd = 2,border = "gold", add = T)
-  # return_sf %>% terra::vect() %>% terra::plot(col=NA,lwd = 1,border = "white", add = T)
-  # polys_temp %>% terra::vect() %>% terra::plot(col=NA,lwd = 1,border = "white", add = T)
-  my_submission %>% dplyr::filter(plot_name == plots_to_run[2]) %>% terra::vect() %>% terra::plot(col=NA,lwd = 5,border = "white", add = T) 
-
-  
-  
-  joined <- sf::st_join(unique_locations, spatial_boxes)
-  joined <- joined %>% filter(!is.na(crown_id)) %>%
-    group_by(crown_id) %>% slice(1)
-joined
-  missing <- unique_locations %>% filter(!uid %in% joined$uid)
-
-  # if(show){
-    raster::plotRGB(r)
-    plot(sf::st_geometry(spatial_boxes),add=T, border="red", lwd=3)
-    plot(sf::st_geometry(joined),add=T,col="yellow",pch=20, cex=2)
-
-    #Missing
-    plot(sf::st_geometry(missing),add=T,col="blue",pch=20, cex=2)
-  # }
-
-  #Stem recall rate
-  tree_in_prediction <-unique_locations  %>%
-    sf::st_intersects(x=.,y=spatial_boxes)
-tree_in_prediction
-  #Which match, do not allow multiples to double count.
-  matches<-lengths(tree_in_prediction)
-  matches[matches>1]<-1
-
-  #unique matches
-  joined_df<-sf::st_join(spatial_boxes,unique_locations)
-  single_matches<-joined_df %>%
-    group_by(crown_id) %>%
-    filter(height == max(height))
-
-  single_recall<-nrow(single_matches)/nrow(unique_locations)
-
-  #Create point matches between data and predictions
-  matched_df<-matched_pairs(spatial_boxes, field_points) %>%
-    mutate(plot_name=plot_name)
-
-  if(nrow(matched_df)>0){
-    siteID=unique(matched_df$siteID)
-    result<-data.frame(siteID=siteID,plot_name=plot_name,recall=single_recall, n=nrow(unique_locations))
-    return(result)
-  } else{
-    warning(paste("No matching prediction between  data found made for plot",plot_name))
-    return(NULL)
-  }
-      
-      
-      
-      
-      
-      
-      
-      
-      
-  for(image_name in plots_to_run){
-    plot_name = stringr::str_match(image_name,"(\\w+)_\\d+")[,2]
-    print(plot_name)
-    plot_predictions <- predictions %>% filter(plot_name == image_name)
-    results[[plot_name]]<-process_plot(predictions=plot_predictions,plot_name=plot_name, show=show, image_name=image_name) #### error here
-  }
-  results<-results[!sapply(results,is.null)]
-  results
-  results<-bind_rows(results)
-
-  if(summarize){
-    df <-list()
-    df[["overall"]] <- results %>% summarize(recall=mean(recall))
-    df[["by_site"]] <- results %>% group_by(Site=siteID) %>% summarize(recall=mean(recall))
-    df[["plot_level"]] <-results
-    return(df)
-  } else{
-    return(results)
-  }
-}
-
+```{r, eval=T, include=FALSE}
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# gw fixing evaluate_field_stems() 
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 evaluate_field_stems<-function(predictions,project=TRUE, show=T, summarize=T){
 
@@ -1357,15 +1072,48 @@ process_plot<-function(predictions, plot_name, image_name, show){
 
   #check sf polygon or csv file
   is_polygons = any(class(predictions) == "sf")
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # change here
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # #If is_polygons, project must be true
+  # if(is_polygons){
+  #   spatial_boxes <- sf_to_spatial_polygons(predictions, r)
+  # } else{
+  #   spatial_boxes<- predictions %>%
+  #     NeonTreeEvaluation::boxes_to_spatial_polygons(.,r) %>%
+  #     sf::st_as_sf() %>%
+  #     mutate(height=predictions$height, score=predictions$score)
+  # }
   #If is_polygons, project must be true
   if(is_polygons){
-    spatial_boxes <- sf_to_spatial_polygons(predictions, r)
+    spatial_boxes <- predictions %>% 
+      sf::st_set_crs(raster::crs(r))
   } else{
-    spatial_boxes<- predictions %>%
-      NeonTreeEvaluation::boxes_to_spatial_polygons(.,r) %>%
-      sf::st_as_sf() %>%
-      mutate(height=predictions$height, score=predictions$score)
+    spatial_boxes <-
+      predictions %>% 
+      dplyr::mutate(crown_id = dplyr::row_number()) %>% 
+      dplyr::select(crown_id,xmin,ymin,xmax,ymax) %>% 
+      dplyr::rowwise(crown_id) %>% 
+      dplyr::mutate(geometry = bbox_poly(xmin,ymin,xmax,ymax)) %>% 
+      dplyr::ungroup() %>% 
+      sf::st_set_geometry("geometry") %>% 
+      sf::st_set_crs(raster::crs(r))
   }
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # end change here
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   #Filter the field data for erroneous temporal connections, the CHM must have positive heights, see OSBS_022, can use as an example of all sorts of challenges.
   CHM_images <- list_chm()
@@ -1471,6 +1219,182 @@ matched_pairs<-function(spatial_boxes,field_points){
   return(matched_height)
 }
 
+sf_to_spatial_polygons <- function(predictions, rgb){
+  #pixels to meters
+  scaled_submission<-sf::st_geometry(predictions) * raster::res(rgb)[1]
 
+  # Project, do ymax before ymin to avoid overwriting, numpy origin is topleft
+  coords<-data.frame(st_coordinates(scaled_submission))
+
+  projection_extent <- raster::extent(rgb)
+  coords$X <- projection_extent@xmin + coords$X
+  coords$Y <- projection_extent@ymax - coords$Y
+
+  polygons <- coords %>% group_by(L2) %>%
+    st_as_sf(coords = c("X", "Y"), crs = raster::crs(rgb)) %>%
+    summarise(geometry = st_combine(geometry)) %>%
+    st_cast("POLYGON") %>% as.data.frame()
+
+  #drop current geom
+  st_geometry(predictions)<-NULL
+
+  projected_polygons<-st_sf(data.frame(predictions,polygons))
+  projected_polygons$crown_id <- 1:nrow(projected_polygons)
+
+  return(projected_polygons)
+}
+
+boxes_to_spatial_polygons <- function(boxes, raster_object, project_boxes = TRUE) {
+  if (project_boxes) {
+    boxes <- project(boxes, raster_object)
+  }
+
+  projected_polygons <- list()
+  for (x in 1:nrow(boxes)) {
+    e <- raster::extent(c(
+      boxes$xmin[x],
+      boxes$xmax[x],
+      boxes$ymin[x],
+      boxes$ymax[x]
+    ))
+    projected_polygons[[x]] <- as(e, "SpatialPolygons")
+    projected_polygons[[x]]@polygons[[1]]@ID <- as.character(x)
+  }
+
+  projected_polygons <- as(sp::SpatialPolygons(lapply(
+    projected_polygons,
+    function(x) slot(x, "polygons")[[1]]
+  )), "SpatialPolygonsDataFrame")
+
+  projected_polygons@data$crown_id <- 1:nrow(projected_polygons)
+  sp::proj4string(projected_polygons) <- raster::projection(raster_object)
+
+  #as sf objection
+  projected_polygons<-as(projected_polygons, "sf")
+  return(projected_polygons)
+}
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# gw added
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+bbox_poly <- function(xmin,ymin,xmax,ymax) {
+  # points
+  lower_left_pt <- sf::st_point(c(xmin,ymin))
+  upper_right_pt <- sf::st_point(c(xmax,ymax))
+  # to bbox polygon
+  sf::st_sfc(lower_left_pt, upper_right_pt) %>% 
+    sf::st_bbox() %>% 
+    sf::st_as_sfc() 
+}
 
 ```
+
+*in testing, including the `sf` polygon data did not work...switching to the bbox method with `sf::st_drop_geometry()`*
+
+```{r, message=FALSE, results=F, warning=FALSE}
+rslt_fld_stems <- evaluate_field_stems(
+  predictions = my_submission %>% sf::st_drop_geometry()
+  , show = F
+  , summarize = T
+)
+```
+
+`overall`: must be across all NEON sites, plots, and trees included for evaluation
+
+```{r}
+rslt_fld_stems$overall %>% 
+  kableExtra::kbl(
+    caption = "Overall: cloud2trees ITD performance versus field-collected stems"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+`by_site`: must be across plots, and trees included for evaluation in a NEON sites
+
+```{r}
+rslt_fld_stems$by_site %>% 
+  kableExtra::kbl(
+    caption = "NEON site-level: cloud2trees ITD performance versus field-collected stems"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+`plot_level`: must be across trees included for evaluation in a NEON site, plot combination
+
+```{r}
+rslt_fld_stems$plot_level %>% 
+  dplyr::ungroup() %>% 
+  dplyr::slice_sample(n=14) %>% 
+  dplyr::arrange(plot_name) %>% 
+  kableExtra::kbl(
+    caption = "NEON plot-level: cloud2trees ITD performance versus field-collected stems"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+how many plots did we evaluate that met all criteria?:
+
+*had point cloud data in the benchmark
+*was from a NEON site with primarily conifer trees
+*had field-collected stems for evaluation
+
+```{r}
+# how many plots did we evaluate that met all criteria?
+rslt_fld_stems$plot_level %>% 
+  dplyr::ungroup() %>% 
+  dplyr::distinct(plot_name) %>% 
+  nrow()
+```
+
+how many plots were evaluated using `cloud2trees::cloud2trees()` by NEON site?
+
+```{r}
+
+fld_stems_plots_temp <-
+  lidar_df %>% 
+    dplyr::mutate(
+      sht_plt = plot_name %>% 
+        stringr::str_extract(
+          rslt_fld_stems$plot_level %>% 
+            dplyr::ungroup() %>% 
+            dplyr::distinct(plot_name) %>% 
+            dplyr::pull(plot_name) %>% 
+            paste(collapse = "|")
+        )
+    ) %>% 
+    dplyr::filter(!is.na(sht_plt)) %>% 
+    dplyr::group_by(siteID,sht_plt) %>% 
+    dplyr::summarise(n=dplyr::n()) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::rename(plot_name=sht_plt)
+# plots evaluated by neon site
+fld_stems_plots_temp %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(siteID) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  kableExtra::kbl(
+    caption = "Number of 40m x 40m plots with field-collected stems evaluated using cloud2trees by NEON site"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+where are these NEON sites evaluated using `cloud2trees::cloud2trees()`?
+
+```{r}
+fld_stems_plots_temp %>% 
+  dplyr::count(siteID) %>% 
+  mapview::mapview(
+    cex = "n", legend = F
+    , layer.name = "NEON site"
+  )
+```
+
