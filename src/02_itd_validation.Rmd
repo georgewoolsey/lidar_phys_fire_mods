@@ -5,7 +5,6 @@ In this section we'll use the benchmark data made available in the [`NeonTreeEva
 First, load the standard libraries
 
 ```{r, warning=FALSE, message=FALSE}
-# katie lyneis
 # bread-and-butter
 library(tidyverse) # the tidyverse
 library(viridis) # viridis colors
@@ -265,6 +264,10 @@ lidar_df <- lidar_df %>%
       , "TEAK_028_2018"
       , "YELL_058_2020"
       , "RMNP_011_2018"
+      , "YELL_030_2018"
+      , "YELL_051_2019"
+      , "SOAP_014_2019"
+      , "TEAK_005_2018"
     )
   )
 ```
@@ -777,7 +780,7 @@ cloud2trees_for_eval <- function(lidar_df_row, lidar_df, ws, min_height = NA) {
     dplyr::select(xmin,xmax,ymin,ymax,label,plot_name) %>% 
     sf::st_set_crs(NA)
   # give the workers a rest
-  Sys.sleep(2)
+  Sys.sleep(3)
   return(return_sf)
 }
 ```
@@ -807,8 +810,8 @@ my_submission6 <-
 # where should we save the file?
 submission_fn <- "../data/NeonTreeEvaluation_submission.gpkg"
 # if we don't already have the data, run it
-# if(!file.exists(submission_fn)){
-if(T){
+if(!file.exists(submission_fn)){
+# if(T){
   my_submission <- 
     # 1:nrow(lidar_df) %>% # uncomment this when it gets real
     sample(1:nrow(lidar_df), size = 222) %>% 

@@ -230,27 +230,26 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <h1><span class="header-section-number">Section 3</span> Validate Tree Detection and Crown Delineation<a href="validate-tree-detection-and-crown-delineation.html#validate-tree-detection-and-crown-delineation" class="anchor-section" aria-label="Anchor link to header"></a></h1>
 <p>In this section we’ll use the benchmark data made available in the <a href="https://github.com/weecology/NeonTreeEvaluation_package"><code>NeonTreeEvaluation</code></a> data set (<a href="https://scholar.google.com/scholar?cluster=4986448711981898434&amp;hl=en&amp;as_sdt=0,6">Weinstein et al. 2021</a>) to evaluate our process for lidar-based tree detection. We’ll implement our tree detection process via the [<code>cloud2trees</code>]<a href="https://github.com/georgewoolsey/cloud2trees" class="uri">https://github.com/georgewoolsey/cloud2trees</a>) package</p>
 <p>First, load the standard libraries</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb31-1"><a href="validate-tree-detection-and-crown-delineation.html#cb31-1" tabindex="-1"></a><span class="co"># katie lyneis</span></span>
-<span id="cb31-2"><a href="validate-tree-detection-and-crown-delineation.html#cb31-2" tabindex="-1"></a><span class="co"># bread-and-butter</span></span>
-<span id="cb31-3"><a href="validate-tree-detection-and-crown-delineation.html#cb31-3" tabindex="-1"></a><span class="fu">library</span>(tidyverse) <span class="co"># the tidyverse</span></span>
-<span id="cb31-4"><a href="validate-tree-detection-and-crown-delineation.html#cb31-4" tabindex="-1"></a><span class="fu">library</span>(viridis) <span class="co"># viridis colors</span></span>
-<span id="cb31-5"><a href="validate-tree-detection-and-crown-delineation.html#cb31-5" tabindex="-1"></a><span class="fu">library</span>(harrypotter) <span class="co"># hp colors</span></span>
-<span id="cb31-6"><a href="validate-tree-detection-and-crown-delineation.html#cb31-6" tabindex="-1"></a><span class="fu">library</span>(RColorBrewer) <span class="co"># brewer colors</span></span>
-<span id="cb31-7"><a href="validate-tree-detection-and-crown-delineation.html#cb31-7" tabindex="-1"></a><span class="fu">library</span>(scales) <span class="co"># work with number and plot scales</span></span>
-<span id="cb31-8"><a href="validate-tree-detection-and-crown-delineation.html#cb31-8" tabindex="-1"></a><span class="fu">library</span>(latex2exp)</span>
-<span id="cb31-9"><a href="validate-tree-detection-and-crown-delineation.html#cb31-9" tabindex="-1"></a></span>
-<span id="cb31-10"><a href="validate-tree-detection-and-crown-delineation.html#cb31-10" tabindex="-1"></a><span class="co"># visualization</span></span>
-<span id="cb31-11"><a href="validate-tree-detection-and-crown-delineation.html#cb31-11" tabindex="-1"></a><span class="fu">library</span>(mapview) <span class="co"># interactive html maps</span></span>
-<span id="cb31-12"><a href="validate-tree-detection-and-crown-delineation.html#cb31-12" tabindex="-1"></a><span class="fu">library</span>(kableExtra) <span class="co"># tables</span></span>
-<span id="cb31-13"><a href="validate-tree-detection-and-crown-delineation.html#cb31-13" tabindex="-1"></a><span class="fu">library</span>(patchwork) <span class="co"># combine plots</span></span>
-<span id="cb31-14"><a href="validate-tree-detection-and-crown-delineation.html#cb31-14" tabindex="-1"></a><span class="fu">library</span>(ggnewscale) <span class="co"># ggnewscale</span></span>
-<span id="cb31-15"><a href="validate-tree-detection-and-crown-delineation.html#cb31-15" tabindex="-1"></a><span class="fu">library</span>(rgl) <span class="co"># rgl plotting</span></span>
-<span id="cb31-16"><a href="validate-tree-detection-and-crown-delineation.html#cb31-16" tabindex="-1"></a></span>
-<span id="cb31-17"><a href="validate-tree-detection-and-crown-delineation.html#cb31-17" tabindex="-1"></a><span class="co"># spatial analysis</span></span>
-<span id="cb31-18"><a href="validate-tree-detection-and-crown-delineation.html#cb31-18" tabindex="-1"></a><span class="fu">library</span>(sf) <span class="co"># simple features</span></span>
-<span id="cb31-19"><a href="validate-tree-detection-and-crown-delineation.html#cb31-19" tabindex="-1"></a><span class="fu">library</span>(lidR) <span class="co"># lidar data</span></span>
-<span id="cb31-20"><a href="validate-tree-detection-and-crown-delineation.html#cb31-20" tabindex="-1"></a><span class="fu">library</span>(cloud2trees) <span class="co"># tha cloud2trees</span></span>
-<span id="cb31-21"><a href="validate-tree-detection-and-crown-delineation.html#cb31-21" tabindex="-1"></a><span class="fu">library</span>(NeonTreeEvaluation) <span class="co"># benchmark data</span></span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb31-1"><a href="validate-tree-detection-and-crown-delineation.html#cb31-1" tabindex="-1"></a><span class="co"># bread-and-butter</span></span>
+<span id="cb31-2"><a href="validate-tree-detection-and-crown-delineation.html#cb31-2" tabindex="-1"></a><span class="fu">library</span>(tidyverse) <span class="co"># the tidyverse</span></span>
+<span id="cb31-3"><a href="validate-tree-detection-and-crown-delineation.html#cb31-3" tabindex="-1"></a><span class="fu">library</span>(viridis) <span class="co"># viridis colors</span></span>
+<span id="cb31-4"><a href="validate-tree-detection-and-crown-delineation.html#cb31-4" tabindex="-1"></a><span class="fu">library</span>(harrypotter) <span class="co"># hp colors</span></span>
+<span id="cb31-5"><a href="validate-tree-detection-and-crown-delineation.html#cb31-5" tabindex="-1"></a><span class="fu">library</span>(RColorBrewer) <span class="co"># brewer colors</span></span>
+<span id="cb31-6"><a href="validate-tree-detection-and-crown-delineation.html#cb31-6" tabindex="-1"></a><span class="fu">library</span>(scales) <span class="co"># work with number and plot scales</span></span>
+<span id="cb31-7"><a href="validate-tree-detection-and-crown-delineation.html#cb31-7" tabindex="-1"></a><span class="fu">library</span>(latex2exp)</span>
+<span id="cb31-8"><a href="validate-tree-detection-and-crown-delineation.html#cb31-8" tabindex="-1"></a></span>
+<span id="cb31-9"><a href="validate-tree-detection-and-crown-delineation.html#cb31-9" tabindex="-1"></a><span class="co"># visualization</span></span>
+<span id="cb31-10"><a href="validate-tree-detection-and-crown-delineation.html#cb31-10" tabindex="-1"></a><span class="fu">library</span>(mapview) <span class="co"># interactive html maps</span></span>
+<span id="cb31-11"><a href="validate-tree-detection-and-crown-delineation.html#cb31-11" tabindex="-1"></a><span class="fu">library</span>(kableExtra) <span class="co"># tables</span></span>
+<span id="cb31-12"><a href="validate-tree-detection-and-crown-delineation.html#cb31-12" tabindex="-1"></a><span class="fu">library</span>(patchwork) <span class="co"># combine plots</span></span>
+<span id="cb31-13"><a href="validate-tree-detection-and-crown-delineation.html#cb31-13" tabindex="-1"></a><span class="fu">library</span>(ggnewscale) <span class="co"># ggnewscale</span></span>
+<span id="cb31-14"><a href="validate-tree-detection-and-crown-delineation.html#cb31-14" tabindex="-1"></a><span class="fu">library</span>(rgl) <span class="co"># rgl plotting</span></span>
+<span id="cb31-15"><a href="validate-tree-detection-and-crown-delineation.html#cb31-15" tabindex="-1"></a></span>
+<span id="cb31-16"><a href="validate-tree-detection-and-crown-delineation.html#cb31-16" tabindex="-1"></a><span class="co"># spatial analysis</span></span>
+<span id="cb31-17"><a href="validate-tree-detection-and-crown-delineation.html#cb31-17" tabindex="-1"></a><span class="fu">library</span>(sf) <span class="co"># simple features</span></span>
+<span id="cb31-18"><a href="validate-tree-detection-and-crown-delineation.html#cb31-18" tabindex="-1"></a><span class="fu">library</span>(lidR) <span class="co"># lidar data</span></span>
+<span id="cb31-19"><a href="validate-tree-detection-and-crown-delineation.html#cb31-19" tabindex="-1"></a><span class="fu">library</span>(cloud2trees) <span class="co"># tha cloud2trees</span></span>
+<span id="cb31-20"><a href="validate-tree-detection-and-crown-delineation.html#cb31-20" tabindex="-1"></a><span class="fu">library</span>(NeonTreeEvaluation) <span class="co"># benchmark data</span></span></code></pre></div>
 <div id="neontreeevaluation-overview" class="section level2 hasAnchor" number="3.1">
 <h2><span class="header-section-number">3.1</span> <code>NeonTreeEvaluation</code> overview<a href="validate-tree-detection-and-crown-delineation.html#neontreeevaluation-overview" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>Weinstein et al. (<a href="https://scholar.google.com/scholar?cluster=4986448711981898434&amp;hl=en&amp;as_sdt=0,6">2021</a>) developed:</p>
@@ -303,9 +302,15 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb34-4"><a href="validate-tree-detection-and-crown-delineation.html#cb34-4" tabindex="-1"></a>lidar_files_temp <span class="ot">&lt;-</span> lidar_dir_temp <span class="sc">%&gt;%</span> <span class="fu">list.files</span>(<span class="at">recursive =</span> T, <span class="at">pattern =</span> <span class="st">&quot;.*</span><span class="sc">\\</span><span class="st">.(laz|las)$&quot;</span>, <span class="at">full.names =</span> T) <span class="sc">%&gt;%</span> <span class="fu">unique</span>()</span>
 <span id="cb34-5"><a href="validate-tree-detection-and-crown-delineation.html#cb34-5" tabindex="-1"></a><span class="co"># look at this</span></span>
 <span id="cb34-6"><a href="validate-tree-detection-and-crown-delineation.html#cb34-6" tabindex="-1"></a>lidar_files_temp <span class="sc">%&gt;%</span> <span class="fu">basename</span>() <span class="sc">%&gt;%</span> <span class="fu">sample</span>(<span class="at">size =</span> <span class="dv">9</span>)</span></code></pre></div>
-<pre><code>## [1] &quot;HARV_017_2018.laz&quot;    &quot;SCBI_014_2019.laz&quot;    &quot;SOAP_029_2018.laz&quot;   
-## [4] &quot;GUAN_045_2018.laz&quot;    &quot;unnamed_plot_173.las&quot; &quot;DEJU_060_2019.laz&quot;   
-## [7] &quot;BONA_079_2019.laz&quot;    &quot;DELA_045_2019.laz&quot;    &quot;TEAK_049_2018.laz&quot;</code></pre>
+<pre><code>## [1] &quot;TEAK_051_2019.laz&quot;                       
+## [2] &quot;BART_039_2019.laz&quot;                       
+## [3] &quot;WREF_073_2019.laz&quot;                       
+## [4] &quot;2018_SJER_3_253000_4109000_image_573.laz&quot;
+## [5] &quot;TALL_021_2019.laz&quot;                       
+## [6] &quot;CLBJ_050_2019.laz&quot;                       
+## [7] &quot;SOAP_010_2018.laz&quot;                       
+## [8] &quot;OSBS_120.las&quot;                            
+## [9] &quot;DEJU_023_2019.laz&quot;</code></pre>
 <div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="validate-tree-detection-and-crown-delineation.html#cb36-1" tabindex="-1"></a><span class="co"># let&#39;s pull out all sites with `.laz` data and create a data frame for tracking purposes</span></span>
 <span id="cb36-2"><a href="validate-tree-detection-and-crown-delineation.html#cb36-2" tabindex="-1"></a>lidar_df <span class="ot">&lt;-</span> lidar_files_temp <span class="sc">%&gt;%</span> </span>
 <span id="cb36-3"><a href="validate-tree-detection-and-crown-delineation.html#cb36-3" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">as_tibble</span>() <span class="sc">%&gt;%</span> </span>
@@ -337,12 +342,17 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb38-14"><a href="validate-tree-detection-and-crown-delineation.html#cb38-14" tabindex="-1"></a>  <span class="fu">unique</span>()</span>
 <span id="cb38-15"><a href="validate-tree-detection-and-crown-delineation.html#cb38-15" tabindex="-1"></a><span class="co"># huh?</span></span>
 <span id="cb38-16"><a href="validate-tree-detection-and-crown-delineation.html#cb38-16" tabindex="-1"></a>plotnames_temp <span class="sc">%&gt;%</span> <span class="fu">sample</span>(<span class="dv">11</span>)</span></code></pre></div>
-<pre><code>##  [1] &quot;SERC_009_2019&quot;               &quot;ABBY_002_2018&quot;              
-##  [3] &quot;unnamed_plot_69_competition&quot; &quot;DELA_025_2019&quot;              
-##  [5] &quot;BART_074&quot;                    &quot;DELA_051&quot;                   
-##  [7] &quot;JERC_064_2019&quot;               &quot;UKFS_021_2020&quot;              
-##  [9] &quot;HARV_046_2019&quot;               &quot;LENO_027_2019&quot;              
-## [11] &quot;GUAN_008_2018&quot;</code></pre>
+<pre><code>##  [1] &quot;2018_TEAK_3_319000_4102000_image_281&quot;
+##  [2] &quot;UNDE_055_2017&quot;                       
+##  [3] &quot;HARV_001_2019&quot;                       
+##  [4] &quot;RMNP_049&quot;                            
+##  [5] &quot;UNDE_030_2020&quot;                       
+##  [6] &quot;RMNP_009&quot;                            
+##  [7] &quot;MLBS_20_competition&quot;                 
+##  [8] &quot;NIWO_018_2018&quot;                       
+##  [9] &quot;unnamed_plot_52_competition&quot;         
+## [10] &quot;SOAP_002_2019&quot;                       
+## [11] &quot;2018_SJER_3_255000_4108000_image_256&quot;</code></pre>
 <p>filter our lidar data list</p>
 <div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="validate-tree-detection-and-crown-delineation.html#cb40-1" tabindex="-1"></a>lidar_df <span class="ot">&lt;-</span> lidar_df <span class="sc">%&gt;%</span> </span>
 <span id="cb40-2"><a href="validate-tree-detection-and-crown-delineation.html#cb40-2" tabindex="-1"></a>  <span class="co">#filter based on plots in evaluation data</span></span>
@@ -401,10 +411,10 @@ genus
 <tbody>
 <tr>
 <td style="text-align:left;">
-JUFL
+JUNIPSPP
 </td>
 <td style="text-align:left;">
-drooping juniper
+juniper
 </td>
 <td style="text-align:left;">
 Juniperus
@@ -412,10 +422,32 @@ Juniperus
 </tr>
 <tr>
 <td style="text-align:left;">
-PILEC
+JUMOM
 </td>
 <td style="text-align:left;">
-chihuahuan pine
+oneseed juniper
+</td>
+<td style="text-align:left;">
+Juniperus
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+LALA
+</td>
+<td style="text-align:left;">
+tamarack
+</td>
+<td style="text-align:left;">
+Larix
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+PISO
+</td>
+<td style="text-align:left;">
+NA
 </td>
 <td style="text-align:left;">
 Pinus
@@ -423,10 +455,21 @@ Pinus
 </tr>
 <tr>
 <td style="text-align:left;">
-PIAR
+AGATH2SPP
 </td>
 <td style="text-align:left;">
-bristlecone pine
+agathis
+</td>
+<td style="text-align:left;">
+Agathis
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+PITO
+</td>
+<td style="text-align:left;">
+torrey pine
 </td>
 <td style="text-align:left;">
 Pinus
@@ -434,21 +477,10 @@ Pinus
 </tr>
 <tr>
 <td style="text-align:left;">
-CALOC2SPP
+ABFR
 </td>
 <td style="text-align:left;">
-incense cedar
-</td>
-<td style="text-align:left;">
-Calocedrus
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-ABFI
-</td>
-<td style="text-align:left;">
-momi fir
+fraser fir
 </td>
 <td style="text-align:left;">
 Abies
@@ -456,21 +488,10 @@ Abies
 </tr>
 <tr>
 <td style="text-align:left;">
-PILE
+ABCO
 </td>
 <td style="text-align:left;">
-chihuahuan pine
-</td>
-<td style="text-align:left;">
-Pinus
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-ABIESSPP
-</td>
-<td style="text-align:left;">
-fir
+white fir
 </td>
 <td style="text-align:left;">
 Abies
@@ -478,35 +499,24 @@ Abies
 </tr>
 <tr>
 <td style="text-align:left;">
-POCO3
+PITA
 </td>
 <td style="text-align:left;">
-yucca plum pine
+loblolly pine
 </td>
 <td style="text-align:left;">
-Podocarpus
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-TAXOD
-</td>
-<td style="text-align:left;">
-bald cypress
-</td>
-<td style="text-align:left;">
-Taxodium
+Pinus
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-PIEN
+ARAUC2
 </td>
 <td style="text-align:left;">
-engelmann spruce
+araucaria
 </td>
 <td style="text-align:left;">
-Picea
+Araucaria
 </td>
 </tr>
 </tbody>
@@ -843,8 +853,12 @@ STEI
 <span id="cb47-11"><a href="validate-tree-detection-and-crown-delineation.html#cb47-11" tabindex="-1"></a>      , <span class="st">&quot;TEAK_028_2018&quot;</span></span>
 <span id="cb47-12"><a href="validate-tree-detection-and-crown-delineation.html#cb47-12" tabindex="-1"></a>      , <span class="st">&quot;YELL_058_2020&quot;</span></span>
 <span id="cb47-13"><a href="validate-tree-detection-and-crown-delineation.html#cb47-13" tabindex="-1"></a>      , <span class="st">&quot;RMNP_011_2018&quot;</span></span>
-<span id="cb47-14"><a href="validate-tree-detection-and-crown-delineation.html#cb47-14" tabindex="-1"></a>    )</span>
-<span id="cb47-15"><a href="validate-tree-detection-and-crown-delineation.html#cb47-15" tabindex="-1"></a>  )</span></code></pre></div>
+<span id="cb47-14"><a href="validate-tree-detection-and-crown-delineation.html#cb47-14" tabindex="-1"></a>      , <span class="st">&quot;YELL_030_2018&quot;</span></span>
+<span id="cb47-15"><a href="validate-tree-detection-and-crown-delineation.html#cb47-15" tabindex="-1"></a>      , <span class="st">&quot;YELL_051_2019&quot;</span></span>
+<span id="cb47-16"><a href="validate-tree-detection-and-crown-delineation.html#cb47-16" tabindex="-1"></a>      , <span class="st">&quot;SOAP_014_2019&quot;</span></span>
+<span id="cb47-17"><a href="validate-tree-detection-and-crown-delineation.html#cb47-17" tabindex="-1"></a>      , <span class="st">&quot;TEAK_005_2018&quot;</span></span>
+<span id="cb47-18"><a href="validate-tree-detection-and-crown-delineation.html#cb47-18" tabindex="-1"></a>    )</span>
+<span id="cb47-19"><a href="validate-tree-detection-and-crown-delineation.html#cb47-19" tabindex="-1"></a>  )</span></code></pre></div>
 <p>what NEON sites have conifers and the most lidar plots</p>
 <div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb48-1"><a href="validate-tree-detection-and-crown-delineation.html#cb48-1" tabindex="-1"></a>lidar_df <span class="sc">%&gt;%</span> </span>
 <span id="cb48-2"><a href="validate-tree-detection-and-crown-delineation.html#cb48-2" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span> </span>
@@ -873,7 +887,7 @@ n
 TEAK
 </td>
 <td style="text-align:right;">
-121
+120
 </td>
 </tr>
 <tr>
@@ -889,20 +903,20 @@ DEJU
 YELL
 </td>
 <td style="text-align:right;">
-85
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-SOAP
-</td>
-<td style="text-align:right;">
-72
+83
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
 OSBS
+</td>
+<td style="text-align:right;">
+71
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+SOAP
 </td>
 <td style="text-align:right;">
 71
@@ -966,8 +980,8 @@ HEAL
 <span id="cb49-5"><a href="validate-tree-detection-and-crown-delineation.html#cb49-5" tabindex="-1"></a>    , <span class="at">layer.name =</span> <span class="st">&quot;NEON site&quot;</span></span>
 <span id="cb49-6"><a href="validate-tree-detection-and-crown-delineation.html#cb49-6" tabindex="-1"></a>    , <span class="at">col.regions =</span> viridis<span class="sc">::</span><span class="fu">turbo</span>(<span class="at">n=</span><span class="fu">nrow</span>(conifer_sites))</span>
 <span id="cb49-7"><a href="validate-tree-detection-and-crown-delineation.html#cb49-7" tabindex="-1"></a>  )</span></code></pre></div>
-<div class="leaflet html-widget html-fill-item" id="htmlwidget-ff22e6e0c1c433f7f312" style="width:1008px;height:672px;"></div>
-<script type="application/json" data-for="htmlwidget-ff22e6e0c1c433f7f312">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["point",440]},{"method":"addCircleMarkers","args":[[45.76170271641791,63.87034470520231,28.08222958823529,63.87322733333333,31.19748024733096,38.26231868965518,40.04172801108648,40.17957887499999,29.69109949456522,40.24394090109091,37.03389210536779,32.94875689412314,37.00258338164251,44.95853400000001],[-122.3339110559701,-145.7525825260116,-81.40931664705882,-149.2856364285714,-84.46601650711743,-109.3457485172414,-105.5650561036585,-112.5173911477273,-81.98834036801242,-105.5346183541818,-119.2642730019881,-87.39915964505597,-119.0076350660226,-110.6024355384615],6,null,"NEON site",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"point","stroke":true,"color":"#333333","weight":1,"opacity":[0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9],"fill":true,"fillColor":["#30123B","#424AB3","#467EF4","#31AFF5","#18DAC7","#38F491","#83FF52","#BDF534","#E9D539","#FEAA33","#F8721C","#E03F08","#B61C02","#7A0403"],"fillOpacity":[0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6]},null,null,["<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>ABBY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 55&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>2&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>DEJU&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 87&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>3&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>DSNY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 46&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>4&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>HEAL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 29&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>5&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>JERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 50&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>6&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>MOAB&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 11&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>7&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>NIWO&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 63&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>8&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>ONAQ&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>  1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>9&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>OSBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 71&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>10&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>RMNP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 29&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>11&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>SOAP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 72&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>12&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TALL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 54&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>13&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TEAK&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>121&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>14&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>YELL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 85&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["ABBY","DEJU","DSNY","HEAL","JERC","MOAB","NIWO","ONAQ","OSBS","RMNP","SOAP","TALL","TEAK","YELL"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"NEON site",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]}],"limits":{"lat":[28.08222958823529,63.87322733333333],"lng":[-149.2856364285714,-81.40931664705882]},"fitBounds":[28.08222958823529,-149.2856364285714,63.87322733333333,-81.40931664705882,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-0cce386812daac963f04" style="width:1008px;height:672px;"></div>
+<script type="application/json" data-for="htmlwidget-0cce386812daac963f04">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["point",440]},{"method":"addCircleMarkers","args":[[45.76170271641791,63.87034470520231,28.08222958823529,63.87322733333333,31.19748024733096,38.26231868965518,40.04172801108648,40.17957887499999,29.69109949456522,40.24394090109091,37.03389210536779,32.94875689412314,37.00258338164251,44.95853400000001],[-122.3339110559701,-145.7525825260116,-81.40931664705882,-149.2856364285714,-84.46601650711743,-109.3457485172414,-105.5650561036585,-112.5173911477273,-81.98834036801242,-105.5346183541818,-119.2642730019881,-87.39915964505597,-119.0076350660226,-110.6024355384615],6,null,"NEON site",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"point","stroke":true,"color":"#333333","weight":1,"opacity":[0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9],"fill":true,"fillColor":["#30123B","#424AB3","#467EF4","#31AFF5","#18DAC7","#38F491","#83FF52","#BDF534","#E9D539","#FEAA33","#F8721C","#E03F08","#B61C02","#7A0403"],"fillOpacity":[0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6,0.6]},null,null,["<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>ABBY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 55&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>2&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>DEJU&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 87&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>3&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>DSNY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 46&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>4&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>HEAL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 29&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>5&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>JERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 50&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>6&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>MOAB&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 11&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>7&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>NIWO&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 63&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>8&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>ONAQ&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>  1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>9&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>OSBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 71&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>10&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>RMNP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 29&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>11&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>SOAP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 71&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>12&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TALL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 54&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>13&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TEAK&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>120&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>14&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>YELL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 83&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["ABBY","DEJU","DSNY","HEAL","JERC","MOAB","NIWO","ONAQ","OSBS","RMNP","SOAP","TALL","TEAK","YELL"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"NEON site",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]}],"limits":{"lat":[28.08222958823529,63.87322733333333],"lng":[-149.2856364285714,-81.40931664705882]},"fitBounds":[28.08222958823529,-149.2856364285714,63.87322733333333,-81.40931664705882,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
 <p>that’s pretty good geographic coverage and in places that we expect to have conifers ;D</p>
 </div>
 <div id="example-validation-process" class="section level2 hasAnchor" number="3.3">
@@ -1153,10 +1167,10 @@ HEAL
 <span id="cb67-19"><a href="validate-tree-detection-and-crown-delineation.html#cb67-19" tabindex="-1"></a>return_sf <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 36
 ## Columns: 7
-## $ xmin      &lt;dbl&gt; 314489.2, 314481.0, 314481.2, 314457.0, 314459.0, 314456.0, …
-## $ xmax      &lt;dbl&gt; 314490.2, 314483.2, 314491.5, 314458.8, 314463.2, 314457.5, …
-## $ ymin      &lt;dbl&gt; 4099619, 4099617, 4099606, 4099609, 4099608, 4099608, 409960…
-## $ ymax      &lt;dbl&gt; 4099620, 4099620, 4099617, 4099612, 4099612, 4099610, 409961…
+## $ xmin      &lt;dbl&gt; 314489.2, 314481.0, 314456.0, 314489.8, 314481.2, 314457.0, …
+## $ xmax      &lt;dbl&gt; 314490.2, 314483.2, 314463.2, 314496.0, 314491.5, 314458.8, …
+## $ ymin      &lt;dbl&gt; 4099619, 4099617, 4099611, 4099610, 4099606, 4099609, 409960…
+## $ ymax      &lt;dbl&gt; 4099620, 4099620, 4099620, 4099620, 4099619, 4099611, 409961…
 ## $ label     &lt;chr&gt; &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tre…
 ## $ plot_name &lt;chr&gt; &quot;2018_TEAK_3_314000_4099000_image_334&quot;, &quot;2018_TEAK_3_314000_…
 ## $ geometry  &lt;POLYGON&gt; POLYGON ((314489.2 4099620,..., POLYGON ((314481 4099620…</code></pre>
@@ -1294,7 +1308,7 @@ HEAL
 <span id="cb87-32"><a href="validate-tree-detection-and-crown-delineation.html#cb87-32" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">select</span>(xmin,xmax,ymin,ymax,label,plot_name) <span class="sc">%&gt;%</span> </span>
 <span id="cb87-33"><a href="validate-tree-detection-and-crown-delineation.html#cb87-33" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">st_set_crs</span>(<span class="cn">NA</span>)</span>
 <span id="cb87-34"><a href="validate-tree-detection-and-crown-delineation.html#cb87-34" tabindex="-1"></a>  <span class="co"># give the workers a rest</span></span>
-<span id="cb87-35"><a href="validate-tree-detection-and-crown-delineation.html#cb87-35" tabindex="-1"></a>  <span class="fu">Sys.sleep</span>(<span class="dv">2</span>)</span>
+<span id="cb87-35"><a href="validate-tree-detection-and-crown-delineation.html#cb87-35" tabindex="-1"></a>  <span class="fu">Sys.sleep</span>(<span class="dv">3</span>)</span>
 <span id="cb87-36"><a href="validate-tree-detection-and-crown-delineation.html#cb87-36" tabindex="-1"></a>  <span class="fu">return</span>(return_sf)</span>
 <span id="cb87-37"><a href="validate-tree-detection-and-crown-delineation.html#cb87-37" tabindex="-1"></a>}</span></code></pre></div>
 </div>
@@ -1308,7 +1322,7 @@ HEAL
 <span id="cb88-5"><a href="validate-tree-detection-and-crown-delineation.html#cb88-5" tabindex="-1"></a><span class="co"># if(T){</span></span>
 <span id="cb88-6"><a href="validate-tree-detection-and-crown-delineation.html#cb88-6" tabindex="-1"></a>  my_submission <span class="ot">&lt;-</span> </span>
 <span id="cb88-7"><a href="validate-tree-detection-and-crown-delineation.html#cb88-7" tabindex="-1"></a>    <span class="co"># 1:nrow(lidar_df) %&gt;% # uncomment this when it gets real</span></span>
-<span id="cb88-8"><a href="validate-tree-detection-and-crown-delineation.html#cb88-8" tabindex="-1"></a>    <span class="fu">sample</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(lidar_df), <span class="at">size =</span> <span class="dv">111</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb88-8"><a href="validate-tree-detection-and-crown-delineation.html#cb88-8" tabindex="-1"></a>    <span class="fu">sample</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(lidar_df), <span class="at">size =</span> <span class="dv">222</span>) <span class="sc">%&gt;%</span> </span>
 <span id="cb88-9"><a href="validate-tree-detection-and-crown-delineation.html#cb88-9" tabindex="-1"></a>    purrr<span class="sc">::</span><span class="fu">map</span>(\(x) </span>
 <span id="cb88-10"><a href="validate-tree-detection-and-crown-delineation.html#cb88-10" tabindex="-1"></a>      <span class="fu">cloud2trees_for_eval</span>(</span>
 <span id="cb88-11"><a href="validate-tree-detection-and-crown-delineation.html#cb88-11" tabindex="-1"></a>        <span class="at">lidar_df_row =</span> x</span>
@@ -1324,15 +1338,15 @@ HEAL
 <span id="cb88-21"><a href="validate-tree-detection-and-crown-delineation.html#cb88-21" tabindex="-1"></a>}</span></code></pre></div>
 <p>what did we get?</p>
 <div class="sourceCode" id="cb89"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb89-1"><a href="validate-tree-detection-and-crown-delineation.html#cb89-1" tabindex="-1"></a>my_submission <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
-<pre><code>## Rows: 4,659
+<pre><code>## Rows: 9,547
 ## Columns: 7
-## $ xmin      &lt;dbl&gt; 535925.0, 535924.0, 535921.8, 535910.0, 535922.5, 535916.0, …
-## $ xmax      &lt;dbl&gt; 535926.2, 535925.5, 535923.0, 535912.2, 535923.8, 535920.2, …
-## $ ymin      &lt;dbl&gt; 4978103, 4978102, 4978103, 4978096, 4978095, 4978089, 497809…
-## $ ymax      &lt;dbl&gt; 4978104, 4978104, 4978104, 4978098, 4978097, 4978095, 497809…
+## $ xmin      &lt;dbl&gt; 553118.8, 553114.0, 553114.5, 553119.0, 553102.2, 553102.5, …
+## $ xmax      &lt;dbl&gt; 553120.0, 553115.5, 553115.8, 553119.8, 553103.0, 553103.2, …
+## $ ymin      &lt;dbl&gt; 5065836, 5065821, 5065821, 5065819, 5065812, 5065812, 410758…
+## $ ymax      &lt;dbl&gt; 5065837, 5065823, 5065823, 5065819, 5065813, 5065812, 410758…
 ## $ label     &lt;chr&gt; &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tree&quot;, &quot;Tre…
-## $ plot_name &lt;chr&gt; &quot;YELL_057_2019&quot;, &quot;YELL_057_2019&quot;, &quot;YELL_057_2019&quot;, &quot;YELL_057…
-## $ geom      &lt;POLYGON&gt; POLYGON ((535925 4978104, 5..., POLYGON ((535924 4978104…</code></pre>
+## $ plot_name &lt;chr&gt; &quot;ABBY_021_2019&quot;, &quot;ABBY_021_2019&quot;, &quot;ABBY_021_2019&quot;, &quot;ABBY_021…
+## $ geom      &lt;POLYGON&gt; POLYGON ((553119.2 5065837,..., POLYGON ((553114.8 50658…</code></pre>
 <p>trees detected by plot</p>
 <div class="sourceCode" id="cb91"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb91-1"><a href="validate-tree-detection-and-crown-delineation.html#cb91-1" tabindex="-1"></a>my_submission <span class="sc">%&gt;%</span> </span>
 <span id="cb91-2"><a href="validate-tree-detection-and-crown-delineation.html#cb91-2" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span> </span>
@@ -1358,74 +1372,90 @@ n
 <tbody>
 <tr>
 <td style="text-align:left;">
-2018_TEAK_3_319000_4095000_image_175
+2018_TEAK_3_318000_4107000_image_416
 </td>
 <td style="text-align:right;">
-10
+9
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-ABBY_027_2018
+2018_TEAK_3_318000_4107000_image_718
 </td>
 <td style="text-align:right;">
-44
+1
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-DEJU_019_2018
+DEJU_029_2018
 </td>
 <td style="text-align:right;">
-73
+3
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-JERC_003_2018
+JERC_036_2018
 </td>
 <td style="text-align:right;">
-48
+67
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-JERC_006_2018
+NIWO_017_2018
 </td>
 <td style="text-align:right;">
-34
+109
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-JERC_047_2018
+OSBS_009_2018
 </td>
 <td style="text-align:right;">
-56
+43
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-NIWO_002_2020
+OSBS_029_2019
 </td>
 <td style="text-align:right;">
-126
+95
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-RMNP_009_2018
+OSBS_051_2019
 </td>
 <td style="text-align:right;">
-68
+15
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-RMNP_013_2018
+SOAP_009_2019
 </td>
 <td style="text-align:right;">
-31
+47
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+SOAP_024_2019
+</td>
+<td style="text-align:right;">
+45
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+SOAP_045_2019
+</td>
+<td style="text-align:right;">
+24
 </td>
 </tr>
 <tr>
@@ -1438,34 +1468,18 @@ TALL_007_2019
 </tr>
 <tr>
 <td style="text-align:left;">
-TALL_022_2019
+TEAK_030_2018
 </td>
 <td style="text-align:right;">
-35
+7
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-TALL_030_2018
+YELL_051_2018
 </td>
 <td style="text-align:right;">
-26
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-TEAK_051_2019
-</td>
-<td style="text-align:right;">
-39
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-YELL_045_2018
-</td>
-<td style="text-align:right;">
-28
+6
 </td>
 </tr>
 </tbody>
@@ -1483,7 +1497,6 @@ YELL_045_2018
 <span id="cb92-3"><a href="validate-tree-detection-and-crown-delineation.html#cb92-3" tabindex="-1"></a>  , <span class="at">show =</span> F</span>
 <span id="cb92-4"><a href="validate-tree-detection-and-crown-delineation.html#cb92-4" tabindex="-1"></a>  , <span class="at">summarize =</span> T</span>
 <span id="cb92-5"><a href="validate-tree-detection-and-crown-delineation.html#cb92-5" tabindex="-1"></a>)</span></code></pre></div>
-<p>in the plot (if there is a plot), “red” boxes are crowns our point cloud-based method extracted and “black” are the image annotated crowns</p>
 <p><code>overall</code>: must be across all NEON sites, plots, and trees included for evaluation</p>
 <div class="sourceCode" id="cb93"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb93-1"><a href="validate-tree-detection-and-crown-delineation.html#cb93-1" tabindex="-1"></a>rslt_img_annttd_crwns<span class="sc">$</span>overall <span class="sc">%&gt;%</span> </span>
 <span id="cb93-2"><a href="validate-tree-detection-and-crown-delineation.html#cb93-2" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kbl</span>(</span>
@@ -1508,10 +1521,10 @@ recall
 <tbody>
 <tr>
 <td style="text-align:right;">
-0.313
+0.301
 </td>
 <td style="text-align:right;">
-0.423
+0.42
 </td>
 </tr>
 </tbody>
@@ -1543,13 +1556,24 @@ precision
 <tbody>
 <tr>
 <td style="text-align:left;">
+ABBY
+</td>
+<td style="text-align:right;">
+0.702
+</td>
+<td style="text-align:right;">
+0.541
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
 DSNY
 </td>
 <td style="text-align:right;">
-0.857
+1.000
 </td>
 <td style="text-align:right;">
-0.480
+0.250
 </td>
 </tr>
 <tr>
@@ -1557,10 +1581,10 @@ DSNY
 JERC
 </td>
 <td style="text-align:right;">
-0.424
+0.857
 </td>
 <td style="text-align:right;">
-0.301
+0.316
 </td>
 </tr>
 <tr>
@@ -1568,10 +1592,10 @@ JERC
 NIWO
 </td>
 <td style="text-align:right;">
-0.123
+0.274
 </td>
 <td style="text-align:right;">
-0.237
+0.353
 </td>
 </tr>
 <tr>
@@ -1579,10 +1603,21 @@ NIWO
 OSBS
 </td>
 <td style="text-align:right;">
-0.456
+0.469
 </td>
 <td style="text-align:right;">
-0.356
+0.303
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+SOAP
+</td>
+<td style="text-align:right;">
+0.220
+</td>
+<td style="text-align:right;">
+0.224
 </td>
 </tr>
 <tr>
@@ -1590,10 +1625,10 @@ OSBS
 TALL
 </td>
 <td style="text-align:right;">
-0.258
+0.241
 </td>
 <td style="text-align:right;">
-0.400
+0.359
 </td>
 </tr>
 <tr>
@@ -1601,10 +1636,10 @@ TALL
 TEAK
 </td>
 <td style="text-align:right;">
-0.245
+0.365
 </td>
 <td style="text-align:right;">
-0.267
+0.316
 </td>
 </tr>
 </tbody>
@@ -1639,13 +1674,13 @@ precision
 <tbody>
 <tr>
 <td style="text-align:left;">
-2018_TEAK_3_316000_4093000_image_59
+2018_TEAK_3_314000_4099000_image_334
 </td>
 <td style="text-align:right;">
-0.209
+0.240
 </td>
 <td style="text-align:right;">
-0.290
+0.261
 </td>
 </tr>
 <tr>
@@ -1661,112 +1696,123 @@ precision
 </tr>
 <tr>
 <td style="text-align:left;">
-2018_TEAK_3_319000_4095000_image_175
+2018_TEAK_3_318000_4107000_image_718
+</td>
+<td style="text-align:right;">
+0.000
+</td>
+<td style="text-align:right;">
+0.000
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+2018_TEAK_3_320000_4095000_image_616
+</td>
+<td style="text-align:right;">
+0.302
+</td>
+<td style="text-align:right;">
+0.381
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+2018_TEAK_3_322000_4096000_image_368
+</td>
+<td style="text-align:right;">
+0.286
+</td>
+<td style="text-align:right;">
+0.222
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DSNY_005_2018
+</td>
+<td style="text-align:right;">
+1.000
+</td>
+<td style="text-align:right;">
+0.250
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS_023_2019
+</td>
+<td style="text-align:right;">
+0.500
+</td>
+<td style="text-align:right;">
+0.105
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS_029_2019
+</td>
+<td style="text-align:right;">
+0.619
+</td>
+<td style="text-align:right;">
+0.411
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS_032_2019
+</td>
+<td style="text-align:right;">
+0.405
+</td>
+<td style="text-align:right;">
+0.238
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS_051_2019
 </td>
 <td style="text-align:right;">
 0.750
 </td>
 <td style="text-align:right;">
+0.400
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+SOAP_031_2019
+</td>
+<td style="text-align:right;">
+0.220
+</td>
+<td style="text-align:right;">
+0.224
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TEAK_049_2018
+</td>
+<td style="text-align:right;">
+0.440
+</td>
+<td style="text-align:right;">
+0.407
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TEAK_053_2018
+</td>
+<td style="text-align:right;">
 0.300
 </td>
-</tr>
-<tr>
-<td style="text-align:left;">
-DSNY_006_2018
-</td>
 <td style="text-align:right;">
-0.857
-</td>
-<td style="text-align:right;">
-0.480
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-JERC_047_2018
-</td>
-<td style="text-align:right;">
-0.682
-</td>
-<td style="text-align:right;">
-0.268
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-JERC_059_2018
-</td>
-<td style="text-align:right;">
-0.270
-</td>
-<td style="text-align:right;">
-0.370
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-NIWO_014_2018
-</td>
-<td style="text-align:right;">
-0.123
-</td>
-<td style="text-align:right;">
-0.237
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-OSBS_003_2019
-</td>
-<td style="text-align:right;">
-0.362
-</td>
-<td style="text-align:right;">
-0.373
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-OSBS_022_2019
-</td>
-<td style="text-align:right;">
-0.000
-</td>
-<td style="text-align:right;">
-0.000
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-OSBS_028_2019
-</td>
-<td style="text-align:right;">
-0.600
-</td>
-<td style="text-align:right;">
-0.382
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-OSBS_039_2019
-</td>
-<td style="text-align:right;">
-0.552
-</td>
-<td style="text-align:right;">
-0.444
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-TALL_017_2019
-</td>
-<td style="text-align:right;">
-0.258
-</td>
-<td style="text-align:right;">
-0.400
+0.375
 </td>
 </tr>
 <tr>
@@ -1791,7 +1837,7 @@ TEAK_061_2018
 <span id="cb96-3"><a href="validate-tree-detection-and-crown-delineation.html#cb96-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> </span>
 <span id="cb96-4"><a href="validate-tree-detection-and-crown-delineation.html#cb96-4" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">distinct</span>(plot_name) <span class="sc">%&gt;%</span> </span>
 <span id="cb96-5"><a href="validate-tree-detection-and-crown-delineation.html#cb96-5" tabindex="-1"></a>  <span class="fu">nrow</span>()</span></code></pre></div>
-<pre><code>## [1] 13</code></pre>
+<pre><code>## [1] 31</code></pre>
 <p>how many plots were evaluated using <code>cloud2trees::cloud2trees()</code> by NEON site?</p>
 <div class="sourceCode" id="cb98"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb98-1"><a href="validate-tree-detection-and-crown-delineation.html#cb98-1" tabindex="-1"></a>img_annttd_crwn_plots_temp <span class="ot">&lt;-</span> lidar_df <span class="sc">%&gt;%</span> </span>
 <span id="cb98-2"><a href="validate-tree-detection-and-crown-delineation.html#cb98-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">inner_join</span>(</span>
@@ -1827,26 +1873,34 @@ n
 <tbody>
 <tr>
 <td style="text-align:left;">
-OSBS
-</td>
-<td style="text-align:right;">
-4
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
 TEAK
 </td>
 <td style="text-align:right;">
-4
+17
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-JERC
+OSBS
 </td>
 <td style="text-align:right;">
-2
+6
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NIWO
+</td>
+<td style="text-align:right;">
+3
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ABBY
+</td>
+<td style="text-align:right;">
+1
 </td>
 </tr>
 <tr>
@@ -1859,7 +1913,15 @@ DSNY
 </tr>
 <tr>
 <td style="text-align:left;">
-NIWO
+JERC
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+SOAP
 </td>
 <td style="text-align:right;">
 1
@@ -1882,8 +1944,8 @@ TALL
 <span id="cb99-4"><a href="validate-tree-detection-and-crown-delineation.html#cb99-4" tabindex="-1"></a>    <span class="at">cex =</span> <span class="st">&quot;n&quot;</span>, <span class="at">legend =</span> F</span>
 <span id="cb99-5"><a href="validate-tree-detection-and-crown-delineation.html#cb99-5" tabindex="-1"></a>    , <span class="at">layer.name =</span> <span class="st">&quot;NEON site&quot;</span></span>
 <span id="cb99-6"><a href="validate-tree-detection-and-crown-delineation.html#cb99-6" tabindex="-1"></a>  )</span></code></pre></div>
-<div class="leaflet html-widget html-fill-item" id="htmlwidget-1f444842597a82ab7650" style="width:1008px;height:672px;"></div>
-<script type="application/json" data-for="htmlwidget-1f444842597a82ab7650">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["point",440]},{"method":"addCircleMarkers","args":[[28.08222958823529,31.19748024733096,40.04172801108648,29.69109949456522,32.94875689412314,37.00258338164251],[-81.40931664705882,-84.46601650711743,-105.5650561036585,-81.98834036801242,-87.39915964505597,-119.0076350660226],[3,7,3,15,3,15],null,"NEON site",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"point","stroke":true,"color":"#333333","weight":1,"opacity":0.9,"fill":true,"fillColor":"#6666FF","fillOpacity":0.6},null,null,["<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>DSNY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>2&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>JERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>2&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>3&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>NIWO&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>4&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>OSBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>4&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>5&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TALL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>6&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TEAK&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>4&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["1","2","3","4","5","6"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"NEON site",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]}],"limits":{"lat":[28.08222958823529,40.04172801108648],"lng":[-119.0076350660226,-81.40931664705882]},"fitBounds":[28.08222958823529,-119.0076350660226,40.04172801108648,-81.40931664705882,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-7ac9cf48a77f5ed14530" style="width:1008px;height:672px;"></div>
+<script type="application/json" data-for="htmlwidget-7ac9cf48a77f5ed14530">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["point",440]},{"method":"addCircleMarkers","args":[[45.76170271641791,28.08222958823529,31.19748024733096,40.04172801108648,29.69109949456522,37.03389210536779,32.94875689412314,37.00258338164251],[-122.3339110559701,-81.40931664705882,-84.46601650711743,-105.5650561036585,-81.98834036801242,-119.2642730019881,-87.39915964505597,-119.0076350660226],[3,3,3,4.5,6.75,3,3,15],null,"NEON site",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"point","stroke":true,"color":"#333333","weight":1,"opacity":0.9,"fill":true,"fillColor":"#6666FF","fillOpacity":0.6},null,null,["<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>ABBY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>2&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>DSNY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>3&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>JERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>4&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>NIWO&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 3&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>5&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>OSBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 6&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>6&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>SOAP&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>7&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TALL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>8&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TEAK&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>17&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["1","2","3","4","5","6","7","8"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"NEON site",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]}],"limits":{"lat":[28.08222958823529,45.76170271641791],"lng":[-122.3339110559701,-81.40931664705882]},"fitBounds":[28.08222958823529,-122.3339110559701,45.76170271641791,-81.40931664705882,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
 <p>let’s review some figures comparing the image-annotated crowns versus the bounding box of our delineated crown polygons</p>
 <p><em>in the RGB plots: “red” boxes are crowns from our point cloud-based method extracted and “black” are the image annotated crowns</em></p>
 <div class="sourceCode" id="cb100"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb100-1"><a href="validate-tree-detection-and-crown-delineation.html#cb100-1" tabindex="-1"></a>rslt_img_annttd_crwns<span class="sc">$</span>plot_level <span class="sc">%&gt;%</span> </span>
@@ -1926,7 +1988,467 @@ TALL
 <h4><span class="header-section-number">3.4.3.3</span> Scores for an field-collected stems<a href="validate-tree-detection-and-crown-delineation.html#scores-for-an-field-collected-stems-1" class="anchor-section" aria-label="Anchor link to header"></a></h4>
 <p>The third data source is the NEON Woody Vegetation Structure Dataset. Each tree stem is represented by a single point. This data has been filtered to represent overstory trees visible in the remote sensing imagery.</p>
 <p><em>not all plots have field-collected stems</em></p>
-<p><code>NeonTreeEvaluation::evaluate_field_stems()</code> returns an error if “No submitted plot_names with matching field stem data, see list_field_stems()”… so, we’ll have to capture errors in our checks?</p>
+<p><em>in testing, including the <code>sf</code> polygon data did not work…switching to the bbox method with <code>sf::st_drop_geometry()</code></em></p>
+<div class="sourceCode" id="cb103"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb103-1"><a href="validate-tree-detection-and-crown-delineation.html#cb103-1" tabindex="-1"></a>rslt_fld_stems <span class="ot">&lt;-</span> <span class="fu">evaluate_field_stems</span>(</span>
+<span id="cb103-2"><a href="validate-tree-detection-and-crown-delineation.html#cb103-2" tabindex="-1"></a>  <span class="at">predictions =</span> my_submission <span class="sc">%&gt;%</span> sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>()</span>
+<span id="cb103-3"><a href="validate-tree-detection-and-crown-delineation.html#cb103-3" tabindex="-1"></a>  , <span class="at">show =</span> F</span>
+<span id="cb103-4"><a href="validate-tree-detection-and-crown-delineation.html#cb103-4" tabindex="-1"></a>  , <span class="at">summarize =</span> T</span>
+<span id="cb103-5"><a href="validate-tree-detection-and-crown-delineation.html#cb103-5" tabindex="-1"></a>)</span></code></pre></div>
+<p><code>overall</code>: must be across all NEON sites, plots, and trees included for evaluation</p>
+<div class="sourceCode" id="cb104"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb104-1"><a href="validate-tree-detection-and-crown-delineation.html#cb104-1" tabindex="-1"></a>rslt_fld_stems<span class="sc">$</span>overall <span class="sc">%&gt;%</span> </span>
+<span id="cb104-2"><a href="validate-tree-detection-and-crown-delineation.html#cb104-2" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kbl</span>(</span>
+<span id="cb104-3"><a href="validate-tree-detection-and-crown-delineation.html#cb104-3" tabindex="-1"></a>    <span class="at">caption =</span> <span class="st">&quot;Overall: cloud2trees ITD performance versus field-collected stems&quot;</span></span>
+<span id="cb104-4"><a href="validate-tree-detection-and-crown-delineation.html#cb104-4" tabindex="-1"></a>    , <span class="at">digits =</span> <span class="dv">3</span></span>
+<span id="cb104-5"><a href="validate-tree-detection-and-crown-delineation.html#cb104-5" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb104-6"><a href="validate-tree-detection-and-crown-delineation.html#cb104-6" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+<span id="tab:unnamed-chunk-88">Table 3.9: </span>Overall: cloud2trees ITD performance versus field-collected stems
+</caption>
+<thead>
+<tr>
+<th style="text-align:right;">
+recall
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right;">
+0.776
+</td>
+</tr>
+</tbody>
+</table>
+<p><code>by_site</code>: must be across plots, and trees included for evaluation in a NEON sites</p>
+<div class="sourceCode" id="cb105"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb105-1"><a href="validate-tree-detection-and-crown-delineation.html#cb105-1" tabindex="-1"></a>rslt_fld_stems<span class="sc">$</span>by_site <span class="sc">%&gt;%</span> </span>
+<span id="cb105-2"><a href="validate-tree-detection-and-crown-delineation.html#cb105-2" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kbl</span>(</span>
+<span id="cb105-3"><a href="validate-tree-detection-and-crown-delineation.html#cb105-3" tabindex="-1"></a>    <span class="at">caption =</span> <span class="st">&quot;NEON site-level: cloud2trees ITD performance versus field-collected stems&quot;</span></span>
+<span id="cb105-4"><a href="validate-tree-detection-and-crown-delineation.html#cb105-4" tabindex="-1"></a>    , <span class="at">digits =</span> <span class="dv">3</span></span>
+<span id="cb105-5"><a href="validate-tree-detection-and-crown-delineation.html#cb105-5" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb105-6"><a href="validate-tree-detection-and-crown-delineation.html#cb105-6" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+<span id="tab:unnamed-chunk-89">Table 3.10: </span>NEON site-level: cloud2trees ITD performance versus field-collected stems
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Site
+</th>
+<th style="text-align:right;">
+recall
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+ABBY
+</td>
+<td style="text-align:right;">
+0.333
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DEJU
+</td>
+<td style="text-align:right;">
+0.885
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+JERC
+</td>
+<td style="text-align:right;">
+0.743
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+MOAB
+</td>
+<td style="text-align:right;">
+0.909
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NIWO
+</td>
+<td style="text-align:right;">
+0.501
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS
+</td>
+<td style="text-align:right;">
+0.914
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TALL
+</td>
+<td style="text-align:right;">
+0.667
+</td>
+</tr>
+</tbody>
+</table>
+<p><code>plot_level</code>: must be across trees included for evaluation in a NEON site, plot combination</p>
+<div class="sourceCode" id="cb106"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb106-1"><a href="validate-tree-detection-and-crown-delineation.html#cb106-1" tabindex="-1"></a>rslt_fld_stems<span class="sc">$</span>plot_level <span class="sc">%&gt;%</span> </span>
+<span id="cb106-2"><a href="validate-tree-detection-and-crown-delineation.html#cb106-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb106-3"><a href="validate-tree-detection-and-crown-delineation.html#cb106-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">slice_sample</span>(<span class="at">n=</span><span class="dv">14</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb106-4"><a href="validate-tree-detection-and-crown-delineation.html#cb106-4" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(plot_name) <span class="sc">%&gt;%</span> </span>
+<span id="cb106-5"><a href="validate-tree-detection-and-crown-delineation.html#cb106-5" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kbl</span>(</span>
+<span id="cb106-6"><a href="validate-tree-detection-and-crown-delineation.html#cb106-6" tabindex="-1"></a>    <span class="at">caption =</span> <span class="st">&quot;NEON plot-level: cloud2trees ITD performance versus field-collected stems&quot;</span></span>
+<span id="cb106-7"><a href="validate-tree-detection-and-crown-delineation.html#cb106-7" tabindex="-1"></a>    , <span class="at">digits =</span> <span class="dv">3</span></span>
+<span id="cb106-8"><a href="validate-tree-detection-and-crown-delineation.html#cb106-8" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb106-9"><a href="validate-tree-detection-and-crown-delineation.html#cb106-9" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+<span id="tab:unnamed-chunk-90">Table 3.11: </span>NEON plot-level: cloud2trees ITD performance versus field-collected stems
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+siteID
+</th>
+<th style="text-align:left;">
+plot_name
+</th>
+<th style="text-align:right;">
+recall
+</th>
+<th style="text-align:right;">
+n
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+DEJU
+</td>
+<td style="text-align:left;">
+DEJU_014
+</td>
+<td style="text-align:right;">
+0.714
+</td>
+<td style="text-align:right;">
+7
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DEJU
+</td>
+<td style="text-align:left;">
+DEJU_016
+</td>
+<td style="text-align:right;">
+1.000
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DEJU
+</td>
+<td style="text-align:left;">
+DEJU_062
+</td>
+<td style="text-align:right;">
+0.667
+</td>
+<td style="text-align:right;">
+3
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+JERC
+</td>
+<td style="text-align:left;">
+JERC_051
+</td>
+<td style="text-align:right;">
+0.714
+</td>
+<td style="text-align:right;">
+7
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NIWO
+</td>
+<td style="text-align:left;">
+NIWO_005
+</td>
+<td style="text-align:right;">
+0.571
+</td>
+<td style="text-align:right;">
+14
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NIWO
+</td>
+<td style="text-align:left;">
+NIWO_007
+</td>
+<td style="text-align:right;">
+0.407
+</td>
+<td style="text-align:right;">
+54
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NIWO
+</td>
+<td style="text-align:left;">
+NIWO_010
+</td>
+<td style="text-align:right;">
+0.622
+</td>
+<td style="text-align:right;">
+37
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NIWO
+</td>
+<td style="text-align:left;">
+NIWO_040
+</td>
+<td style="text-align:right;">
+0.450
+</td>
+<td style="text-align:right;">
+40
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS
+</td>
+<td style="text-align:left;">
+OSBS_009
+</td>
+<td style="text-align:right;">
+0.800
+</td>
+<td style="text-align:right;">
+5
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS
+</td>
+<td style="text-align:left;">
+OSBS_026
+</td>
+<td style="text-align:right;">
+0.833
+</td>
+<td style="text-align:right;">
+18
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS
+</td>
+<td style="text-align:left;">
+OSBS_029
+</td>
+<td style="text-align:right;">
+0.750
+</td>
+<td style="text-align:right;">
+20
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS
+</td>
+<td style="text-align:left;">
+OSBS_035
+</td>
+<td style="text-align:right;">
+1.167
+</td>
+<td style="text-align:right;">
+12
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+OSBS
+</td>
+<td style="text-align:left;">
+OSBS_038
+</td>
+<td style="text-align:right;">
+0.722
+</td>
+<td style="text-align:right;">
+18
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TALL
+</td>
+<td style="text-align:left;">
+TALL_050
+</td>
+<td style="text-align:right;">
+0.667
+</td>
+<td style="text-align:right;">
+24
+</td>
+</tr>
+</tbody>
+</table>
+<p>how many plots did we evaluate that met all criteria?:</p>
+<p><em>had point cloud data in the benchmark
+</em>was from a NEON site with primarily conifer trees
+*had field-collected stems for evaluation</p>
+<div class="sourceCode" id="cb107"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb107-1"><a href="validate-tree-detection-and-crown-delineation.html#cb107-1" tabindex="-1"></a><span class="co"># how many plots did we evaluate that met all criteria?</span></span>
+<span id="cb107-2"><a href="validate-tree-detection-and-crown-delineation.html#cb107-2" tabindex="-1"></a>rslt_fld_stems<span class="sc">$</span>plot_level <span class="sc">%&gt;%</span> </span>
+<span id="cb107-3"><a href="validate-tree-detection-and-crown-delineation.html#cb107-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb107-4"><a href="validate-tree-detection-and-crown-delineation.html#cb107-4" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">distinct</span>(plot_name) <span class="sc">%&gt;%</span> </span>
+<span id="cb107-5"><a href="validate-tree-detection-and-crown-delineation.html#cb107-5" tabindex="-1"></a>  <span class="fu">nrow</span>()</span></code></pre></div>
+<pre><code>## [1] 43</code></pre>
+<p>how many plots were evaluated using <code>cloud2trees::cloud2trees()</code> by NEON site?</p>
+<div class="sourceCode" id="cb109"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb109-1"><a href="validate-tree-detection-and-crown-delineation.html#cb109-1" tabindex="-1"></a>fld_stems_plots_temp <span class="ot">&lt;-</span></span>
+<span id="cb109-2"><a href="validate-tree-detection-and-crown-delineation.html#cb109-2" tabindex="-1"></a>  lidar_df <span class="sc">%&gt;%</span> </span>
+<span id="cb109-3"><a href="validate-tree-detection-and-crown-delineation.html#cb109-3" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb109-4"><a href="validate-tree-detection-and-crown-delineation.html#cb109-4" tabindex="-1"></a>      <span class="at">sht_plt =</span> plot_name <span class="sc">%&gt;%</span> </span>
+<span id="cb109-5"><a href="validate-tree-detection-and-crown-delineation.html#cb109-5" tabindex="-1"></a>        stringr<span class="sc">::</span><span class="fu">str_extract</span>(</span>
+<span id="cb109-6"><a href="validate-tree-detection-and-crown-delineation.html#cb109-6" tabindex="-1"></a>          rslt_fld_stems<span class="sc">$</span>plot_level <span class="sc">%&gt;%</span> </span>
+<span id="cb109-7"><a href="validate-tree-detection-and-crown-delineation.html#cb109-7" tabindex="-1"></a>            dplyr<span class="sc">::</span><span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb109-8"><a href="validate-tree-detection-and-crown-delineation.html#cb109-8" tabindex="-1"></a>            dplyr<span class="sc">::</span><span class="fu">distinct</span>(plot_name) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-9"><a href="validate-tree-detection-and-crown-delineation.html#cb109-9" tabindex="-1"></a>            dplyr<span class="sc">::</span><span class="fu">pull</span>(plot_name) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-10"><a href="validate-tree-detection-and-crown-delineation.html#cb109-10" tabindex="-1"></a>            <span class="fu">paste</span>(<span class="at">collapse =</span> <span class="st">&quot;|&quot;</span>)</span>
+<span id="cb109-11"><a href="validate-tree-detection-and-crown-delineation.html#cb109-11" tabindex="-1"></a>        )</span>
+<span id="cb109-12"><a href="validate-tree-detection-and-crown-delineation.html#cb109-12" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-13"><a href="validate-tree-detection-and-crown-delineation.html#cb109-13" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(sht_plt)) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-14"><a href="validate-tree-detection-and-crown-delineation.html#cb109-14" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">group_by</span>(siteID,sht_plt) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-15"><a href="validate-tree-detection-and-crown-delineation.html#cb109-15" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">summarise</span>(<span class="at">n=</span>dplyr<span class="sc">::</span><span class="fu">n</span>()) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-16"><a href="validate-tree-detection-and-crown-delineation.html#cb109-16" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb109-17"><a href="validate-tree-detection-and-crown-delineation.html#cb109-17" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">rename</span>(<span class="at">plot_name=</span>sht_plt)</span>
+<span id="cb109-18"><a href="validate-tree-detection-and-crown-delineation.html#cb109-18" tabindex="-1"></a><span class="co"># plots evaluated by neon site</span></span>
+<span id="cb109-19"><a href="validate-tree-detection-and-crown-delineation.html#cb109-19" tabindex="-1"></a>fld_stems_plots_temp <span class="sc">%&gt;%</span> </span>
+<span id="cb109-20"><a href="validate-tree-detection-and-crown-delineation.html#cb109-20" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb109-21"><a href="validate-tree-detection-and-crown-delineation.html#cb109-21" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(siteID) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-22"><a href="validate-tree-detection-and-crown-delineation.html#cb109-22" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(<span class="fu">desc</span>(n)) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-23"><a href="validate-tree-detection-and-crown-delineation.html#cb109-23" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kbl</span>(</span>
+<span id="cb109-24"><a href="validate-tree-detection-and-crown-delineation.html#cb109-24" tabindex="-1"></a>    <span class="at">caption =</span> <span class="st">&quot;Number of 40m x 40m plots with field-collected stems evaluated using cloud2trees by NEON site&quot;</span></span>
+<span id="cb109-25"><a href="validate-tree-detection-and-crown-delineation.html#cb109-25" tabindex="-1"></a>    , <span class="at">digits =</span> <span class="dv">3</span></span>
+<span id="cb109-26"><a href="validate-tree-detection-and-crown-delineation.html#cb109-26" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb109-27"><a href="validate-tree-detection-and-crown-delineation.html#cb109-27" tabindex="-1"></a>  kableExtra<span class="sc">::</span><span class="fu">kable_styling</span>()</span></code></pre></div>
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+<span id="tab:unnamed-chunk-92">Table 3.12: </span>Number of 40m x 40m plots with field-collected stems evaluated using cloud2trees by NEON site
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+siteID
+</th>
+<th style="text-align:right;">
+n
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+OSBS
+</td>
+<td style="text-align:right;">
+16
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+DEJU
+</td>
+<td style="text-align:right;">
+9
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NIWO
+</td>
+<td style="text-align:right;">
+9
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+JERC
+</td>
+<td style="text-align:right;">
+5
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+TALL
+</td>
+<td style="text-align:right;">
+2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+ABBY
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+MOAB
+</td>
+<td style="text-align:right;">
+1
+</td>
+</tr>
+</tbody>
+</table>
+<p>where are these NEON sites evaluated using <code>cloud2trees::cloud2trees()</code>?</p>
+<div class="sourceCode" id="cb110"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb110-1"><a href="validate-tree-detection-and-crown-delineation.html#cb110-1" tabindex="-1"></a>fld_stems_plots_temp <span class="sc">%&gt;%</span> </span>
+<span id="cb110-2"><a href="validate-tree-detection-and-crown-delineation.html#cb110-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(siteID) <span class="sc">%&gt;%</span> </span>
+<span id="cb110-3"><a href="validate-tree-detection-and-crown-delineation.html#cb110-3" tabindex="-1"></a>  mapview<span class="sc">::</span><span class="fu">mapview</span>(</span>
+<span id="cb110-4"><a href="validate-tree-detection-and-crown-delineation.html#cb110-4" tabindex="-1"></a>    <span class="at">cex =</span> <span class="st">&quot;n&quot;</span>, <span class="at">legend =</span> F</span>
+<span id="cb110-5"><a href="validate-tree-detection-and-crown-delineation.html#cb110-5" tabindex="-1"></a>    , <span class="at">layer.name =</span> <span class="st">&quot;NEON site&quot;</span></span>
+<span id="cb110-6"><a href="validate-tree-detection-and-crown-delineation.html#cb110-6" tabindex="-1"></a>  )</span></code></pre></div>
+<div class="leaflet html-widget html-fill-item" id="htmlwidget-913026fe609adacd7796" style="width:1008px;height:672px;"></div>
+<script type="application/json" data-for="htmlwidget-913026fe609adacd7796">{"x":{"options":{"minZoom":1,"maxZoom":52,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"preferCanvas":false,"bounceAtZoomLimits":false,"maxBounds":[[[-90,-370]],[[90,370]]]},"calls":[{"method":"addProviderTiles","args":["OpenStreetMap","OpenStreetMap","OpenStreetMap",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"addProviderTiles","args":["Esri.WorldImagery","Esri.WorldImagery","Esri.WorldImagery",{"errorTileUrl":"","noWrap":false,"detectRetina":false,"pane":"tilePane"}]},{"method":"createMapPane","args":["point",440]},{"method":"addCircleMarkers","args":[[45.76170271641791,63.87034470520231,31.19748024733096,38.26231868965519,40.04172801108648,29.69109949456522,32.94875689412314],[-122.3339110559701,-145.7525825260116,-84.46601650711743,-109.3457485172414,-105.5650561036585,-81.98834036801242,-87.39915964505597],[3,9.4,6.2,3,9.4,15,3.8],null,"NEON site",{"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}},"pane":"point","stroke":true,"color":"#333333","weight":1,"opacity":0.9,"fill":true,"fillColor":"#6666FF","fillOpacity":0.6},null,null,["<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>1&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>ABBY&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>2&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>DEJU&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 9&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>3&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>JERC&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 5&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>4&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>MOAB&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 1&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>5&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>NIWO&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 9&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>6&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>OSBS&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td>16&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>","<div class='scrollableContainer'><table class=mapview-popup id='popup'><tr class='coord'><td><\/td><th><b>Feature ID&emsp;<\/b><\/th><td>7&emsp;<\/td><\/tr><tr><td>1<\/td><th>siteID&emsp;<\/th><td>TALL&emsp;<\/td><\/tr><tr><td>2<\/td><th>n&emsp;<\/th><td> 2&emsp;<\/td><\/tr><tr><td>3<\/td><th>geometry&emsp;<\/th><td>sfc_POINT&emsp;<\/td><\/tr><\/table><\/div>"],{"maxWidth":800,"minWidth":50,"autoPan":true,"keepInView":false,"closeButton":true,"closeOnClick":true,"className":""},["1","2","3","4","5","6","7"],{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]},{"method":"addLayersControl","args":[["OpenStreetMap","Esri.WorldImagery"],"NEON site",{"collapsed":true,"autoZIndex":true,"position":"topleft"}]}],"limits":{"lat":[29.69109949456522,63.87034470520231],"lng":[-145.7525825260116,-81.98834036801242]},"fitBounds":[29.69109949456522,-145.7525825260116,63.87034470520231,-81.98834036801242,[]]},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n      function(el, x, data) {\n      // get the leaflet map\n      var map = this; //HTMLWidgets.find('#' + el.id);\n      // we need a new div element because we have to handle\n      // the mouseover output separately\n      // debugger;\n      function addElement () {\n      // generate new div Element\n      var newDiv = $(document.createElement('div'));\n      // append at end of leaflet htmlwidget container\n      $(el).append(newDiv);\n      //provide ID and style\n      newDiv.addClass('lnlt');\n      newDiv.css({\n      'position': 'relative',\n      'bottomleft':  '0px',\n      'background-color': 'rgba(255, 255, 255, 0.7)',\n      'box-shadow': '0 0 2px #bbb',\n      'background-clip': 'padding-box',\n      'margin': '0',\n      'padding-left': '5px',\n      'color': '#333',\n      'font': '9px/1.5 \"Helvetica Neue\", Arial, Helvetica, sans-serif',\n      'z-index': '700',\n      });\n      return newDiv;\n      }\n\n\n      // check for already existing lnlt class to not duplicate\n      var lnlt = $(el).find('.lnlt');\n\n      if(!lnlt.length) {\n      lnlt = addElement();\n\n      // grab the special div we generated in the beginning\n      // and put the mousmove output there\n\n      map.on('mousemove', function (e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                           ' lon: ' + (e.latlng.lng).toFixed(5) +\n                           ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                           ' | zoom: ' + map.getZoom() +\n                           ' | x: ' + L.CRS.EPSG3857.project(e.latlng).x.toFixed(0) +\n                           ' | y: ' + L.CRS.EPSG3857.project(e.latlng).y.toFixed(0) +\n                           ' | epsg: 3857 ' +\n                           ' | proj4: +proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +no_defs ');\n      } else {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      }\n      });\n\n      // remove the lnlt div when mouse leaves map\n      map.on('mouseout', function (e) {\n      var strip = document.querySelector('.lnlt');\n      if( strip !==null) strip.remove();\n      });\n\n      };\n\n      //$(el).keypress(67, function(e) {\n      map.on('preclick', function(e) {\n      if (e.originalEvent.ctrlKey) {\n      if (document.querySelector('.lnlt') === null) lnlt = addElement();\n      lnlt.text(\n                      ' lon: ' + (e.latlng.lng).toFixed(5) +\n                      ' | lat: ' + (e.latlng.lat).toFixed(5) +\n                      ' | zoom: ' + map.getZoom() + ' ');\n      var txt = document.querySelector('.lnlt').textContent;\n      console.log(txt);\n      //txt.innerText.focus();\n      //txt.select();\n      setClipboardText('\"' + txt + '\"');\n      }\n      });\n\n      }\n      ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (function(el,x,data){\n           var map = this;\n\n           map.on('keypress', function(e) {\n               console.log(e.originalEvent.code);\n               var key = e.originalEvent.code;\n               if (key === 'KeyE') {\n                   var bb = this.getBounds();\n                   var txt = JSON.stringify(bb);\n                   console.log(txt);\n\n                   setClipboardText('\\'' + txt + '\\'');\n               }\n           })\n        }).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
 
 </div>
 </div>
