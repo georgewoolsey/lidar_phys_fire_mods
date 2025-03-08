@@ -253,7 +253,7 @@ treetops_sf <-
 
 # put it together
 cloud2trees_ans <- list(
-  crowns_sf = NULL
+  crowns_sf = crowns_sf
   , treetops_sf = treetops_sf
 )
 # remove
@@ -355,7 +355,7 @@ gc()
 
 The `trees_dbh()` function uses the [TreeMap](https://www.fs.usda.gov/rds/archive/catalog/RDS-2021-0074) FIA plot data in the area of the tree list to estimate the height-DBH allometry relationship. The height predicting DBH model built from the FIA data is then used to predict DBH based on tree height in the tree list.
 
-```{r, eval=FALSE}
+```{r}
 # where should we save the file?
 dbh_fnm <- "../data/point_cloud_processing_delivery/dbh_data.csv"
 # if we don't already have the data, run it
@@ -734,6 +734,7 @@ if(!file.exists(type_fnm)){
       , row.names = F, append = F
     )
 }else{
+  trees_type_ans <- list()
   # type data
   trees_type_ans$tree_list <- readr::read_csv(type_fnm, progress = F, show_col_types = F)
   # raster
@@ -903,6 +904,7 @@ if(!file.exists(biomass_fnm)){
   # run it
   trees_biomass_ans <- cloud2trees::trees_biomass(
     tree_list = treetops_sf
+    , method = c("cruz","landfire")
     , study_boundary = 
       sf::st_read("../data/point_cloud_processing_delivery/raw_las_ctg_info.gpkg") %>% 
         sf::st_union()
@@ -914,8 +916,13 @@ if(!file.exists(biomass_fnm)){
   trees_biomass_ans$tree_list %>% 
     sf::st_drop_geometry() %>% 
     write.csv(file = biomass_fnm, row.names = F, append = F)
-  # save raster
-  trees_biomass_ans$forestbiomass_rast %>% terra::writeRaster(biomass_rast_fnm, overwrite=T)
+  # save raster df
+  trees_biomass_ans$stand_cell_data_landfire %>% 
+    sf::st_drop_geometry() %>% 
+    write.csv(file = "../data/point_cloud_processing_delivery/stand_cell_data_landfire.csv", row.names = F, append = F)
+  trees_biomass_ans$stand_cell_data_cruz %>% 
+    sf::st_drop_geometry() %>% 
+    write.csv(file = "../data/point_cloud_processing_delivery/stand_cell_data_cruz.csv", row.names = F, append = F)
   # save tracking
   processing_data %>% 
     write.csv(
@@ -923,9 +930,13 @@ if(!file.exists(biomass_fnm)){
       , row.names = F, append = F
     )
 }else{
+  trees_biomass_ans <- list()
   # biomass data
-  trees_biomass_ans$tree_list <- readr::read_csv(biomass_fnm, progress = F, show_col_biomasss = F)
+  trees_biomass_ans$tree_list <- readr::read_csv(biomass_fnm, progress = F, show_col_types = F)
   # raster
-  trees_biomass_ans$forestbiomass_rast <- terra::rast(biomass_rast_fnm)
+  trees_biomass_ans$stand_cell_data_landfire <- 
+    readr::read_csv(file = "../data/point_cloud_processing_delivery/stand_cell_data_landfire.csv", progress = F, show_col_types = F)
+  trees_biomass_ans$stand_cell_data_cruz <- 
+    readr::read_csv(file = "../data/point_cloud_processing_delivery/stand_cell_data_cruz.csv", progress = F, show_col_types = F)
 }
 ```
