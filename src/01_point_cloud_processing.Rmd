@@ -68,10 +68,19 @@ list.files(f, pattern = ".*\\.(laz|las)$") %>% length()
 list.files(f, pattern = ".*\\.(laz|las)$")[1:3]
 ```
 
+what information does `lidR` read from the catalog?
+
+```{r}
+ctg_temp <- lidR::readLAScatalog(f)
+ctg_temp
+```
+
+that's a lot of points...can an ordinary laptop handle it? we'll find out.
+
 We'll plot our point cloud data tiles real quick to orient ourselves
 
 ```{r}
-lidR::readLAScatalog(f) %>% 
+ctg_temp %>% 
   purrr::pluck("data") %>% 
   mapview::mapview(popup = F, layer.name = "point cloud tile")
 ```
@@ -111,7 +120,7 @@ let's plot all of the functions we tested with our call to `itd_tuning()` using 
 # shape of the ws functions
 ggplot() +
   geom_function(aes(color = "lin_fn"),fun=itd_tuning_ans$ws_fn_list$lin_fn, lwd=1.2) +
-  geom_function(aes(color = "nonlin_fn"),fun=itd_tuning_ans$ws_fn_list$nonlin_fn, lwd=1.2) +
+  geom_function(aes(color = "log_fn"),fun=itd_tuning_ans$ws_fn_list$log_fn, lwd=1.2) +
   geom_function(aes(color = "exp_fn"),fun=itd_tuning_ans$ws_fn_list$exp_fn, lwd=1.2) +
   xlim(-5,60) +
   harrypotter::scale_color_hp_d(option = "hermionegranger") +
@@ -128,10 +137,11 @@ itd_tuning_ans$plot_samples
 
 ```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold', results='asis'}
 # this is so we get the actual result that we used for tuning
-knitr::include_graphics("e:/lidar_phys_fire_mods/data/itd_tuning1.jpg")
+# knitr::include_graphics("e:/lidar_phys_fire_mods/data/new_itd_tuning1.jpg")
+knitr::include_graphics("https://i.ibb.co/4nw5x068/new-itd-tuning1.jpg")
 ```
 
-Looking at the first sample, the exponential function (`exp_fn`) resulted in too few trees detected in the overstory class. The clearest evidence of this is in the center of the left-hand side of the plot in the first sample. There is a clear "valley" in the CHM which the linear (`lin_fn`) and non-linear (`nonlin_fn`) correctly split into two trees but the exponential function misses this split. Furthermore, the exponential function results in too many tree splits for short trees as can be seen in the second sample plot in the lower-left corner small tree group. The linear and the non-linear function are very similar in detecting overstory trees but the linear function perhaps does a better job splitting up clumps of smaller trees. In the third sample plot the linear function does a better job splitting up the short tree group in the upper-right corner small tree group compared to the non-linear function (there is no way that a tree that short [3-6 m tall] would have such a large crown area as in the non-linear split). 
+Looking at the first sample, the logarithmic function (`log_fn`) resulted in too few trees detected in the overstory class. The clearest evidence of this is in the center of the left-hand side of the plot in the first sample. There is a clear "valley" in the CHM which the linear (`lin_fn`) and exponential (`exp_fn`) correctly split into two trees but the logarithmic function misses this split. Furthermore, the logarithmic function results in too many tree splits for short trees as can be seen in the second sample plot in the upper-right corner small tree group. The linear and the exponential function are very similar in detecting overstory trees but the linear function perhaps does a better job splitting up clumps of smaller trees. In the second sample plot the linear function does a better job splitting up the short tree group in the upper-right corner compared to the exponential function (there is no way that a tree that short [3-6 m tall] would have such a large crown area as in the exponential function split). 
 
 If we had one gripe about the linear function, it's maybe that it results in too many trees in small-tree patches. Let's define our own custom linear function that slightly increases the window size for shorter trees compared to the default linear function.
 
@@ -158,7 +168,7 @@ ggplot() +
   theme_light()
 ```
 
-We'll run another sample test using `itd_tuning()`with our new function (call it "my_custom_lin" for extra clarity) compared to the default linear and non-linear functions and this time we'll ask for four sample plots of 0.1 ha.
+We'll run another sample test using `itd_tuning()`with our new function (call it "my_custom_lin" for extra clarity) compared to the default linear and exponential functions.
 
 ```{r, eval=FALSE}
 itd_tuning_ans2 <- cloud2trees::itd_tuning(
@@ -166,9 +176,8 @@ itd_tuning_ans2 <- cloud2trees::itd_tuning(
   , ws_fn_list = list(
     my_custom_lin = custom_lin
     , lin_fn = itd_tuning_ans$ws_fn_list$lin_fn
-    , nonlin_fn = itd_tuning_ans$ws_fn_list$nonlin_fn
+    , exp_fn = itd_tuning_ans$ws_fn_list$exp_fn
   )
-  , n_samples = 4
 )
 ```
 
@@ -181,12 +190,13 @@ itd_tuning_ans2$plot_samples
 
 ```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold', results='asis'}
 # this is so we get the actual result that we used for tuning
-knitr::include_graphics("e:/lidar_phys_fire_mods/data/itd_tuning2.jpg")
+# knitr::include_graphics("e:/lidar_phys_fire_mods/data/new_itd_tuning2.jpg")
+knitr::include_graphics("https://i.ibb.co/4wX2zL6p/new-itd-tuning2.jpg")
 ```
 
 Our custom linear function (`my_custom_lin`) strikes a good balance between detection of lower canopy trees (e.g. <10 m in height) without improperly subdividing dominant canopy trees based on the areas sampled. Let's move forward with our custom linear function in the `raster2trees()` and `cloud2trees()` functions.
 
-## Point Cloud Tree Extraction: `cloud2trees()`
+## Point Cloud Tree Extraction: `cloud2trees()`{#trees}
 
 The `cloud2trees()` function combines methods in the `cloud2trees` package for an all-in-one approach. We'll call this function without estimating any of the additional tree components (the `estimate_*` parameters) which we will do separately to show the full process. With all other options turned off, `cloud2trees()` will: 1) generate a CHM from the point cloud using `cloud2raster()`; and 2) perform individual tree detection using `raster2trees()`.
 
@@ -218,7 +228,6 @@ crowns_sf <-
     , full.names = T
   ) %>% 
   normalizePath() %>% 
-  # .[1:3] %>% 
   purrr::map(\(x)
     sf::st_read(
       dsn = x
@@ -234,7 +243,6 @@ treetops_sf <-
     , full.names = T
   ) %>% 
   normalizePath() %>% 
-  # .[1:3] %>% 
   purrr::map(\(x)
     sf::st_read(
       dsn = x
@@ -245,7 +253,7 @@ treetops_sf <-
 
 # put it together
 cloud2trees_ans <- list(
-  crowns_sf = crowns_sf
+  crowns_sf = NULL
   , treetops_sf = treetops_sf
 )
 # remove
@@ -262,6 +270,51 @@ cloud2trees_ans$crowns_sf %>%
 ```
 
 That's a lot of trees!
+
+Let's check some out in the central part of our study area overlaid on some satellite imagery. Note, that we do not expect the trees we detected to match with what is visible in the satellite imagery because the collection dates vary, the projections vary, the scales vary, etc, etc.
+
+```{r}
+cloud2trees_ans$crowns_sf %>%
+  sf::st_intersection(
+    ctg_temp %>% 
+      purrr::pluck("data") %>% 
+      sf::st_union() %>% 
+      sf::st_centroid() %>% 
+      sf::st_buffer(80, endCapStyle = "SQUARE") %>% 
+      sf::st_transform(sf::st_crs(cloud2trees_ans$crowns_sf))
+  ) %>% 
+  mapview::mapview(
+    layer.name = "example trees"
+    , color = "white"
+    , lwd = 1
+    , alpha.regions = 0
+    , label = FALSE
+    , legend = FALSE
+    , popup = FALSE
+    , map.types = c("Esri.WorldImagery")
+  )
+```
+
+Let's look at the distribution of tree height in our study area
+
+```{r}
+# there are always tree heights
+cloud2trees_ans$treetops_sf %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = tree_height_m)) +
+  ggplot2::geom_density(fill = "navy", color = "navy", alpha = 0.2) +
+  ggplot2::scale_x_continuous(breaks = scales::breaks_extended(11)) +
+  ggplot2::labs(x = "tree ht. (m)", y = "") +
+  ggplot2::theme_light() +
+  ggplot2::theme(axis.text.y = ggplot2::element_blank(), axis.ticks.y = ggplot2::element_blank())
+```
+
+...that's a lot of small trees
+
+let's look at the summary statistics
+
+```{r}
+cloud2trees_ans$treetops_sf$tree_height_m %>% summary()
+```
 
 The `cloud2trees()` function dropped off a lot of additional data in a folder titled "point_cloud_processing_delivery" which is nested where we told the command to write the data (`output_dir = "../data"` parameter setting). Let's load in the "processed_tracking_data.csv" file to see how long that `cloud2trees()` process took to run. Run times are, of course, dependent on computer processing and I am working on a laptop typical of a spatial analyst (especially outside of the US Federal Government) running Windows with an Intel i7-10750H 6-core computer processor unit and 32 gigabytes of random-access memory.
 
@@ -294,6 +347,7 @@ Tree extraction over **`r scales::comma(ha_temp, accuracy = 1)`** hectares took 
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
+remove(custom_lin, itd_tuning_ans)
 gc()
 ```
 
@@ -302,28 +356,241 @@ gc()
 The `trees_dbh()` function uses the [TreeMap](https://www.fs.usda.gov/rds/archive/catalog/RDS-2021-0074) FIA plot data in the area of the tree list to estimate the height-DBH allometry relationship. The height predicting DBH model built from the FIA data is then used to predict DBH based on tree height in the tree list.
 
 ```{r, eval=FALSE}
-trees_dbh_ans <- cloud2trees::trees_dbh()
+# where should we save the file?
+dbh_fnm <- "../data/point_cloud_processing_delivery/dbh_data.csv"
+# if we don't already have the data, run it
+if(!file.exists(dbh_fnm)){
+  # time it
+  st_temp <- Sys.time()
+  # run it
+  trees_dbh_ans <- cloud2trees::trees_dbh(
+    tree_list = cloud2trees_ans$treetops_sf
+    , outfolder = "../data/point_cloud_processing_delivery"
+  )
+  # timer
+  mins_temp <- difftime(Sys.time(),st_temp,units = "mins") %>% as.numeric()
+  processing_data$timer_trees_dbh_mins <- mins_temp
+  # save dbh
+  trees_dbh_ans %>% sf::st_drop_geometry() %>% 
+    write.csv(file = dbh_fnm, row.names = F, append = F)
+  # save tracking
+  processing_data %>% 
+    write.csv(
+      file = "../data/point_cloud_processing_delivery/processed_tracking_data.csv"
+      , row.names = F, append = F
+    )
+}else{
+  # dbh data
+  trees_dbh_ans <- readr::read_csv(dbh_fnm, progress = F, show_col_types = F)
+}
+
+```
+
+Estimating DBH for our tree list of `r scales::comma(nrow(trees_dbh_ans), suffix = " M", scale = 1e-6, accuracy = .01)` trees over an area of `r scales::comma(round(processing_data$las_area_m2[1]/10000), accuracy = 1)` hectares took `r scales::comma(processing_data$timer_trees_dbh_mins, accuracy = .1)` minutes at a rate of `r scales::comma((processing_data$timer_trees_dbh_mins/round(processing_data$las_area_m2[1]/10000))*60, accuracy = 0.01)` seconds per hectare
+
+let's check the relationship between height and DBH as estimated by the regional allometric relationship
+
+```{r}
+trees_dbh_ans %>% 
+  dplyr::slice_sample(n=7777) %>% 
+  ggplot2::ggplot(mapping = ggplot2::aes(x = tree_height_m, y = dbh_cm)) + 
+  ggplot2::geom_point(color = "navy", alpha = 0.6) +
+  ggplot2::labs(x = "tree ht. (m)", y = "tree DBH (cm)") +
+  ggplot2::scale_x_continuous(limits = c(0,NA)) +
+  ggplot2::scale_y_continuous(limits = c(0,NA)) +
+  ggplot2::theme_light()
+```
+
+Let's look at the distribution of tree diameter in our study area
+
+```{r}
+trees_dbh_ans %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = dbh_cm)) +
+  ggplot2::geom_density(fill = "brown", color = "brown", alpha = 0.2) +
+  ggplot2::scale_x_continuous(breaks = scales::breaks_extended(11)) +
+  ggplot2::labs(x = "tree DBH (cm)", y = "") +
+  ggplot2::theme_light() +
+  ggplot2::theme(axis.text.y = ggplot2::element_blank(), axis.ticks.y = ggplot2::element_blank())
+```
+
+...that's a lot of small trees
+
+let's look at the summary statistics
+
+```{r}
+trees_dbh_ans$dbh_cm %>% summary()
+```
+
+`cloud2trees::trees_dbh()` saved the actual model estimated using the Bayesian modelling package `brms` which we can load and review
+
+```{r}
+dbh_mod_temp <- readRDS("../data/point_cloud_processing_delivery/regional_dbh_height_model.rds")
+# what is this?
+dbh_mod_temp %>% class()
+```
+
+we can draw fit curves with probability bands using the `tidybayes` package
+
+```{r}
+library(tidybayes)
+# define our height range to predict over
+dplyr::tibble(tree_height_m = seq(from = 0, to = 50, by = 1)) %>% 
+  tidybayes::add_epred_draws(dbh_mod_temp, ndraws = 2000) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = tree_height_m)) +
+    tidybayes::stat_lineribbon(
+      ggplot2::aes(y = .epred, color = "estimate")
+      , .width = c(0.5,0.95)
+      , lwd = 0.6
+    ) +
+    ggplot2::scale_fill_brewer(palette = "Oranges") +
+    ggplot2::scale_color_manual(values = c("gray33")) +
+    ggplot2::labs(x = "tree ht. (m)", y = "est. tree DBH (cm)", color = "") +
+    ggplot2::scale_x_continuous(limits = c(0,NA), breaks = scales::extended_breaks(n=11)) +
+    ggplot2::scale_y_continuous(limits = c(0,NA), breaks = scales::extended_breaks(n=11)) +
+    ggplot2::theme_light()
+```
+
+The probability bands are there in shades of orange but they are so tight to the median estimate that it's impossible to see them. The model confidence bands are so narrow because the model was trained with lots of FIA measured trees over the broad study area
+
+we can check how many FIA measured trees were used to train our model because `cloud2trees::trees_dbh()` also writes the training data to the disk (that's neat, but  we don't always need to see how the sausage is made)
+
+```{r}
+readr::read_csv(
+    "../data/point_cloud_processing_delivery/regional_dbh_height_model_training_data.csv"
+    , progress = F
+    , show_col_types = F
+  ) %>% 
+  dplyr::summarise(training_trees = sum(tree_weight)) %>% 
+  dplyr::pull(training_trees) %>% 
+  scales::comma(accuracy = 1)
+```
+
+that's how many FIA measured trees were used to train our model
+
+## HMD Modeling: `trees_hmd()`
+
+The `trees_hmd()` function uses the tree crown polygons we [delineated from the point cloud](#trees) with the columns `treeID` and `tree_height_m` to attempt to extract height to maximum crown diameter (HMD) directly from the height normalized point cloud by finding the height of the non-ground point farthest from the tree center (i.e. tree top). HMD refers to the vertical height at which a tree's crown has its widest horizontal spread. It describes a characteristic of the overall crown shape and structure.
+
+This is a memory-intensive process, so we'll clear all objects from our R session and read them back in later after processing.
+
+```{r, message=FALSE, warning=FALSE}
+# clean session
+remove(list = base::setdiff(ls(), c("processing_data","dbh_fnm")))
+gc()
+```
+
+Because we have `r scales::comma(nrow(cloud2trees_ans$crowns_sf),accuracy=1)` trees, we'll attempt to extract HMD for a sample and model the rest based on the data we successfully extracted from the point cloud.
+
+```{r}
+# where should we save the file?
+hmd_fnm <- "../data/point_cloud_processing_delivery/hmd_data.csv"
+# if we don't already have the data, run it
+if(!file.exists(hmd_fnm)){
+  # sample proportion
+  sample_prop_temp <- 1
+  # time it
+  st_temp <- Sys.time()
+  # run it
+  trees_hmd_ans <- cloud2trees::trees_hmd(
+    trees_poly = "../data/point_cloud_processing_delivery"
+    , norm_las = "../data/point_cloud_processing_delivery/norm_las/"
+    , tree_sample_prop = sample_prop_temp
+    , force_same_crs = T
+    , estimate_missing_hmd = T
+  )
+  # timer
+  mins_temp <- difftime(Sys.time(),st_temp,units = "mins") %>% as.numeric()
+  processing_data$timer_trees_hmd_mins <- mins_temp
+  processing_data$sttng_hmd_tree_sample_n <- NA
+  processing_data$sttng_hmd_tree_sample_prop <- sample_prop_temp
+  # save hmd
+  trees_hmd_ans %>% sf::st_drop_geometry() %>% 
+    write.csv(file = hmd_fnm, row.names = F, append = F)
+  # save tracking
+  processing_data %>% 
+    write.csv(
+      file = "../data/point_cloud_processing_delivery/processed_tracking_data.csv"
+      , row.names = F, append = F
+    )
+}else{
+  # hmd data
+  trees_hmd_ans <- readr::read_csv(hmd_fnm, progress = F, show_col_types = F)
+}
+```
+
+HMD extraction took a total of **`r scales::comma(processing_data$timer_trees_hmd_mins, accuracy = 0.1)`** minutes at processing rate of **`r scales::comma((processing_data$timer_trees_hmd_mins/(nrow(trees_hmd_ans)/1000))*60, accuracy = 0.01)`** seconds per 1,000 trees
+
+We attempted to extract HMD from `r scales::percent(processing_data$sttng_hmd_tree_sample_prop)` of our tree list, let's see our success rate
+
+```{r}
+trees_hmd_ans %>% 
+  dplyr::count(is_training_hmd) %>% 
+  dplyr::mutate(pct = n/sum(n))
+```
+
+all of the records marked as training data had HMD successfully extracted from the point cloud and were used to estimate a height-HMD allometry relationship that is spatially informed using the relative tree location
+
+let's look at the training versus the modeled HMD versus height
+
+```{r}
+trees_hmd_ans %>% 
+  dplyr::slice_sample(n = 11111) %>% 
+  dplyr::arrange(desc(is_training_hmd)) %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = tree_height_m, y = max_crown_diam_height_m, color=is_training_hmd)) + 
+  ggplot2::geom_point() +
+  ggplot2::labs(x = "tree ht. (m)", y = "tree HMD (m)") +
+  ggplot2::scale_y_continuous(breaks = scales::extended_breaks(n=12)) +
+  ggplot2::scale_x_continuous(breaks = scales::extended_breaks(n=14)) +
+  ggplot2::scale_color_viridis_d(option = "turbo", begin = 0.2, alpha = 0.7, name = "is HMD\nfrom cloud?") +
+  ggplot2::theme_light()
+```
+
+Let's look at the distribution of HMD in our study area
+
+```{r}
+trees_hmd_ans %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = max_crown_diam_height_m)) +
+  ggplot2::geom_density(fill = "coral", color = "coral", alpha = 0.2) +
+  ggplot2::scale_x_continuous(breaks = scales::breaks_extended(11)) +
+  ggplot2::labs(x = "tree HMD (m)", y = "") +
+  ggplot2::theme_light() +
+  ggplot2::theme(axis.text.y = ggplot2::element_blank(), axis.ticks.y = ggplot2::element_blank())
+```
+
+and look at the summary statistics of HMD
+
+```{r}
+trees_hmd_ans$max_crown_diam_height_m %>% summary()
 ```
 
 ## CBH Modeling: `trees_cbh()`
 
-The `trees_cbh()` function does work
+The `trees_cbh()` function uses the tree crown polygons we [delineated from the point cloud](#trees) with the columns `treeID` and `tree_height_m` to attempt to extract crown base height (CBH) directly from the height normalized point cloud using the process outlined in [Viedma et al. (2024)](https://doi.org/10.1111/2041-210X.14427).
+
+This is a memory-intensive process, so we'll clear all objects from our R session and read them back in later after processing.
+
+```{r, message=FALSE, warning=FALSE}
+# clean session
+remove(list = base::setdiff(ls(), c("processing_data","dbh_fnm","hmd_fnm")))
+gc()
+```
+
+We'll attempt to extract CBH for a sample and model the rest based on the data we successfully extracted from the point cloud.
 
 ```{r}
 # where should we save the file?
-cbh_fn <- "../data/point_cloud_processing_delivery/cbh_data.csv"
+cbh_fnm <- "../data/point_cloud_processing_delivery/cbh_data.csv"
 # if we don't already have the data, run it
-if(!file.exists(cbh_fn)){
-  # sample size
-  nsamp_temp <- 99999
+if(!file.exists(cbh_fnm)){
+  # sample proportion
+  sample_prop_temp <- 0.40
   # time it
   st_temp <- Sys.time()
   # run it
   trees_cbh_ans <- cloud2trees::trees_cbh(
-    trees_poly = cloud2trees_ans$crowns_sf
+    trees_poly = "../data/point_cloud_processing_delivery"
     , norm_las = "../data/point_cloud_processing_delivery/norm_las/"
-    , tree_sample_n = nsamp_temp
-    # , tree_sample_prop = 0.08
+    , tree_sample_prop = sample_prop_temp
     , which_cbh = "lowest"
     , estimate_missing_cbh = TRUE
     , min_vhp_n = 3
@@ -338,14 +605,13 @@ if(!file.exists(cbh_fn)){
     , force_same_crs = T
   )
   # timer
-  ## author note: test 1 with 20k sample took 58.56778 mins
   mins_temp <- difftime(Sys.time(),st_temp,units = "mins") %>% as.numeric()
   processing_data$timer_trees_cbh_mins <- mins_temp
-  processing_data$sttng_cbh_tree_sample_n <- nsamp_temp
-  processing_data$sttng_cbh_tree_sample_prop <- NA
+  processing_data$sttng_cbh_tree_sample_n <- NA
+  processing_data$sttng_cbh_tree_sample_prop <- sample_prop_temp
   # save cbh
   trees_cbh_ans %>% sf::st_drop_geometry() %>% 
-    write.csv(file = cbh_fn, row.names = F, append = F)
+    write.csv(file = cbh_fnm, row.names = F, append = F)
   # save tracking
   processing_data %>% 
     write.csv(
@@ -354,39 +620,312 @@ if(!file.exists(cbh_fn)){
     )
 }else{
   # cbh data
-  trees_cbh_ans <- readr::read_csv(cbh_fn, progress = F, show_col_types = F)
-  # re-cast treeID if needed
-  if(
-    !inherits(
-      trees_cbh_ans$treeID
-      , class(cloud2trees_ans$crowns_sf$treeID)
-    )
-  ){
-    if(inherits(cloud2trees_ans$crowns_sf$treeID, "character")){
-      trees_cbh_ans$treeID <- as.character(trees_cbh_ans$treeID)
-    }else if(inherits(cloud2trees_ans$crowns_sf$treeID, "numeric")){
-      trees_cbh_ans$treeID <- as.numeric(trees_cbh_ans$treeID)
-    }
-  }  
+  trees_cbh_ans <- readr::read_csv(cbh_fnm, progress = F, show_col_types = F)
 }
 ```
 
-CBH extraction for **`r scales::comma(processing_data$sttng_cbh_tree_sample_n, accuracy = 1)`** trees took a total of **`r scales::comma(processing_data$timer_trees_cbh_mins, accuracy = 0.1)`** minutes at processing rate of **`r scales::comma(processing_data$timer_trees_cbh_mins/(processing_data$sttng_cbh_tree_sample_n/1000), accuracy = 0.01)`** minutes per 1,000 trees...this is not fast and mostly a limitation of the `LadderFuelsR` which only allows for processing one tree at a time. Perhaps the author of `cloud2trees` will enable parallel processing at some point in the [`future`](https://future.futureverse.org/index.html)??? 
+CBH extraction took a total of **`r scales::comma(processing_data$timer_trees_cbh_mins, accuracy = 0.1)`** minutes at processing rate of **`r scales::comma((processing_data$timer_trees_cbh_mins/(nrow(trees_cbh_ans)/1000))*60, accuracy = 0.01)`** seconds per 1,000 trees
 
-Let's see what we got back from `trees_cbh()`
-
-```{r}
-trees_cbh_ans %>% 
-  dplyr::select(treeID, tree_cbh_m, is_training_cbh) %>%
-  dplyr::glimpse()
-```
-
-We requested CBH extraction for **`r scales::comma(processing_data$sttng_cbh_tree_sample_n, accuracy = 1)`** trees. For how many trees was CBH successfully extracted from the point cloud?
+We attempted to extract CBH from xxx of our tree list, let's see our success rate
 
 ```{r}
+# scales::percent(processing_data$sttng_cbh_tree_sample_prop)
 trees_cbh_ans %>% 
-  dplyr::count(is_training_cbh)
+  dplyr::count(is_training_cbh) %>% 
+  dplyr::mutate(pct = n/sum(n))
 ```
 
 That's not a great success ;( ... Someone should do something (or should they?)
 
+all of the records marked as training data had CBH successfully extracted from the point cloud and were used to estimate a height-CBH allometry relationship that is spatially informed using the relative tree location
+
+let's look at the training versus the modeled CBH versus height
+
+```{r}
+trees_cbh_ans %>%
+  dplyr::slice_sample(n = 11111) %>% 
+  dplyr::arrange(is_training_cbh) %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = tree_height_m, y = tree_cbh_m, color=is_training_cbh)) + 
+  ggplot2::geom_point() +
+  ggplot2::labs(x = "tree ht. (m)", y = "tree CBH (m)") +
+  ggplot2::scale_y_continuous(breaks = scales::extended_breaks(n=12)) +
+  ggplot2::scale_x_continuous(breaks = scales::extended_breaks(n=14)) +
+  ggplot2::scale_color_viridis_d(alpha = 0.7, name = "is CBH\nfrom cloud?") +
+  ggplot2::theme_light()
+```
+
+Let's look at the distribution of CBH in our study area
+
+```{r}
+trees_cbh_ans %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = tree_cbh_m)) +
+  ggplot2::geom_density(fill = "orchid", color = "orchid", alpha = 0.2) +
+  ggplot2::scale_x_continuous(breaks = scales::breaks_extended(11)) +
+  ggplot2::labs(x = "tree CBH (m)", y = "") +
+  ggplot2::theme_light() +
+  ggplot2::theme(axis.text.y = ggplot2::element_blank(), axis.ticks.y = ggplot2::element_blank())
+```
+
+and look at the summary statistics of CBH
+
+```{r}
+trees_cbh_ans$tree_cbh_m %>% summary()
+```
+
+clean our session
+
+```{r, message=FALSE, warning=FALSE}
+# clean session
+remove(list = base::setdiff(ls(), c("processing_data","dbh_fnm","hmd_fnm","cbh_fnm")))
+gc()
+```
+
+## Forest Type: `trees_type()`
+
+We'll now use `trees_type()` to attach species information using USDA Forest Inventory and Analysis (FIA) codes. FIA Forest Type Group Code is attached to each tree in the tree list based on the spatial overlap with the [Forest Type Groups of the Continental United States](https://www.arcgis.com/home/item.html?id=10760c83b9e44923bd3c18efdaa7319d) data (Wilson 2023).
+
+We now need to read back in our full spatial data frame of points to use as the input tree list, let's just load the tree points
+
+```{r}
+# get the data from already run
+treetops_sf <-
+  list.files(
+    "../data/point_cloud_processing_delivery"
+    , pattern = "final_detected_tree_tops.*\\.gpkg$"
+    , full.names = T
+  ) %>% 
+  normalizePath() %>% 
+  purrr::map(\(x)
+    sf::st_read(dsn = x, quiet = T)
+  ) %>% 
+  dplyr::bind_rows()
+```
+
+let's get the FIA forest type group for our list
+
+```{r}
+# where should we save the file?
+type_fnm <- "../data/point_cloud_processing_delivery/type_data.csv"
+type_rast_fnm <- "../data/point_cloud_processing_delivery/type_rast.tif"
+# if we don't already have the data, run it
+if(!file.exists(type_fnm)){
+  # time it
+  st_temp <- Sys.time()
+  # run it
+  trees_type_ans <- cloud2trees::trees_type(
+    tree_list = treetops_sf
+    , study_boundary = 
+      sf::st_read("../data/point_cloud_processing_delivery/raw_las_ctg_info.gpkg") %>% 
+        sf::st_union()
+  )
+  # timer
+  mins_temp <- difftime(Sys.time(),st_temp,units = "mins") %>% as.numeric()
+  processing_data$timer_trees_type_mins <- mins_temp
+  # save type
+  trees_type_ans$tree_list %>% 
+    sf::st_drop_geometry() %>% 
+    write.csv(file = type_fnm, row.names = F, append = F)
+  # save raster
+  trees_type_ans$foresttype_rast %>% terra::writeRaster(type_rast_fnm, overwrite=T)
+  # save tracking
+  processing_data %>% 
+    write.csv(
+      file = "../data/point_cloud_processing_delivery/processed_tracking_data.csv"
+      , row.names = F, append = F
+    )
+}else{
+  # type data
+  trees_type_ans$tree_list <- readr::read_csv(type_fnm, progress = F, show_col_types = F)
+  # raster
+  trees_type_ans$foresttype_rast <- terra::rast(type_rast_fnm)
+}
+```
+
+Let's look at the FIA Forest Type Group data we extracted for the tree list.
+
+```{r}
+trees_type_ans$tree_list %>%
+  sf::st_drop_geometry() %>% 
+  dplyr::count(forest_type_group_code, forest_type_group) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::mutate(pct = n/sum(n)) %>% 
+  kableExtra::kbl(caption = "Count of trees by FIA Forest Type Group", digits = 2) %>% 
+  kableExtra::kable_styling()
+```
+
+Let's attach FIA Forest Types Group name to the raster (`foresttype_rast`) of the area we searched and plot it
+
+```{r}
+# load in the forest type data
+ext_data_temp <- cloud2trees::find_ext_data()
+foresttype_lookup <- file.path(ext_data_temp$foresttype_dir, "foresttype_lookup.csv") %>% 
+  readr::read_csv(progress = F, show_col_types = F) %>% 
+  dplyr::distinct(forest_type_group_code, forest_type_group, hardwood_softwood)
+# what?
+foresttype_lookup %>% dplyr::glimpse()
+```
+
+plot the FIA Forest Types Group raster of our study area
+
+```{r, message=FALSE, results=F}
+# study area
+aoi_temp <- sf::st_read("../data/point_cloud_processing_delivery/raw_las_ctg_info.gpkg") %>% 
+  sf::st_transform(terra::crs(trees_type_ans$foresttype_rast))
+# plot raster
+r_plt <-
+  trees_type_ans$foresttype_rast %>%
+    terra::crop(aoi_temp %>% sf::st_buffer(100) %>% terra::vect()) %>% 
+    terra::as.data.frame(xy=T) %>% 
+    dplyr::rename(forest_type_group_code = 3) %>% 
+    dplyr::left_join(foresttype_lookup, by = "forest_type_group_code") %>% 
+    ggplot2::ggplot() + 
+    ggplot2::geom_tile(mapping = ggplot2::aes(x=x, y=y, fill = forest_type_group)) +
+    ggplot2::labs(fill = "FIA forest\ntype group") +
+    harrypotter::scale_fill_hp_d("lunalovegood") +
+    ggplot2::theme_void() +
+    ggplot2::theme(legend.position = "top") +
+    ggplot2::guides(fill = ggplot2::guide_legend(nrow = 2, byrow = T))
+# add our study boundary
+r_plt +
+  ggplot2::geom_sf(data = aoi_temp, color = "white", fill = NA)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(foresttype_lookup, r_plt, trees_type_ans)
+gc()
+```
+
+## Combine data
+
+before our last tree component calculation, we'll bring all of our data together because the last component relies on this data
+
+```{r}
+# read all of our data back in
+trees_dbh_temp <-
+  readr::read_csv(
+    dbh_fnm
+    , col_select = c(
+      treeID, tidyselect::contains("dbh")
+      , tidyselect::starts_with("basal_area")
+      , tidyselect::starts_with("radius")
+    )
+    , show_col_types = F
+    , progress = F
+  )
+trees_cbh_temp <-
+  readr::read_csv(
+    cbh_fnm
+    , col_select = c(treeID, tree_cbh_m, is_training_cbh)
+    , show_col_types = F
+    , progress = F
+  )
+trees_hmd_temp <-
+  readr::read_csv(
+    hmd_fnm
+    , col_select = c(treeID, max_crown_diam_height_m, is_training_hmd)
+    , show_col_types = F
+    , progress = F
+  )
+trees_type_temp <-
+  readr::read_csv(
+    type_fnm
+    , col_select = c(treeID, tidyselect::starts_with("forest_type"), hardwood_softwood)
+    , show_col_types = F
+    , progress = F
+  )
+# function re-cast treeID if needed
+recast_id_fn <- function(df, cl) {
+  if(
+    !inherits(
+      df$treeID
+      , cl
+    )
+  ){
+    if(cl=="character"){
+      df$treeID <- as.character(df$treeID)
+    }else if(cl=="numeric"){
+      df$treeID <- as.numeric(df$treeID)
+    }
+  }
+  return(df)
+}
+# apply
+trees_dbh_temp <- trees_dbh_temp %>% 
+  recast_id_fn(cl = class(treetops_sf$treeID))
+trees_cbh_temp <- trees_cbh_temp %>% 
+  recast_id_fn(cl = class(treetops_sf$treeID))
+trees_hmd_temp <- trees_hmd_temp %>% 
+  recast_id_fn(cl = class(treetops_sf$treeID))
+trees_type_temp <- trees_type_temp %>% 
+  recast_id_fn(cl = class(treetops_sf$treeID))
+# now we'll get a list of the columns in our component data to drop from our main data
+cols_to_drop_temp <- c(
+    names(trees_dbh_temp), names(trees_cbh_temp)
+    , names(trees_hmd_temp), names(trees_type_temp) 
+  ) %>% 
+  unique() %>% 
+  setdiff("treeID")
+# remove cols from our primary data
+treetops_sf <- treetops_sf %>% 
+  dplyr::select( -dplyr::any_of(cols_to_drop_temp))
+# join altogether using the magical purrr::reduce
+treetops_sf <- 
+  list(
+    treetops_sf, trees_dbh_temp, trees_cbh_temp
+    , trees_hmd_temp, trees_type_temp
+  ) %>% 
+  purrr::reduce(\(x,y) dplyr::left_join(x, y, by = "treeID"))
+```
+
+let's glimpse our almost final data
+
+```{r}
+treetops_sf %>% dplyr::glimpse()
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+## Crown Biomass: `trees_biomass()`
+
+Lastly, we'll use `trees_biomass()` to estimate tree crown in kilograms. We'll estimate biomass based on: 1) LANDFIRE's [Forest Canopy Bulk Density (CBD) data](https://landfire.gov/fuel/cbd); and 2) based on the [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) equations and the FIA forest type group we got above
+
+```{r}
+# where should we save the file?
+biomass_fnm <- "../data/point_cloud_processing_delivery/biomass_data.csv"
+# if we don't already have the data, run it
+if(!file.exists(biomass_fnm)){
+  # time it
+  st_temp <- Sys.time()
+  # run it
+  trees_biomass_ans <- cloud2trees::trees_biomass(
+    tree_list = treetops_sf
+    , study_boundary = 
+      sf::st_read("../data/point_cloud_processing_delivery/raw_las_ctg_info.gpkg") %>% 
+        sf::st_union()
+  )
+  # timer
+  mins_temp <- difftime(Sys.time(),st_temp,units = "mins") %>% as.numeric()
+  processing_data$timer_trees_biomass_mins <- mins_temp
+  # save biomass
+  trees_biomass_ans$tree_list %>% 
+    sf::st_drop_geometry() %>% 
+    write.csv(file = biomass_fnm, row.names = F, append = F)
+  # save raster
+  trees_biomass_ans$forestbiomass_rast %>% terra::writeRaster(biomass_rast_fnm, overwrite=T)
+  # save tracking
+  processing_data %>% 
+    write.csv(
+      file = "../data/point_cloud_processing_delivery/processed_tracking_data.csv"
+      , row.names = F, append = F
+    )
+}else{
+  # biomass data
+  trees_biomass_ans$tree_list <- readr::read_csv(biomass_fnm, progress = F, show_col_biomasss = F)
+  # raster
+  trees_biomass_ans$forestbiomass_rast <- terra::rast(biomass_rast_fnm)
+}
+```
