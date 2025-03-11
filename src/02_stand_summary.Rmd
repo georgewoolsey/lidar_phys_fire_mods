@@ -401,6 +401,7 @@ plot_raster_stand_fn <- function(
     , stand_color = "black"
     , my_title = ""
     , scale_name = ""
+    , bbox = F
 ) {
   # crop the raster
   crop_rast <- rast %>% 
@@ -412,6 +413,15 @@ plot_raster_stand_fn <- function(
         terra::vect() %>% 
         terra::project(terra::crs(rast))
     )
+  if(!bbox){
+    crop_rast <- crop_rast %>% 
+      terra::mask(
+        stand %>% 
+          sf::st_buffer(buffer) %>% 
+          terra::vect() %>% 
+          terra::project(terra::crs(rast))
+      )
+  }
   # aggregate the raster
   res_temp <- terra::res(rast)[1]
   if(res_temp<des_res){
@@ -461,10 +471,11 @@ p_temp <- 1:nrow(stand_sf) %>%
       chm_rast
       , stand = stand_sf[x,]
       , buffer = 5
-      , des_res = 1
+      , des_res = 2
       , stand_color = "black"
       , my_title = "Canopy Height Model"
       , scale_name = "CHM (m)"
+      , agg_fun = "max"
     ) + 
     ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
     ggplot2::scale_fill_viridis_c(option = "plasma",limits = c(ll,ul))
@@ -524,11 +535,12 @@ vect_to_rast_fn <- function(
 # vect_to_rast_fn(
 #   treetops_sf %>% dplyr::filter(unit_id==treetops_sf$unit_id[2])
 #   , des_res = 10
-#   , field = "tree_height_m"
-#   , fun = function(x){mean(x, na.rm=T)}
+#   , field = "dbh_cm"
+#   , fun = "mean" #function(x){mean(x, na.rm=T)}
 #   , zero_na = F
-# ) %>% 
-# terra::plot()
+# ) %>%
+# # terra::plot()
+# terra::summary()
 ```
 
 ```{r, include=FALSE, eval=FALSE}
@@ -579,22 +591,159 @@ vect_to_rast_plot_fn <- function(
 }
 ```
 
-### Total Basal Area
+### Mean DBH
 
-take this for a spin to get a raster of basal area plotted with our stand boundary
+take this for a spin to get a raster of mean DBH plotted with our stand boundary
 
 ```{r}
-vect_to_rast_plot_fn(
-  trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[1,]$unit_id)
-  , stand_vect = stand_sf[1,]
-  , fun = "sum"
-  , field = "basal_area_m2"
-  , zero_na = F 
-  , buffer = 5
-  , des_res = 10
-  , stand_color = "black"
-  , my_title = "Arrangement of Total Basal Area"
-  , scale_name = "total basal\narea (m2)"
-)
+# get the plot for each stand
+p_temp <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, ul = max(treetops_sf$dbh_cm,na.rm = T), ll = 0){
+    vect_to_rast_plot_fn(
+      trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
+      , stand_vect = stand_sf[x,]
+      , fun = "mean"
+      , field = "dbh_cm"
+      , zero_na = F 
+      , buffer = 5
+      , des_res = 20
+      , stand_color = "black"
+      , my_title = "Arrangement of Mean DBH"
+      , scale_name = "DBH (cm)"
+    ) +
+    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    ggplot2::scale_fill_viridis_c(option = "mako", direction = -1, limits = c(ll,ul))
+  })
 ```
 
+check out our plots
+
+```{r}
+p_temp
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+### QMD
+
+to get the quadratic mean diameter (QMD) we are going to have to create a custom function that takes a list of DBH values and returns a single value
+
+QMD is a measure of the diameter of the tree of mean basal area:
+
+$$
+\textrm{quadratic mean diameter (QMD)} = \sqrt{\frac{\sum{d_{i}^{2}}}{n}}
+$$
+
+, where $d_{i}$ is the diameter at breast height of an individual tree, and $n$ is the total number of trees. 
+
+```{r}
+qmd_fn <- function(x) {
+  sqrt(sum(x^2, na.rm=T)/length(x[!is.na(x)]))
+}
+# get the plot for each stand
+p_temp <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, ul = round(qmd_fn(max(treetops_sf$dbh_cm,na.rm = T))*.9), ll = 0){
+    vect_to_rast_plot_fn(
+      trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
+      , stand_vect = stand_sf[x,]
+      , fun = qmd_fn
+      , field = "dbh_cm"
+      , zero_na = F 
+      , buffer = 5
+      , des_res = 20
+      , stand_color = "black"
+      , my_title = "Arrangement of Quadratic Mean Diameter"
+      , scale_name = "QMD (cm)"
+    ) +
+    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    ggplot2::scale_fill_viridis_c(option = "mako", direction = -1, limits = c(ll,ul))
+  })
+```
+
+check out our plots
+
+```{r}
+p_temp
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+### Basal Area
+
+to get Basal Area (BA) in square meters per hectare we will also need to create a function that uses the area of the raster cell
+
+```{r}
+# get the plot for each stand
+# max(silv_metrics$basal_area_m2_per_ha)*2
+p_temp <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, my_res = 20, ul = NA, ll = NA){
+    vect_to_rast_plot_fn(
+      trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
+      , stand_vect = stand_sf[x,]
+      , fun = function(x){sum(x, na.rm=T)/((my_res^2)/10000)}
+      , field = "basal_area_m2"
+      , zero_na = F 
+      , buffer = 5
+      , des_res = my_res
+      , stand_color = "black"
+      , my_title = "Arrangement of Basal Area"
+      , scale_name = latex2exp::TeX("BA ($m ^ 2 \\cdot ha^{-1}$)")
+    ) +
+    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    harrypotter::scale_fill_hp(option = "slytherin", limits = c(ll,ul))
+  })
+```
+
+check out our plots
+
+```{r}
+p_temp
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+### TPH
+
+to get trees per hectare (TPH) we will also need to create a function that uses the area of the raster cell
+
+```{r}
+# get the plot for each stand
+# max(silv_metrics$basal_area_m2_per_ha)*2
+p_temp <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, my_res = 20, ul = 2333, ll = NA){
+    vect_to_rast_plot_fn(
+      trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
+      , stand_vect = stand_sf[x,]
+      , fun = function(x){length(x)/((my_res^2)/10000)}
+      , field = "tree_height_m" # just need something to count 
+      , zero_na = F 
+      , buffer = 5
+      , des_res = my_res
+      , stand_color = "black"
+      , my_title = "Arrangement of Trees per Hectare"
+      , scale_name = "TPH"
+    ) +
+    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    harrypotter::scale_fill_hp(option = "mischief", limits = c(ll,ul))
+  })
+```
+
+check out our plots
+
+```{r}
+p_temp
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
