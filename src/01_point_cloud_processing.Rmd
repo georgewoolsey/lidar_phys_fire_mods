@@ -1104,3 +1104,152 @@ trees_biomass_ans$stand_cell_data_cruz %>%
   ggplot2::theme_void()
 ```
 
+## Data Export
+
+Now that we have our point cloud-extracted tree list with all of the tree component measurements attached, let's save the data for use in our analysis
+
+first we'll attach the biomass metrics to our spatial tree list
+```{r}
+# new columns added by trees_biomass()
+names_temp <- 
+  setdiff(
+    trees_biomass_ans$tree_list %>% names()
+    , treetops_sf %>% names()
+  )
+# recast id if needed
+trees_biomass_ans$tree_list <- trees_biomass_ans$tree_list %>% 
+  recast_id_fn(cl = class(treetops_sf$treeID))
+# attach to our spatial tree points
+treetops_sf <- treetops_sf %>% 
+  dplyr::left_join(
+    trees_biomass_ans$tree_list %>%
+      sf::st_drop_geometry() %>% 
+      dplyr::select(dplyr::all_of(c("treeID", names_temp)))
+    , by = "treeID"
+  )
+# what does our final data look like?
+treetops_sf %>% dplyr::glimpse()
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(trees_biomass_ans)
+gc()
+```
+
+load in the crown spatial files and attach the new component data
+
+```{r, eval=FALSE}
+crowns_sf <-
+  list.files(
+    "../data/point_cloud_processing_delivery"
+    , pattern = "final_detected_crowns.*\\.gpkg$"
+    , full.names = T
+  ) %>% 
+  normalizePath() %>% 
+  purrr::map(\(x)
+    sf::st_read(
+      dsn = x
+      , quiet = T
+    )
+  ) %>% 
+  dplyr::bind_rows()
+# the trees are the same, the data in the columns are different
+identical(nrow(crowns_sf), nrow(treetops_sf))
+# attach the new columns
+crowns_sf <- crowns_sf %>% 
+  dplyr::select(treeID, tree_x, tree_y) %>% 
+  dplyr::inner_join(
+    treetops_sf %>%
+      sf::st_drop_geometry() %>% 
+      dplyr::select(-c(tree_x, tree_y))
+    , by = "treeID"
+  )
+```
+
+use the internal function from `cloud2trees` that writes the polygon and point vector data
+
+```{r}
+# this is an internal function from cloud2trees
+write_raster2trees_ans <- function(raster2trees_ans, dir) {
+  ### write the data to the disk
+    if(nrow(raster2trees_ans)>250e3){
+      # split up the detected crowns
+      raster2trees_ans <- raster2trees_ans %>%
+        dplyr::arrange(as.numeric(tree_x),as.numeric(tree_y)) %>%
+        # groups of 250k
+        dplyr::mutate(grp = ceiling(dplyr::row_number()/250e3))
+
+      write_fnl_temp <- raster2trees_ans$grp %>%
+        unique() %>%
+        purrr::map(function(x){
+          # dsn's
+          cf <- file.path( dir, paste0("final_detected_crowns_",x,".gpkg") )
+          tf <- file.path( dir, paste0("final_detected_tree_tops_",x,".gpkg") )
+          ### write the data to the disk
+          # crown vector polygons
+          sf::st_write(
+            raster2trees_ans %>%
+              dplyr::filter(grp == x) %>%
+              dplyr::select(-c(grp))
+            , dsn = cf
+            , append = FALSE
+            , quiet = TRUE
+          )
+          # tree top vector points
+          sf::st_write(
+            # get tree points
+            raster2trees_ans %>%
+              dplyr::filter(grp == x) %>%
+              dplyr::select(-c(grp)) %>%
+              sf::st_drop_geometry() %>%
+              sf::st_as_sf(coords = c("tree_x", "tree_y"), crs = sf::st_crs(raster2trees_ans))
+            , dsn = tf
+            , append = FALSE
+            , quiet = TRUE
+          )
+          return(
+            dplyr::tibble(
+              crowns_file = cf
+              , trees_file = tf
+            )
+          )
+        }) %>%
+        dplyr::bind_rows()
+    }else{
+        # dsn's
+        cf <- file.path( dir, "final_detected_crowns.gpkg" )
+        tf <- file.path( dir, "final_detected_tree_tops.gpkg" )
+        # crown vector polygons
+        sf::st_write(
+          raster2trees_ans
+          , dsn = cf
+          , append = FALSE
+          , quiet = TRUE
+        )
+        # tree top vector points
+        sf::st_write(
+          # get tree points
+          raster2trees_ans %>%
+            sf::st_drop_geometry() %>%
+            sf::st_as_sf(coords = c("tree_x", "tree_y"), crs = sf::st_crs(raster2trees_ans))
+          , dsn = tf
+          , append = FALSE
+          , quiet = TRUE
+        )
+        # df
+        write_fnl_temp <- dplyr::tibble(
+          crowns_file = cf
+          , trees_file = tf
+        )
+    }
+  return(write_fnl_temp)
+}
+```
+
+write the final data (this will overwrite our original data from `cloud2trees()` but that's ok because the tree list and spatial information is the same)
+
+```{r, eval=FALSE}
+write_raster2trees_ans(crowns_sf, dir = "../data/point_cloud_processing_delivery")
+```
+
