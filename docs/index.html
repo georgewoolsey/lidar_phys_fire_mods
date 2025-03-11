@@ -30,7 +30,7 @@
   
   
 
-<link rel="next" href="point-cloud-processing.html"/>
+<link rel="next" href="processing.html"/>
 <script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
 <link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
@@ -182,13 +182,17 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="1.1" data-path="index.html"><a href="index.html#objective"><i class="fa fa-check"></i><b>1.1</b> Objective</a></li>
 <li class="chapter" data-level="1.2" data-path="index.html"><a href="index.html#data_desc"><i class="fa fa-check"></i><b>1.2</b> Data</a></li>
 </ul></li>
-<li class="chapter" data-level="2" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html"><i class="fa fa-check"></i><b>2</b> Point Cloud Processing</a>
+<li class="chapter" data-level="2" data-path="processing.html"><a href="processing.html"><i class="fa fa-check"></i><b>2</b> Point Cloud Processing</a>
 <ul>
-<li class="chapter" data-level="2.1" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#lidar-data-location"><i class="fa fa-check"></i><b>2.1</b> Lidar Data Location</a></li>
-<li class="chapter" data-level="2.2" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#individial-tree-detection-tuning-itd_tuning"><i class="fa fa-check"></i><b>2.2</b> Individial Tree Detection Tuning: <code id="itd">itd_tuning()</code></a></li>
-<li class="chapter" data-level="2.3" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#point-cloud-tree-extraction-cloud2trees"><i class="fa fa-check"></i><b>2.3</b> Point Cloud Tree Extraction: <code>cloud2trees()</code></a></li>
-<li class="chapter" data-level="2.4" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#dbh-modeling-trees_dbh"><i class="fa fa-check"></i><b>2.4</b> DBH Modeling: <code>trees_dbh()</code></a></li>
-<li class="chapter" data-level="2.5" data-path="point-cloud-processing.html"><a href="point-cloud-processing.html#cbh-modeling-trees_cbh"><i class="fa fa-check"></i><b>2.5</b> CBH Modeling: <code>trees_cbh()</code></a></li>
+<li class="chapter" data-level="2.1" data-path="processing.html"><a href="processing.html#lidar-data-location"><i class="fa fa-check"></i><b>2.1</b> Lidar Data Location</a></li>
+<li class="chapter" data-level="2.2" data-path="processing.html"><a href="processing.html#individial-tree-detection-tuning-itd_tuning"><i class="fa fa-check"></i><b>2.2</b> Individial Tree Detection Tuning: <code id="itd">itd_tuning()</code></a></li>
+<li class="chapter" data-level="2.3" data-path="processing.html"><a href="processing.html#point-cloud-tree-extraction-cloud2trees"><i class="fa fa-check"></i><b>2.3</b> Point Cloud Tree Extraction: <code id="trees">cloud2trees()</code></a></li>
+<li class="chapter" data-level="2.4" data-path="processing.html"><a href="processing.html#dbh-modeling-trees_dbh"><i class="fa fa-check"></i><b>2.4</b> DBH Modeling: <code>trees_dbh()</code></a></li>
+<li class="chapter" data-level="2.5" data-path="processing.html"><a href="processing.html#hmd-modeling-trees_hmd"><i class="fa fa-check"></i><b>2.5</b> HMD Modeling: <code>trees_hmd()</code></a></li>
+<li class="chapter" data-level="2.6" data-path="processing.html"><a href="processing.html#cbh-modeling-trees_cbh"><i class="fa fa-check"></i><b>2.6</b> CBH Modeling: <code>trees_cbh()</code></a></li>
+<li class="chapter" data-level="2.7" data-path="processing.html"><a href="processing.html#forest-type-trees_type"><i class="fa fa-check"></i><b>2.7</b> Forest Type: <code>trees_type()</code></a></li>
+<li class="chapter" data-level="2.8" data-path="processing.html"><a href="processing.html#combine-data"><i class="fa fa-check"></i><b>2.8</b> Combine data</a></li>
+<li class="chapter" data-level="2.9" data-path="processing.html"><a href="processing.html#crown-biomass-trees_biomass"><i class="fa fa-check"></i><b>2.9</b> Crown Biomass: <code>trees_biomass()</code></a></li>
 </ul></li>
 <li class="chapter" data-level="3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html"><i class="fa fa-check"></i><b>3</b> Validate Tree Detection and Crown Delineation</a>
 <ul>
@@ -207,6 +211,15 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="3.4.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#function-to-extract-trees"><i class="fa fa-check"></i><b>3.4.1</b> Function to extract trees</a></li>
 <li class="chapter" data-level="3.4.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#build-evaluation-data"><i class="fa fa-check"></i><b>3.4.2</b> Build evaluation data</a></li>
 <li class="chapter" data-level="3.4.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#full-evaluation"><i class="fa fa-check"></i><b>3.4.3</b> Full evaluation</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="4" data-path="cbh.html"><a href="cbh.html"><i class="fa fa-check"></i><b>4</b> CBH Process</a>
+<ul>
+<li class="chapter" data-level="4.1" data-path="cbh.html"><a href="cbh.html#example-lidar-data"><i class="fa fa-check"></i><b>4.1</b> Example lidar data</a></li>
+<li class="chapter" data-level="4.2" data-path="cbh.html"><a href="cbh.html#extract-cbh"><i class="fa fa-check"></i><b>4.2</b> Extract CBH</a>
+<ul>
+<li class="chapter" data-level="4.2.1" data-path="cbh.html"><a href="cbh.html#return-cbh-metrics"><i class="fa fa-check"></i><b>4.2.1</b> Return CBH Metrics</a></li>
+<li class="chapter" data-level="4.2.2" data-path="cbh.html"><a href="cbh.html#cbh-on-the-point-cloud"><i class="fa fa-check"></i><b>4.2.2</b> CBH on the point cloud</a></li>
 </ul></li>
 </ul></li>
 </ul>
@@ -229,7 +242,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="header">
 <h1 class="title">Aerial LiDAR for Fire Model Inputs</h1>
 <p class="author"><em>George Woolsey</em></p>
-<p class="date"><em>28 February, 2025</em></p>
+<p class="date"><em>10 March, 2025</em></p>
 </div>
 <div id="introduction" class="section level1 hasAnchor" number="1">
 <h1><span class="header-section-number">Section 1</span> Introduction<a href="index.html#introduction" class="anchor-section" aria-label="Anchor link to header"></a></h1>
@@ -250,7 +263,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         </div>
       </div>
 
-<a href="point-cloud-processing.html" class="navigation navigation-next navigation-unique" aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+<a href="processing.html" class="navigation navigation-next navigation-unique" aria-label="Next page"><i class="fa fa-angle-right"></i></a>
     </div>
   </div>
 <script src="libs/gitbook-2.6.7/js/app.min.js"></script>

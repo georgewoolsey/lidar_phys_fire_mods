@@ -1,0 +1,404 @@
+# CBH Process{#cbh}
+
+let's go through the process to extract CBH from the point cloud
+
+```{r, include=F, warning=F, message=F}
+# bread-and-butter
+library(tidyverse) # the tidyverse
+library(viridis) # viridis colors
+library(harrypotter) # hp colors
+library(RColorBrewer) # brewer colors
+library(scales) # work with number and plot scales
+library(latex2exp)
+
+# visualization
+library(mapview) # interactive html maps
+library(kableExtra) # tables
+library(patchwork) # combine plots
+library(ggnewscale) # ggnewscale
+library(plot3D) # 3d plotting
+library(rgl) # rgl plotting
+
+# spatial analysis
+library(terra) # raster
+library(sf) # simple features
+library(lidR) # lidar data
+
+library(pak)
+# load them
+c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR", "leafR") %>% 
+# install and load
+  purrr::map(function(x){
+    # locations
+    df <- dplyr::tibble(
+      p = c("NeonTreeEvaluation", "cloud2trees", "LadderFuelsR", "lasR", "leafR")
+      , l = c(
+        "weecology/NeonTreeEvaluation_package"
+        , "georgewoolsey/cloud2trees"
+        , "olgaviedma/LadderFuelsR"
+        , "r-lidar/lasR"
+        , "DRAAlmeida/leafR"
+      )
+    )
+    # install if needed
+    if(!require(x, character.only = T)){
+      pak::pkg_install(
+        pkg = df %>% dplyr::filter(tolower(p)==tolower(x)) %>% dplyr::pull(l)
+        , upgrade = T
+      )
+    }
+    # load
+    library(x, character.only = T)
+  })
+
+
+
+# knit options
+knitr::opts_chunk$set(
+  echo = TRUE
+  , warning = FALSE
+  , message = FALSE
+  # , results = 'hide'
+  , fig.width = 10.5
+  , fig.height = 7
+)
+# option to put satellite imagery as base layer of mapview maps
+  mapview::mapviewOptions(
+    homebutton = FALSE
+    # , basemaps = c("Esri.WorldImagery","OpenStreetMap")
+    , basemaps = c("OpenStreetMap", "Esri.WorldImagery")
+  )
+# clean session
+remove(list = ls())
+gc()
+```
+
+## Example lidar data
+
+we'll use some of our trees and height-normalized point cloud data generated in our [point cloud processing](#processing)
+
+load the tree crown polygons
+
+```{r}
+# get the data from already run
+crowns_sf <-
+  list.files(
+    "../data/point_cloud_processing_delivery"
+    , pattern = "final_detected_crowns.*\\.gpkg$"
+    , full.names = T
+  ) %>% 
+  normalizePath() %>% 
+  purrr::map(\(x)
+    sf::st_read(
+      dsn = x
+      , quiet = T
+    )
+  ) %>% 
+  dplyr::bind_rows()
+```
+
+load the central 0.1 ha area of our study area
+
+```{r}
+aoi <-
+  sf::st_read("../data/point_cloud_processing_delivery/raw_las_ctg_info.gpkg") %>% 
+  sf::st_union() %>% 
+  sf::st_centroid() %>% 
+  sf::st_buffer(sqrt(1000/4), endCapStyle = "SQUARE") %>% 
+  sf::st_transform(sf::st_crs(crowns_sf))
+```
+
+filter for trees in the aoi
+
+```{r}
+crowns_sf <- crowns_sf %>% 
+  # join so we get the full crown
+  dplyr::inner_join(
+    sf::st_intersection(crowns_sf, aoi) %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::distinct(treeID)
+    , by = "treeID"
+  ) %>% 
+  # make treeID numeric for later
+  dplyr::mutate(
+    treeID_bu = treeID
+    , treeID = treeID %>% as.factor %>% as.numeric()
+  ) %>% 
+  cloud2trees::simplify_multipolygon_crowns()
+```
+
+now, we'll load in the point cloud data for our aoi
+
+```{r}
+las_ctg <- lidR::readLAScatalog("../data/point_cloud_processing_delivery/norm_las/")
+lidR::opt_progress(las_ctg) <- F
+las <- lidR::clip_roi(las_ctg, crowns_sf %>% sf::st_bbox() %>% sf::st_as_sfc() %>% sf::st_buffer(2))
+```
+
+plot a sample
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+# ## if want to get current rgl parameters
+# par3d()$zoom
+# par3d()$FOV
+# par3d()$userMatrix %>% c()
+# par3d()$windowRect
+## set up for printing rgl graphics
+r3dDefaults <- rgl::r3dDefaults
+m  <- structure(c(
+  0.90228689,-0.03516655,0.42969972,0.00000000,0.42887092,0.17524548,-0.88620484,0.00000000,-0.04413813,0.98389661
+  ,0.17320365,0.00000000,0.00000000,0.00000000,0.00000000,1.00000000
+), .Dim = c(4L, 4L))
+r3dDefaults$FOV <- 30
+r3dDefaults$userMatrix <- m
+r3dDefaults$zoom <- 0.8
+r3dDefaults$windowRect <- c(0,23,1536,864)
+rgl::setupKnitr(autoprint = TRUE)
+```
+
+```{r, rgl = TRUE}
+las %>% 
+  lidR::plot(
+    color = "Z", bg = "white", legend = T
+   , pal = harrypotter::hp(n=50, house = "gryffindor")
+  )
+```
+
+now we'll attach the `treeID` column to the normalized las file
+
+```{r}
+las <- cloud2trees::polygon_attribute_to_las(las = las, poly_df = crowns_sf, attribute = "treeID", force_crs = T)
+```
+
+let's look at our point cloud colored by `treeID`
+
+```{r, rgl = TRUE}
+las %>% 
+  lidR::filter_poi(!is.na(treeID)) %>% 
+  lidR::plot(color = "treeID", bg = "white", legend = F)
+```
+
+let's filter for a single tree
+
+```{r}
+# sf
+one_tree_sf <- crowns_sf %>% dplyr::filter(tree_height_m == max(tree_height_m)) %>% dplyr::slice(1)
+# las
+one_tree_las <- las %>% lidR::filter_poi(treeID==one_tree_sf$treeID)
+```
+
+check our one tree point cloud
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+# ## if want to get current rgl parameters
+# par3d()$zoom
+# par3d()$FOV
+# par3d()$userMatrix %>% c()
+# par3d()$windowRect
+## set up for printing rgl graphics
+r3dDefaults <- rgl::r3dDefaults
+m  <- structure(c(
+  1.0000000,0.0000000,0.0000000,0.0000000,0.0000000,0.3420201,-0.9396926,0.0000000
+  ,0.0000000,0.9396926,0.3420201,0.0000000,0.0000000,0.0000000,0.0000000,1.0000000
+), .Dim = c(4L, 4L))
+r3dDefaults$FOV <- 30
+r3dDefaults$userMatrix <- m
+r3dDefaults$zoom <- 1.05
+r3dDefaults$windowRect <- c(0,23,1536,864)
+rgl::setupKnitr(autoprint = TRUE)
+```
+
+```{r, rgl = TRUE}
+one_tree_las %>% 
+  lidR::plot(
+    color = "Z", bg = "white", legend = T
+   , pal = harrypotter::hp(n=50, house = "gryffindor")
+  )
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(las_ctg, aoi)
+gc()
+```
+
+## Extract CBH
+
+using the same settings as our processing
+
+```{r, include=FALSE, eval=TRUE}
+# pointsByZSlice from leafR causes errors
+pointsByZSlice <- leafR::pointsByZSlice
+```
+
+```{r}
+# CALL IT
+ladderfuelsr_cbh_ans <- cloud2trees::ladderfuelsr_cbh(
+  las = one_tree_las
+  , min_vhp_n = 3
+  , voxel_grain_size_m = 1
+  , dist_btwn_bins_m = 1
+  , min_fuel_layer_ht_m = 1
+  , lad_pct_gap = 25
+  , lad_pct_base = 25
+  , num_jump_steps = 1
+  , min_lad_pct = 10
+  , frst_layer_min_ht_m = 1
+) 
+ladderfuelsr_cbh_ans %>% names()
+ladderfuelsr_cbh_ans$lad_profile %>% dplyr::glimpse()
+```
+
+Create our own plot of the gaps and fuel layers base height in the vertical tree profile
+
+```{r}
+ggplot() + 
+  geom_path(data = ladderfuelsr_cbh_ans$lad_profile, mapping = aes(x = lad, y = height)) +
+  geom_point(data = ladderfuelsr_cbh_ans$lad_profile, mapping = aes(x = lad, y = height)) +
+  # gaps data
+  geom_hline(
+    data = ladderfuelsr_cbh_ans$gaps_fbhs %>% 
+      dplyr::select(
+        tidyselect::starts_with("gap") & !tidyselect::starts_with("gap_")
+      ) %>% 
+      tidyr::pivot_longer(dplyr::everything())
+    , aes(yintercept = value, color = "gaps")
+    , linetype = "dotted"
+    , lwd = 1.2
+  ) + 
+  # fbh data
+  geom_hline(
+    data = ladderfuelsr_cbh_ans$gaps_fbhs %>% 
+      dplyr::select(
+        tidyselect::starts_with("cbh") & !tidyselect::starts_with("cbh_")
+      ) %>% 
+      tidyr::pivot_longer(dplyr::everything())
+    , aes(yintercept = value, color = "FBHs")
+    , linetype = "dotdash"
+    , lwd = 1.2
+  ) +
+  scale_color_manual(values = c("green4", "red"), name = "") +
+  scale_y_continuous(breaks = scales::extended_breaks(10)) +
+  theme_light() +
+  theme(legend.position = "top")
+```
+
+note, the `gap` and `cbh` columns in `ladderfuelsr_cbh_ans$gaps_fbhs` contain the data needed for the plot ( but not the `gap_` and `cbh_` columns ;/ ).
+
+but what are these columns?
+
+* `cbh` - Height of the fuel layer base height (m)
+* `gap` - Height of gap between fuel layers (m)
+
+### Return CBH Metrics
+
+```{r}
+ladderfuelsr_cbh_ans$cbh_metrics %>% dplyr::glimpse()
+```
+
+what are these?
+
+* treeID: tree ID with strings and numeric values
+* treeID1: tree ID with only numeric values
+* dptf: Depth of fuel layers (m) after considering distances greater than the actual height bin step
+* effdist: Effective distance between consecutive fuel layers (m) after considering distances greater than any number of steps
+* Hcbh: Base height of each fuel separated by a distance greater than the certain number of steps
+* Hdptf: Height of the depth of fuel layers (m) after considering distances greater than the actual step
+* Hdist: Height of the distance (> any number of steps) between consecutive fuel layers (m)
+* Hcbh_Hdptf - Percentage of LAD values comprised in each effective fuel layer
+* maxlad_Hcbh - Height of the CBH of the segmented tree based on the maximum LAD percentage
+* maxlad1_Hcbh - Height of the CBH from the second fuel layer when the maximum LAD occurred in the first fuel layer but its depth <= "hdepth1_height"
+* max_Hcbh - Height of the CBH of the segmented tree based on the maximum distance found in its profile
+* last_Hcbh - Height of the CBH of the segmented tree based on the last distance found in its profile
+* maxlad_ - Values of distance and fuel depth and their corresponding heights at the maximum LAD percentage
+* maxlad1_ - Values of distance and fuel depth and their corresponding heights for the second fuel layer when the maximum LAD occurred in the first fuel layer but its depth <= "hdepth1_height"
+* max_ - Values of distance and fuel depth and their corresponding heights at the maximum distance
+* last_ - Values of distance and fuel depth and their corresponding heights at the last distance
+* nlayers - Number of effective fuel layers
+* max_height - Maximum height of the tree profile
+
+there are also some plotting functions
+
+```{r}
+# Generate plots for fuels LAD metrics
+plots_cbh_maxlad <- LadderFuelsR::get_plots_cbh_LAD(
+  LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
+  , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
+  , min_height = 0.5
+)
+plots_cbh_maxdist <- LadderFuelsR::get_plots_cbh_maxdist(
+  LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
+  , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
+  , min_height = 0.5
+)
+plots_cbh_lastdist <- LadderFuelsR::get_plots_cbh_lastdist(
+  LAD_profiles = ladderfuelsr_cbh_ans$lad_profile
+  , cbh_metrics = ladderfuelsr_cbh_ans$cbh_metrics
+  , min_height = 0.5
+)
+# patchwork them
+(plots_cbh_maxlad[[1]] + labs(title = "get_plots_cbh_LAD")) +
+(plots_cbh_maxdist[[1]] + labs(title = "get_plots_cbh_maxdist")) +
+(plots_cbh_lastdist[[1]] + labs(title = "get_plots_cbh_lastdist")) +
+  patchwork::plot_layout(ncol = 2)
+```
+
+these plots represent the three criteria to define the CBH in a segmented tree: 
+
+* `get_plots_cbh_LAD` = the fuel layer containing the maximum LAD percentage (column named `maxlad_Hcbh`)
+* `get_plots_cbh_maxdist` = the fuel layer located at the highest distance (column named `max_Hcbh`)
+* `get_plots_cbh_lastdist` = the fuel layer separated by the last effective distance (column named `last_Hcbh`)
+
+### CBH on the point cloud
+
+can we make a view of the CBH on the point cloud?
+
+```{r}
+# make a matrix to represent the cbh
+x_temp <- seq(
+    min(one_tree_las@data$X)
+    , max(one_tree_las@data$X)
+    , length.out = 2
+  )
+y_temp <- seq(
+    min(one_tree_las@data$Y)
+    , max(one_tree_las@data$Y)
+    , length.out = 2
+  )
+xy_temp <- expand.grid(x = x_temp, y = y_temp)
+z_temp <- matrix(
+  rep(
+    ladderfuelsr_cbh_ans$cbh_metrics$last_Hcbh
+    , nrow(xy_temp)
+  )
+  , nrow = length(x_temp), ncol = length(y_temp)
+)
+# plot it
+plot3D::scatter3D(
+  x = one_tree_las@data$X
+  , y = one_tree_las@data$Y
+  , z = one_tree_las@data$Z
+  , colvar = one_tree_las@data$Z
+  , cex = 0.3, pch = 19
+  , colkey = T
+  , phi = -6
+  , col = harrypotter::hp(n=50, house = "gryffindor")
+  , main ="CBH shown in black"
+  , surf = list(
+    x = x_temp
+    , y = y_temp
+    , z = z_temp
+    , facets = NA
+    , border = "black"
+    , lwd = 2
+  )
+)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls()[grep("plots_",ls())])
+remove(one_tree_sf, one_tree_las, crowns_nlas_ctg, chrs, html, crowns_sf_poly)
+gc()
+```
+
