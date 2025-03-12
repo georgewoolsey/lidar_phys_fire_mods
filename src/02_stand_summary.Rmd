@@ -132,7 +132,7 @@ treetops_sf <- treetops_sf %>%
 
 load in the tree crown polygon data from `cloud2trees::cloud2trees()` and filter based on the tree list
 
-```{r}
+```{r, eval = F}
 # get the data from already run
 crowns_sf <-
   list.files(
@@ -477,7 +477,7 @@ p_temp <- 1:nrow(stand_sf) %>%
       , scale_name = "CHM (m)"
       , agg_fun = "max"
     ) + 
-    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
     ggplot2::scale_fill_viridis_c(option = "plasma",limits = c(ll,ul))
   })
 ```
@@ -513,9 +513,9 @@ vect_to_rast_fn <- function(
     sf::st_bbox() %>% 
     sf::st_as_sfc(crs = sf::st_crs(vect)) %>% 
     sf::st_buffer(buffer)
-  # Extract bbox coordinates
+  # extract bbox coordinates
   bbox <- sf::st_bbox(my_sf)
-  # Create a terra raster using the bbox
+  # create a terra raster using the bbox
   my_raster <- terra::rast(
     xmin = bbox[1], ymin = bbox[2], xmax = bbox[3], ymax = bbox[4]
     , resolution = des_res
@@ -611,7 +611,7 @@ p_temp <- 1:nrow(stand_sf) %>%
       , my_title = "Arrangement of Mean DBH"
       , scale_name = "DBH (cm)"
     ) +
-    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
     ggplot2::scale_fill_viridis_c(option = "mako", direction = -1, limits = c(ll,ul))
   })
 ```
@@ -645,7 +645,7 @@ qmd_fn <- function(x) {
 }
 # get the plot for each stand
 p_temp <- 1:nrow(stand_sf) %>% 
-  purrr::map(function(x, ul = round(qmd_fn(max(treetops_sf$dbh_cm,na.rm = T))*.9), ll = 0){
+  purrr::map(function(x, ul = round(qmd_fn(max(treetops_sf$dbh_cm,na.rm = T))*.95), ll = 0){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
       , stand_vect = stand_sf[x,]
@@ -658,8 +658,8 @@ p_temp <- 1:nrow(stand_sf) %>%
       , my_title = "Arrangement of Quadratic Mean Diameter"
       , scale_name = "QMD (cm)"
     ) +
-    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
-    ggplot2::scale_fill_viridis_c(option = "mako", direction = -1, limits = c(ll,ul))
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
+    ggplot2::scale_fill_viridis_c(option = "cividis", begin = 0.55, limits = c(ll,ul))
   })
 ```
 
@@ -695,7 +695,7 @@ p_temp <- 1:nrow(stand_sf) %>%
       , my_title = "Arrangement of Basal Area"
       , scale_name = latex2exp::TeX("BA ($m ^ 2 \\cdot ha^{-1}$)")
     ) +
-    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
     harrypotter::scale_fill_hp(option = "slytherin", limits = c(ll,ul))
   })
 ```
@@ -732,7 +732,7 @@ p_temp <- 1:nrow(stand_sf) %>%
       , my_title = "Arrangement of Trees per Hectare"
       , scale_name = "TPH"
     ) +
-    ggplot2::labs(subtitle = stand_sf[x,]$unit_name) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
     harrypotter::scale_fill_hp(option = "mischief", limits = c(ll,ul))
   })
 ```
