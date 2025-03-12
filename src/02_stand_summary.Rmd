@@ -274,7 +274,7 @@ Let's look at some common stand-level forestry metrics
 ### stand-level summaries
 silv_metrics <-
   treetops_sf %>%
-    sf::st_drop_geometry() %>%
+    sf::st_drop_geometry() %>% 
     # dplyr::filter(dbh_cm >= ostory_dbh_cm) %>% 
     dplyr::ungroup() %>%
     dplyr::group_by(unit_id, unit_name, stand_area_ha) %>%
@@ -285,14 +285,18 @@ silv_metrics <-
       , loreys_height_m = sum(basal_area_m2*tree_height_m, na.rm = T) / sum(basal_area_m2, na.rm = T)
       , basal_area_m2 = sum(basal_area_m2, na.rm = T)
       , sum_dbh_cm_sq = sum(dbh_cm^2, na.rm = T)
+      , landfire_crown_biomass_kg = sum(landfire_crown_biomass_kg, na.rm = T)
+      , cruz_crown_biomass_kg = sum(cruz_crown_biomass_kg, na.rm = T)
     ) %>%
     dplyr::ungroup() %>%
     dplyr::mutate(
       trees_per_ha = (n_trees/stand_area_ha)
       , basal_area_m2_per_ha = (basal_area_m2/stand_area_ha)
       , qmd_cm = sqrt(sum_dbh_cm_sq/n_trees)
+      , landfire_cfl_kg_m2 = landfire_crown_biomass_kg/(stand_area_ha*10000)
+      , cruz_cfl_kg_m2 = cruz_crown_biomass_kg/(stand_area_ha*10000)
     ) %>%
-    dplyr::select(-c(sum_dbh_cm_sq))
+    dplyr::select(-c(sum_dbh_cm_sq,landfire_crown_biomass_kg,cruz_crown_biomass_kg))
 
 ### export tabular
 write.csv(
@@ -317,6 +321,8 @@ silv_metrics %>%
     , loreys_height_m
     , trees_per_ha
     , basal_area_m2_per_ha
+    , landfire_cfl_kg_m2
+    , cruz_cfl_kg_m2
   ) %>% 
   dplyr::mutate(
     dplyr::across(
@@ -338,6 +344,8 @@ silv_metrics %>%
       , "Loreys<br>Ht. (m)"
       , "TPH"
       , "BA<br>m<sup>2</sup> ha<sup>-1</sup>"
+      , "LANDFIRE CFL<br>kg m<sup>-2</sup>"
+      , "Cruz CFL<br>kg m<sup>-2</sup>"
       )
   ) %>% 
   kableExtra::kable_styling()
@@ -446,7 +454,12 @@ plot_raster_stand_fn <- function(
       , color = stand_color, fill = NA, lwd = 1.5
     ) +
     ggplot2::labs(title = my_title, fill = scale_name) + 
-    ggplot2::theme_void()
+    ggplot2::theme_void() +
+    ggplot2::theme(
+      legend.title = ggplot2::element_text(size=7)
+      , plot.title = ggplot2::element_text(size = 10)
+      , plot.subtitle = ggplot2::element_text(size = 9)
+    )
 }
 # plot_raster_stand_fn(
 #   dtm_rast
@@ -465,7 +478,7 @@ the canopy height model is a raster dataset that represents the height of object
 
 ```{r}
 # get the plot for each stand
-p_temp <- 1:nrow(stand_sf) %>% 
+plt_chm <- 1:nrow(stand_sf) %>% 
   purrr::map(function(x, ul = max(terra::values(chm_rast), na.rm = T), ll = 0){
     plot_raster_stand_fn(
       chm_rast
@@ -485,7 +498,7 @@ p_temp <- 1:nrow(stand_sf) %>%
 check out our plots
 
 ```{r}
-p_temp
+plt_chm
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
@@ -497,7 +510,7 @@ gc()
 
 the CHM was easy to plot because it was already a raster dataset; what if we want to plot a raster of a metric based on our vector tree data?
 
-we need to define a function to rasterize our spatial tree list by aggregating the metric within a raster cell
+we need to define a function to rasterize our spatial tree list by aggregating a selected metric within a raster cell
 
 ```{r}
 vect_to_rast_fn <- function(
@@ -597,7 +610,7 @@ take this for a spin to get a raster of mean DBH plotted with our stand boundary
 
 ```{r}
 # get the plot for each stand
-p_temp <- 1:nrow(stand_sf) %>% 
+plt_dbh <- 1:nrow(stand_sf) %>% 
   purrr::map(function(x, ul = max(treetops_sf$dbh_cm,na.rm = T), ll = 0){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
@@ -608,18 +621,56 @@ p_temp <- 1:nrow(stand_sf) %>%
       , buffer = 5
       , des_res = 20
       , stand_color = "black"
-      , my_title = "Arrangement of Mean DBH"
+      , my_title = "Mean DBH"
       , scale_name = "DBH (cm)"
     ) +
     ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
-    ggplot2::scale_fill_viridis_c(option = "mako", direction = -1, limits = c(ll,ul))
+    ggplot2::scale_fill_distiller(palette = "Oranges", direction = 1, limits = c(ll,ul))
+    # ggplot2::scale_fill_viridis_c(option = "mako", direction = -1, limits = c(ll,ul))
   })
 ```
 
 check out our plots
 
 ```{r}
-p_temp
+plt_dbh
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+### Mean Height
+
+now get a raster of mean tree height plotted with our stand boundary which will be similar to the CHM but aggregated as if at the inventory plot level
+
+```{r}
+# get the plot for each stand
+plt_height <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, ul = max(treetops_sf$tree_height_m,na.rm = T), ll = 0){
+    vect_to_rast_plot_fn(
+      trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
+      , stand_vect = stand_sf[x,]
+      , fun = "mean"
+      , field = "tree_height_m"
+      , zero_na = F 
+      , buffer = 5
+      , des_res = 20
+      , stand_color = "black"
+      , my_title = "Mean Height"
+      , scale_name = "Height (m)"
+    ) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
+    ggplot2::scale_fill_distiller(palette = "YlOrBr", direction = 1, limits = c(ll,ul))
+    # ggplot2::scale_fill_viridis_c(option = "mako", direction = -1, limits = c(ll,ul))
+  })
+```
+
+check out our plots
+
+```{r}
+plt_height
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
@@ -644,7 +695,7 @@ qmd_fn <- function(x) {
   sqrt(sum(x^2, na.rm=T)/length(x[!is.na(x)]))
 }
 # get the plot for each stand
-p_temp <- 1:nrow(stand_sf) %>% 
+plt_qmd <- 1:nrow(stand_sf) %>% 
   purrr::map(function(x, ul = round(qmd_fn(max(treetops_sf$dbh_cm,na.rm = T))*.95), ll = 0){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
@@ -655,18 +706,19 @@ p_temp <- 1:nrow(stand_sf) %>%
       , buffer = 5
       , des_res = 20
       , stand_color = "black"
-      , my_title = "Arrangement of Quadratic Mean Diameter"
+      , my_title = "Quadratic Mean Diameter"
       , scale_name = "QMD (cm)"
     ) +
     ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
-    ggplot2::scale_fill_viridis_c(option = "cividis", begin = 0.55, limits = c(ll,ul))
+    ggplot2::scale_fill_distiller(palette = "Blues", direction = 1, limits = c(ll,ul))
+    # ggplot2::scale_fill_viridis_c(option = "cividis", begin = 0.55, limits = c(ll,ul))
   })
 ```
 
 check out our plots
 
 ```{r}
-p_temp
+plt_qmd
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
@@ -681,7 +733,7 @@ to get Basal Area (BA) in square meters per hectare we will also need to create 
 ```{r}
 # get the plot for each stand
 # max(silv_metrics$basal_area_m2_per_ha)*2
-p_temp <- 1:nrow(stand_sf) %>% 
+plt_ba <- 1:nrow(stand_sf) %>% 
   purrr::map(function(x, my_res = 20, ul = NA, ll = NA){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
@@ -692,18 +744,19 @@ p_temp <- 1:nrow(stand_sf) %>%
       , buffer = 5
       , des_res = my_res
       , stand_color = "black"
-      , my_title = "Arrangement of Basal Area"
+      , my_title = "Basal Area"
       , scale_name = latex2exp::TeX("BA ($m ^ 2 \\cdot ha^{-1}$)")
     ) +
     ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
-    harrypotter::scale_fill_hp(option = "slytherin", limits = c(ll,ul))
+    ggplot2::scale_fill_distiller(palette = "Purples", direction = 1, limits = c(ll,ul))
+    # harrypotter::scale_fill_hp(option = "slytherin", limits = c(ll,ul))
   })
 ```
 
 check out our plots
 
 ```{r}
-p_temp
+plt_ba
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
@@ -717,9 +770,8 @@ to get trees per hectare (TPH) we will also need to create a function that uses 
 
 ```{r}
 # get the plot for each stand
-# max(silv_metrics$basal_area_m2_per_ha)*2
-p_temp <- 1:nrow(stand_sf) %>% 
-  purrr::map(function(x, my_res = 20, ul = 2333, ll = NA){
+plt_tph <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, my_res = 20, ul = 2444, ll = NA){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
       , stand_vect = stand_sf[x,]
@@ -729,21 +781,144 @@ p_temp <- 1:nrow(stand_sf) %>%
       , buffer = 5
       , des_res = my_res
       , stand_color = "black"
-      , my_title = "Arrangement of Trees per Hectare"
+      , my_title = "Trees per Hectare"
       , scale_name = "TPH"
     ) +
     ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
-    harrypotter::scale_fill_hp(option = "mischief", limits = c(ll,ul))
+    ggplot2::scale_fill_distiller(palette = "Greys", direction = 1, limits = c(ll,ul))
+    # harrypotter::scale_fill_hp(option = "mischief", limits = c(ll,ul))
   })
 ```
 
 check out our plots
 
 ```{r}
-p_temp
+plt_tph
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
+
+### CFL Cruz
+
+to get canopy fuel load (CFL) we will also need to create a function that uses the area of the raster cell
+
+CFL is the total amount of flammable material (like leaves, needles, branches) within the tree crowns in a given area and expressed in units of mass per unit area (e.g., kilograms per square meter).
+
+First, we'll look at CFL based on the [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) equations and the FIA forest type group
+
+```{r}
+# get the plot for each stand
+plt_cfl_cruz <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, my_res = 20, ul = 6.2, ll = 0){
+    vect_to_rast_plot_fn(
+      trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
+      , stand_vect = stand_sf[x,]
+      , fun = function(x){sum(x,na.rm = T)/(my_res^2)}
+      , field = "cruz_crown_biomass_kg"
+      , zero_na = F 
+      , buffer = 5
+      , des_res = my_res
+      , stand_color = "black"
+      , my_title = "Cruz estimated Canopy Fuel Load"
+      , scale_name = latex2exp::TeX("Cruz CFL ($kg \\cdot m^{-2}$)")
+    ) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
+    ggplot2::scale_fill_distiller(palette = "Reds", direction = 1, limits = c(ll,ul))
+    # ggplot2::scale_fill_viridis_c(option = "rocket", begin = 0.5, direction = -1, limits = c(ll,ul))
+  })
+```
+
+check out our plots
+
+```{r}
+plt_cfl_cruz
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+### CFL LANDFIRE
+
+to get canopy fuel load (CFL) we will also need to create a function that uses the area of the raster cell
+
+CFL is the total amount of flammable material (like leaves, needles, branches) within the tree crowns in a given area and expressed in units of mass per unit area (e.g., kilograms per square meter).
+
+First, we'll look at CFL based on the [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) equations and the FIA forest type group
+
+```{r}
+# get the plot for each stand
+plt_cfl_landfire <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, my_res = 20, ul = 6.2, ll = 0){
+    vect_to_rast_plot_fn(
+      trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
+      , stand_vect = stand_sf[x,]
+      , fun = function(x){sum(x,na.rm = T)/(my_res^2)}
+      , field = "landfire_crown_biomass_kg"
+      , zero_na = F 
+      , buffer = 5
+      , des_res = my_res
+      , stand_color = "black"
+      , my_title = "LANDFIRE estimated Canopy Fuel Load"
+      , scale_name = latex2exp::TeX("LANDFIRE CFL ($kg \\cdot m^{-2}$)")
+    ) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
+    ggplot2::scale_fill_distiller(palette = "Reds", direction = 1, limits = c(ll,ul))
+  })
+```
+
+check out our plots
+
+```{r}
+plt_cfl_landfire
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+# ls()[stringr::str_starts(ls(),"plt_")]
+gc()
+```
+
+### Combine by stand unit
+
+put all desired plots into a list to combine by stand unit
+
+```{r}
+plt_list <- list(plt_ba, plt_qmd, plt_height, plt_tph, plt_cfl_cruz, plt_cfl_landfire)
+```
+
+combine the plots by stand unit
+
+```{r}
+plt_stands <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x,my_stand_sf=stand_sf,my_plt_list=plt_list){
+    # get just this stand plots
+    plts <- my_plt_list %>%
+      purrr::transpose() %>% 
+      purrr::pluck(x)
+    # patchwork them
+    patchwork::wrap_plots(plts) +
+      patchwork::plot_annotation(
+        title = paste("Unit:",my_stand_sf[x,]$unit_name)
+        , theme = ggplot2::theme(plot.title = ggplot2::element_text(size = 18, hjust = 0.5))
+      ) &
+      ggplot2::theme(
+        plot.subtitle = ggplot2::element_blank()
+        , legend.text = ggplot2::element_text(size=6.5)
+        # , plot.background = ggplot2::element_rect(colour = "gray77", fill=NA, linewidth=1)
+      )
+  })
+```
+
+check out our plots
+
+```{r}
+plt_stands
+```
+
+## Canopy Cover
+
