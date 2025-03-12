@@ -472,7 +472,7 @@ plot_raster_stand_fn <- function(
 # )
 ```
 
-### CHM
+### CHM{#chm_plt}
 
 the canopy height model is a raster dataset that represents the height of objects above the ground, we set the minimum height at `r min(terra::values(chm_rast), na.rm = T)` m
 
@@ -920,5 +920,119 @@ check out our plots
 plt_stands
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(list = ls()[stringr::str_starts(ls(),"plt_")])
+gc()
+```
+
 ## Canopy Cover
 
+To get a raster of canopy cover, which refers to the proportional area of the ground covered by tree crowns, it is more straightforward (and computationally efficient) to use the [CHM](#chm_plt) and not the tree crown polygons. As a reminder, the canopy height model is a raster dataset that represents the height of objects above the ground, we set the minimum height at `r min(terra::values(chm_rast), na.rm = T)` m
+
+we'll first define a function to filter our CHM for cells over a certain height threshold so that users can determine what height constitutes the "canopy"
+
+```{r}
+# filter our CHM for cells over a certain height threshold
+chm_threshold_fn <- function(chm_rast, min_ht_m = 2) {
+  #option 1
+  new_rast <- terra::clamp(chm_rast, lower = as.numeric(min_ht_m), values = F)
+  # #option 3
+  # new_rast <- terra::ifel(chm_rast < as.numeric(min_ht_m), NA, chm_rast)
+  
+  return(new_rast)
+}
+# chm_threshold_fn(chm_rast, 11) %>% terra::plot()
+```
+
+now we can use our filtered CHM to calculate canopy cover at a coarser resolution by determining the proportion of cells in the aggregated cell that were originally non-NA (i.e. > height threshold)
+
+```{r}
+agg_propotion_fn <- function(x){
+  if(any(is.na(x))){
+    # return proportion of non-na cells
+    return(sum(!is.na(x)) / length(x))  
+  }else{
+    # return 1 if all cells are non-na
+    return(1)
+  }
+}
+# put all of this together to create a canopy cover function
+chm_to_canopy_cov_fn <- function(chm_rast, min_ht_m = 2, des_res) {
+  # filter our CHM for cells over a certain height threshold
+  rast <- chm_threshold_fn(chm_rast=chm_rast, min_ht_m=min_ht_m)
+  # aggregate the raster
+  res_temp <- terra::res(rast)[1]
+  if(res_temp<des_res){
+    rast <- terra::aggregate(
+      rast
+      , fact = round(des_res/res_temp)
+      , fun = agg_propotion_fn
+      , cores = lasR::half_cores()
+    )
+  }else{
+    rast <- terra::subst(rast, from = NA, to = NA, others = 1)
+  }
+}
+```
+
+### Entire Area
+
+let's get canopy cover for a canopy defined as heights > 6 m and raster cells aggregated to 100 x 100 m (1 ha cells) and make a quick plot
+
+```{r, results=F, message=FALSE}
+# get our canopy cover raster
+cc_rast <- chm_to_canopy_cov_fn(chm_rast = chm_rast, min_ht_m = 6, des_res = 100)
+```
+
+plot it
+
+```{r}
+cc_rast %>% 
+  terra::plot(
+    col = # viridis::mako(100, direction = -1)
+      scales::pal_gradient_n(
+        RColorBrewer::brewer.pal(n=9,name = "Greens") # max is 9
+      )(seq(0, 1, length.out = 100))
+    , axes = F, alpha = 0.9
+    , main = "Canopy Cover (%)"
+  )
+terra::plot(terra::vect(stand_sf), add = T, col = NA, border = "black", lwd = 2)
+```
+
+### Stands
+
+we can use our canopy cover raster to get a plot for each stand
+
+```{r}
+# get the plot for each stand
+plt_cc <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(x, ul = 1, ll = 0){
+    plot_raster_stand_fn(
+      cc_rast
+      , stand = stand_sf[x,]
+      , buffer = 50
+      , des_res = 100
+      , stand_color = "black"
+      , my_title = "Canopy Cover"
+      , scale_name = "Canopy Cover"
+      , agg_fun = "max"
+    ) + 
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
+    ggplot2::scale_fill_distiller(
+      palette = "Greens", direction = 1, limits = c(ll,ul)
+      , labels = scales::percent
+    )
+  })
+```
+
+check out our plots
+
+```{r}
+plt_cc
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
