@@ -42,6 +42,14 @@ remove(list = ls())
 gc()
 ```
 
+create a directory for saving our analysis output
+
+```{r}
+# make a dir for saving this stand-level data to
+outdir <- "../data/mogollon_rim_fire_unit_trees"
+if(!dir.exists(outdir)){dir.create(outdir, showWarnings = F)}
+```
+
 ## Load data
 
 first, we'll load our stand data and the boundary data of the point cloud that we processed
@@ -61,8 +69,8 @@ stand_sf <- sf::st_read("../data/QUIK-Fire_Boundary/QUIK-Fire_Boundary.shp", qui
     , stand_area_ha = stand_area_m2/10000
   )
 # set our colors for the units
-if(nrow(stand_sf)<length(harrypotter::hp_palettes$lunalovegood)){
-  my_pal <- harrypotter::hp(n=nrow(stand_sf), option = "lunalovegood")
+if(nrow(stand_sf)<length(harrypotter::hp_palettes$hermionegranger)){
+  my_pal <- harrypotter::hp(n=nrow(stand_sf), option = "hermionegranger")
 }else{
   my_pal <- viridis::turbo(n=nrow(stand_sf))
 }
@@ -130,78 +138,7 @@ treetops_sf <- treetops_sf %>%
   sf::st_intersection(stand_sf %>% dplyr::select(unit_id,unit_name,tidyselect::starts_with("stand_area_")))
 ```
 
-load in the tree crown polygon data from `cloud2trees::cloud2trees()` and filter based on the tree list
-
-```{r, eval = F}
-# get the data from already run
-crowns_sf <-
-  list.files(
-    "../data/point_cloud_processing_delivery"
-    , pattern = "final_detected_crowns.*\\.gpkg$"
-    , full.names = T
-  ) %>% 
-  normalizePath() %>% 
-  purrr::map(\(x)
-    sf::st_read(
-      dsn = x
-      , quiet = T
-    )
-  ) %>% 
-  dplyr::bind_rows() %>% 
-  dplyr::inner_join(
-    treetops_sf %>% 
-      sf::st_drop_geometry() %>% 
-      dplyr::select(treeID,unit_id,unit_name,tidyselect::starts_with("stand_area_"))
-    , by = "treeID"
-  )
-# the records are the same
-identical(nrow(treetops_sf), nrow(crowns_sf))
-```
-
-save the data by unit for sharing with a boss, coworker, friend, etc.
-
-```{r}
-# make a dir for saving this stand-level data to
-outdir <- "../data/mogollon_rim_fire_unit_trees"
-if(!dir.exists(outdir)){dir.create(outdir, showWarnings = F)}
-```
-
-```{r, eval=FALSE, message=FALSE, warning=FALSE, results=F}
-# write crowns and tree tops
-write_temp <- crowns_sf$unit_id %>%
-  unique() %>%
-  purrr::map(function(x, new_crs = proj_crs, my_outdir = outdir){
-    # dsn's
-    cf <- file.path( my_outdir, paste0("final_detected_crowns_unit_",x,".gpkg") )
-    tf <- file.path( my_outdir, paste0("final_detected_tree_tops_unit_",x,".gpkg") )
-    ### write the data to the disk
-    # crown vector polygons
-    sf::st_write(
-      crowns_sf %>%
-        dplyr::filter(unit_id == x) %>% 
-        sf::st_transform(new_crs)
-      , dsn = cf
-      , append = FALSE
-      , quiet = TRUE
-    )
-    # tree top vector points
-    sf::st_write(
-      # get tree points
-      crowns_sf %>%
-        dplyr::filter(unit_id == x) %>%
-        sf::st_drop_geometry() %>%
-        sf::st_as_sf(coords = c("tree_x", "tree_y"), crs = sf::st_crs(crowns_sf)) %>% 
-        sf::st_transform(new_crs) %>% 
-        dplyr::mutate(
-          tree_x = sf::st_coordinates(.)[,1]
-          , tree_y = sf::st_coordinates(.)[,2]
-        )
-      , dsn = tf
-      , append = FALSE
-      , quiet = TRUE
-    )
-  })
-```
+The tree top point data is easier to work with for analysis since it takes less memory to load into our session and has the exact same structure as the crown polygons. At the end, we'll bring in our crown polygon data, filter it with this tree list, and save it for sharing. 
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
@@ -357,7 +294,7 @@ silv_metrics %>%
 # there are always tree heights
 treetops_sf %>%
   ggplot2::ggplot(mapping = ggplot2::aes(x = tree_height_m, color = unit_name, fill = unit_name)) +
-  ggplot2::geom_density(alpha = 0.5) +
+  ggplot2::geom_density(alpha = 0.7) +
   ggplot2::facet_grid(cols = dplyr::vars(unit_name)) +
   ggplot2::scale_color_manual(values = my_pal) +
   ggplot2::scale_fill_manual(values = my_pal) +
@@ -377,7 +314,7 @@ treetops_sf %>%
 ```{r}
 treetops_sf %>%
   ggplot2::ggplot(mapping = ggplot2::aes(x = dbh_cm, color = unit_name, fill = unit_name)) +
-  ggplot2::geom_density(alpha = 0.5) +
+  ggplot2::geom_density(alpha = 0.7) +
   ggplot2::facet_grid(cols = dplyr::vars(unit_name)) +
   ggplot2::scale_color_manual(values = my_pal) +
   ggplot2::scale_fill_manual(values = my_pal) +
@@ -391,6 +328,295 @@ treetops_sf %>%
     , strip.text = ggplot2::element_text(color = "black", size = 10)
   )
 ```
+
+### Forest Type
+
+The `cloud2trees::trees_type()` function was used in our [point cloud processing](#trees_type) pipeline to attach FIA Forest Type Group Code information using the [Forest Type Groups of the Continental United States](https://www.arcgis.com/home/item.html?id=10760c83b9e44923bd3c18efdaa7319d) data (Wilson 2023).
+
+let's check out the distribution of forest type groups overall across units
+
+```{r}
+treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(forest_type_group) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::mutate(
+    pct = scales::percent(n/sum(n), accuracy = 0.1) 
+  ) %>% 
+  dplyr::mutate(n = scales::comma(n,accuracy=1)) %>% 
+  kableExtra::kbl(
+    caption = "Count of trees by FIA Forest Type Group overall"
+    , digits = 2
+    , col.names = c(
+      ""
+      , "# trees"
+      , "% trees"
+    )
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+let's check out the distribution of forest type groups for each unit
+
+```{r}
+treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(unit_name, forest_type_group) %>% 
+  dplyr::arrange(unit_name, desc(n)) %>% 
+  dplyr::group_by(unit_name) %>% 
+  dplyr::mutate(
+    pct = scales::percent(n/sum(n), accuracy = 0.1) 
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(n = scales::comma(n,accuracy=1)) %>% 
+  kableExtra::kbl(
+    caption = "Count of trees by FIA Forest Type Group by stand"
+    , digits = 2
+    , col.names = c(
+      "."
+      , ""
+      , "# trees"
+      , "% trees"
+    )
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+plot it with a custom palette to ensure the colors are the same for forest type across unit plots
+
+```{r}
+# It's recommended to use a named vector
+lab_list_temp <- treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(!is.na(forest_type_group)) %>% 
+  dplyr::distinct(forest_type_group) %>% 
+  dplyr::mutate(forest_type_group = stringr::str_remove(forest_type_group, " group")) %>% 
+  dplyr::pull(forest_type_group)
+# set our colors for the units
+if(length(lab_list_temp)<=length(harrypotter::hp_palettes$lunalovegood)){
+  col_list_temp <- harrypotter::hp(n=length(lab_list_temp), option = "lunalovegood")
+}else{
+  col_list_temp <- viridis::turbo(n=length(lab_list_temp))
+}
+# palette
+ftype_pal <- setNames(col_list_temp,lab_list_temp)
+```
+
+plot
+
+```{r}
+treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::mutate(forest_type_group = stringr::str_remove(forest_type_group, " group")) %>% 
+  dplyr::count(unit_name, forest_type_group) %>% 
+  dplyr::arrange(unit_name, desc(n)) %>% 
+  dplyr::group_by(unit_name) %>% 
+  dplyr::mutate(
+    pct = n/sum(n)
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(forest_type_group = forcats::fct_reorder(forest_type_group, pct)) %>% 
+  ggplot2::ggplot(
+    mapping = ggplot2::aes(
+      x = pct, y = forest_type_group
+      , fill = forest_type_group
+      , label = paste0(
+        scales::percent(pct, accuracy = 0.1)
+        # , "\n"
+        # , scales::comma(n, accuracy = 0.1)
+      )
+    )
+  ) +
+    ggplot2::geom_col(width = 0.7) +
+    ggplot2::geom_text(color = "black", size = 3, hjust = -0.2) +
+    ggplot2::scale_fill_manual(values = ftype_pal) +
+    ggplot2::scale_x_continuous(
+      labels = scales::percent_format(accuracy = 1)
+      ,expand = expansion(mult = c(0, .08))
+    ) +
+    ggplot2::facet_grid(rows = dplyr::vars(unit_name), scales = "free_y") +
+    ggplot2::labs(
+      x = "% trees"
+      , y = "" # "Forest Type Group"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      legend.position = "none"
+      , axis.text.x = ggplot2::element_blank()
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    )
+```
+
+### Crown Biomass
+
+The `cloud2trees::trees_biomass()` function was used in our [point cloud processing](#trees_biomass) pipeline to estimate tree crown biomass in kilograms. We estimated biomass based on: 1) LANDFIRE's [Forest Canopy Bulk Density (CBD) data](https://landfire.gov/fuel/cbd); and 2) based on the [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) equations and the FIA forest type group we got above
+
+the fire science community is likely more familiar with crown bulk density (CBD) values which represent the mass of flammable material per unit volume of the tree crown and are typically expressed in units of mass per unit volume (e.g., kilograms per cubic meter). We'll look at distributions of CBD.
+
+#### Cruz CBD
+
+```{r}
+treetops_sf %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = cruz_tree_kg_per_m3, color = unit_name, fill = unit_name)) +
+  ggplot2::geom_density(alpha = 0.7) +
+  ggplot2::facet_grid(cols = dplyr::vars(unit_name)) +
+  ggplot2::scale_color_manual(values = my_pal) +
+  ggplot2::scale_fill_manual(values = my_pal) +
+  ggplot2::scale_x_continuous(breaks = scales::breaks_extended(11)) +
+  ggplot2::labs(
+    x = latex2exp::TeX("CBD ($kg \\cdot m^{-3}$)")
+    , y = ""
+    , subtitle = "Cruz estimated tree Crown Bulk Density by stand"
+  ) +
+  ggplot2::theme_light() +
+  ggplot2::theme(
+    legend.position = "none"
+    , axis.text.y = ggplot2::element_blank()
+    , axis.ticks.y = ggplot2::element_blank()
+    , strip.text = ggplot2::element_text(color = "black", size = 10)
+  )
+```
+
+#### LANDFIRE CBD
+
+```{r}
+treetops_sf %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(x = landfire_tree_kg_per_m3, color = unit_name, fill = unit_name)) +
+  ggplot2::geom_density(alpha = 0.7) +
+  ggplot2::facet_grid(cols = dplyr::vars(unit_name)) +
+  ggplot2::scale_color_manual(values = my_pal) +
+  ggplot2::scale_fill_manual(values = my_pal) +
+  ggplot2::scale_x_continuous(breaks = scales::breaks_extended(11)) +
+  ggplot2::labs(
+    x = latex2exp::TeX("CBD ($kg \\cdot m^{-3}$)")
+    , y = ""
+    , subtitle = "LANDFIRE estimated tree Crown Bulk Density by stand"
+  ) +
+  ggplot2::theme_light() +
+  ggplot2::theme(
+    legend.position = "none"
+    , axis.text.y = ggplot2::element_blank()
+    , axis.ticks.y = ggplot2::element_blank()
+    , strip.text = ggplot2::element_text(color = "black", size = 10)
+  )
+```
+
+#### Missing Cruz Estimates
+
+The Cruz et al. (2003) study developed models to predict canopy fuel stratum at the stand level for *four* coniferous forest types common in the western US: Douglas-fir, ponderosa pine, lodgepole pine, and mixed conifer. Models for other forests types are currently lacking which limits the scope of this methodology. If the tree list has trees that are in a FIA forest type group not represented in the list above, then we will fill the values with LANDFIRE estimates which have complete coverage at the CONUS level
+
+How many trees overall across the two units have missing crown fuel load estimates?
+
+```{r}
+treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::mutate(
+    missing_cruz = ifelse(is.na(cruz_crown_biomass_kg), "missing Cruz", "not missing Cruz")
+  ) %>% 
+  dplyr::count(missing_cruz) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::mutate(
+    pct = scales::percent(n/sum(n), accuracy = 0.1) 
+  ) %>% 
+  dplyr::mutate(n = scales::comma(n,accuracy=1)) %>% 
+  kableExtra::kbl(
+    caption = "Count of trees missing Cruz fuel load estimate overall"
+    , digits = 2
+    , col.names = c(
+      ""
+      , "# trees"
+      , "% trees"
+    )
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+How many trees within each unit have missing crown fuel load estimates?
+
+```{r}
+treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::mutate(
+    missing_cruz = ifelse(is.na(cruz_crown_biomass_kg), "missing Cruz", "not missing Cruz")
+  ) %>% 
+  dplyr::count(unit_name, missing_cruz) %>% 
+  dplyr::arrange(unit_name, desc(n)) %>% 
+  dplyr::group_by(unit_name) %>% 
+  dplyr::mutate(
+    pct = scales::percent(n/sum(n), accuracy = 0.1) 
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(n = scales::comma(n,accuracy=1)) %>% 
+  kableExtra::kbl(
+    caption = "Count of trees missing Cruz fuel load estimate by stand"
+    , digits = 2
+    , col.names = c(
+      "."
+      , ""
+      , "# trees"
+      , "% trees"
+    )
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+let's fill in these estimates with the LANDFIRE value
+
+```{r}
+treetops_sf <- treetops_sf %>% 
+  dplyr::mutate(
+    is_missing_cruz = is.na(cruz_crown_biomass_kg)
+    , cruz_tree_kg_per_m3 = dplyr::coalesce(cruz_tree_kg_per_m3, landfire_tree_kg_per_m3)
+    , cruz_stand_kg_per_m3 = dplyr::coalesce(cruz_stand_kg_per_m3, landfire_stand_kg_per_m3)
+    , cruz_crown_biomass_kg = dplyr::coalesce(cruz_crown_biomass_kg, landfire_crown_biomass_kg)
+  )
+```
+
+### Summary Statistics
+
+```{r}
+table_temp =
+  ptcld_processing_data %>% 
+  dplyr::group_by(software, depth_maps_generation_quality, depth_maps_generation_filtering_mode) %>%
+  dplyr::summarise(
+    dplyr::across(
+      total_sfm_time_norm
+      , .fns = list(mean = mean, sd = sd, min = min, max = max)
+    )
+    , n = dplyr::n()
+  ) %>% 
+  dplyr::mutate(
+    range = paste0(
+      total_sfm_time_norm_min %>% scales::number(accuracy = 0.01)
+      , "—"
+      , total_sfm_time_norm_max %>% scales::number(accuracy = 0.01)
+    )
+    , depth_maps_generation_quality = depth_maps_generation_quality %>% forcats::fct_rev()
+  ) %>% 
+  select(-c(n,total_sfm_time_norm_min, total_sfm_time_norm_max)) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::arrange(software, depth_maps_generation_quality, depth_maps_generation_filtering_mode)
+
+table_temp %>% 
+  # dplyr::select(-c(software)) %>% 
+  kableExtra::kbl(
+    digits = 2
+    , caption = "Normalized SfM Image Processing Time"
+    , col.names = c(
+      "software", "quality", "filtering mode"
+      , "Mean"
+      , "Std Dev", "Range"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  # kableExtra::pack_rows(index = table(forcats::fct_inorder(table_temp$software))) %>% 
+  kableExtra::collapse_rows(columns = 1:2, valign = "top") %>%
+  kableExtra::scroll_box(height = "8in")
+```
+
 
 ## Spatial Forest Structure
 
@@ -410,6 +636,9 @@ plot_raster_stand_fn <- function(
     , my_title = ""
     , scale_name = ""
     , bbox = F
+    , lookup = NA
+    , lookup_code = NA
+    , lookup_lab = NA
 ) {
   # crop the raster
   crop_rast <- rast %>% 
@@ -442,24 +671,62 @@ plot_raster_stand_fn <- function(
     )
   }
   # plot it
-  crop_rast %>% 
-    terra::as.data.frame(xy=T) %>% 
-    dplyr::rename(f=3) %>% 
-    ggplot2::ggplot() +
-    ggplot2::geom_tile(
-      mapping = ggplot2::aes(x=x, y=y, fill = f)
-    ) +
-    ggplot2::geom_sf(
-      data = stand %>% sf::st_transform(terra::crs(rast))
-      , color = stand_color, fill = NA, lwd = 1.5
-    ) +
-    ggplot2::labs(title = my_title, fill = scale_name) + 
-    ggplot2::theme_void() +
-    ggplot2::theme(
-      legend.title = ggplot2::element_text(size=7)
-      , plot.title = ggplot2::element_text(size = 10)
-      , plot.subtitle = ggplot2::element_text(size = 9)
-    )
+  if(inherits(lookup,"data.frame") && !is.na(lookup_code) && !is.na(lookup_lab)){
+    # create col to join
+    lookup <- lookup %>% 
+      dplyr::mutate(dplyr::across(
+        dplyr::all_of(lookup_code[1]) # only one allowed
+        , .fns = list(cccc = as.character, nnnn = as.numeric)
+      )) %>% 
+      dplyr::rename_with(
+        .fn = function(x){"f"}
+        , .cols = tidyselect::ends_with("_cccc")
+      ) %>% 
+      dplyr::rename_with(
+        .fn = function(x){"f_lab"}
+        , .cols = tidyselect::ends_with(lookup_lab[1])
+      )
+    # rast to df and plot
+    crop_rast %>% 
+      terra::as.data.frame(xy=T) %>% 
+      dplyr::rename(f=3) %>% 
+      dplyr::mutate(f = as.character(f)) %>% 
+      dplyr::left_join(lookup, by = "f") %>% 
+      ggplot2::ggplot() +
+      ggplot2::geom_tile(
+        mapping = ggplot2::aes(x=x, y=y, fill = f_lab)
+      ) +
+      ggplot2::geom_sf(
+        data = stand %>% sf::st_transform(terra::crs(rast))
+        , color = stand_color, fill = NA, lwd = 1.5
+      ) +
+      ggplot2::labs(title = my_title, fill = scale_name) + 
+      ggplot2::theme_void() +
+      ggplot2::theme(
+        legend.title = ggplot2::element_text(size=7)
+        , plot.title = ggplot2::element_text(size = 10)
+        , plot.subtitle = ggplot2::element_text(size = 9)
+      )
+  }else{
+    crop_rast %>% 
+      terra::as.data.frame(xy=T) %>% 
+      dplyr::rename(f=3) %>% 
+      ggplot2::ggplot() +
+      ggplot2::geom_tile(
+        mapping = ggplot2::aes(x=x, y=y, fill = f)
+      ) +
+      ggplot2::geom_sf(
+        data = stand %>% sf::st_transform(terra::crs(rast))
+        , color = stand_color, fill = NA, lwd = 1.5
+      ) +
+      ggplot2::labs(title = my_title, fill = scale_name) + 
+      ggplot2::theme_void() +
+      ggplot2::theme(
+        legend.title = ggplot2::element_text(size=7)
+        , plot.title = ggplot2::element_text(size = 10)
+        , plot.subtitle = ggplot2::element_text(size = 9)
+      )
+  }
 }
 # plot_raster_stand_fn(
 #   dtm_rast
@@ -883,12 +1150,69 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
+### FIA Forest Type Group
+
+We'll load the FIA Forest Type Group raster data written to the output directory during the processing as well as the lookup table that gets downloaded during `cloud2trees` setup (`cloud2trees::get_data()`)
+
+```{r}
+# load raster
+foresttype_rast <- terra::rast("../data/point_cloud_processing_delivery/type_rast.tif")
+# load lookup
+foresttype_lookup <- file.path(cloud2trees::find_ext_data()[["foresttype_dir"]], "foresttype_lookup.csv") %>% 
+  readr::read_csv(progress = F, show_col_types = F) %>% 
+  dplyr::distinct(forest_type_group_code, forest_type_group, hardwood_softwood) %>% 
+  dplyr::mutate(forest_type_group = stringr::str_remove(forest_type_group, " group"))
+# what?
+foresttype_lookup %>% dplyr::glimpse()
+```
+
+plot with our `plot_raster_stand_fn()` function
+
+```{r}
+# get the plot for each stand
+plt_ftype <- 1:nrow(stand_sf) %>% 
+  purrr::map(function(
+    x
+    , my_lookup = foresttype_lookup
+    , my_code = "forest_type_group_code"
+    , my_lab = "forest_type_group"
+  ){
+    plot_raster_stand_fn(
+      foresttype_rast
+      , stand = stand_sf[x,]
+      , buffer = 10
+      , des_res = 30
+      , stand_color = "black"
+      , my_title = "FIA Forest Type Group"
+      , scale_name = ""
+      , agg_fun = "modal"
+      , lookup = my_lookup
+      , lookup_code = my_code
+      , lookup_lab = my_lab
+    ) +
+    ggplot2::labs(subtitle = paste("Unit:",stand_sf[x,]$unit_name)) +
+    ggplot2::scale_fill_manual(values = ftype_pal)
+  })
+```
+
+check out our plots
+
+```{r}
+plt_ftype
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(foresttype_lookup, foresttype_rast)
+gc()
+```
+
 ### Combine by stand unit
 
 put all desired plots into a list to combine by stand unit
 
 ```{r}
-plt_list <- list(plt_ba, plt_qmd, plt_height, plt_tph, plt_cfl_cruz, plt_cfl_landfire)
+plt_list <- list(plt_ftype, plt_ba, plt_qmd, plt_height, plt_tph, plt_cfl_landfire)
 ```
 
 combine the plots by stand unit
@@ -973,6 +1297,7 @@ chm_to_canopy_cov_fn <- function(chm_rast, min_ht_m = 2, des_res) {
   }else{
     rast <- terra::subst(rast, from = NA, to = NA, others = 1)
   }
+  return(rast)
 }
 ```
 
@@ -1035,4 +1360,73 @@ plt_cc
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 gc()
+```
+
+## Write Data
+
+load in the tree crown polygon data from `cloud2trees::cloud2trees()` and filter based on the tree list
+
+```{r, eval = F}
+# get the data from already run
+crowns_sf <-
+  list.files(
+    "../data/point_cloud_processing_delivery"
+    , pattern = "final_detected_crowns.*\\.gpkg$"
+    , full.names = T
+  ) %>% 
+  normalizePath() %>% 
+  purrr::map(\(x)
+    sf::st_read(
+      dsn = x
+      , quiet = T
+    )
+  ) %>% 
+  dplyr::bind_rows() %>% 
+  dplyr::inner_join(
+    treetops_sf %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::select(treeID,unit_id,unit_name,tidyselect::starts_with("stand_area_"))
+    , by = "treeID"
+  )
+# the records are the same
+identical(nrow(treetops_sf), nrow(crowns_sf))
+```
+
+save the data by unit for sharing with a boss, coworker, friend, etc.
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE, results=F}
+# write crowns and tree tops
+write_temp <- crowns_sf$unit_id %>%
+  unique() %>%
+  purrr::map(function(x, new_crs = proj_crs, my_outdir = outdir){
+    # dsn's
+    cf <- file.path( my_outdir, paste0("final_detected_crowns_unit_",x,".gpkg") )
+    tf <- file.path( my_outdir, paste0("final_detected_tree_tops_unit_",x,".gpkg") )
+    ### write the data to the disk
+    # crown vector polygons
+    sf::st_write(
+      crowns_sf %>%
+        dplyr::filter(unit_id == x) %>% 
+        sf::st_transform(new_crs)
+      , dsn = cf
+      , append = FALSE
+      , quiet = TRUE
+    )
+    # tree top vector points
+    sf::st_write(
+      # get tree points
+      crowns_sf %>%
+        dplyr::filter(unit_id == x) %>%
+        sf::st_drop_geometry() %>%
+        sf::st_as_sf(coords = c("tree_x", "tree_y"), crs = sf::st_crs(crowns_sf)) %>% 
+        sf::st_transform(new_crs) %>% 
+        dplyr::mutate(
+          tree_x = sf::st_coordinates(.)[,1]
+          , tree_y = sf::st_coordinates(.)[,2]
+        )
+      , dsn = tf
+      , append = FALSE
+      , quiet = TRUE
+    )
+  })
 ```

@@ -680,7 +680,7 @@ remove(list = base::setdiff(ls(), c("processing_data","dbh_fnm","hmd_fnm","cbh_f
 gc()
 ```
 
-## Forest Type: `trees_type()`
+## Forest Type: `trees_type()`{#trees_type}
 
 We'll now use `trees_type()` to attach species information using USDA Forest Inventory and Analysis (FIA) codes. FIA Forest Type Group Code is attached to each tree in the tree list based on the spatial overlap with the [Forest Type Groups of the Continental United States](https://www.arcgis.com/home/item.html?id=10760c83b9e44923bd3c18efdaa7319d) data (Wilson 2023).
 
@@ -782,7 +782,7 @@ r_plt <-
     ggplot2::ggplot() + 
     ggplot2::geom_tile(mapping = ggplot2::aes(x=x, y=y, fill = forest_type_group)) +
     ggplot2::labs(fill = "FIA forest\ntype group") +
-    harrypotter::scale_fill_hp_d("lunalovegood") +
+    harrypotter::scale_fill_hp_d("lunalovegood", direction=-1) +
     ggplot2::theme_void() +
     ggplot2::theme(legend.position = "top") +
     ggplot2::guides(fill = ggplot2::guide_legend(nrow = 2, byrow = T))
@@ -844,7 +844,9 @@ recast_id_fn <- function(df, cl) {
     )
   ){
     if(cl=="character"){
-      df$treeID <- as.character(df$treeID)
+      df$treeID <- format(df$treeID, scientific = F, trim = T) %>% 
+        as.character() %>% 
+        stringr::str_squish()
     }else if(cl=="numeric"){
       df$treeID <- as.numeric(df$treeID)
     }
@@ -877,6 +879,7 @@ treetops_sf <-
     , trees_hmd_temp, trees_type_temp
   ) %>% 
   purrr::reduce(\(x,y) dplyr::left_join(x, y, by = "treeID"))
+
 ```
 
 let's glimpse our almost final data
@@ -890,9 +893,9 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
-## Crown Biomass: `trees_biomass()`
+## Crown Biomass: `trees_biomass()`{#trees_biomass}
 
-Lastly, we'll use `trees_biomass()` to estimate tree crown in kilograms. We'll estimate biomass based on: 1) LANDFIRE's [Forest Canopy Bulk Density (CBD) data](https://landfire.gov/fuel/cbd); and 2) based on the [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) equations and the FIA forest type group we got above
+Lastly, we'll use `trees_biomass()` to estimate tree crown biomass in kilograms. We'll estimate biomass based on: 1) LANDFIRE's [Forest Canopy Bulk Density (CBD) data](https://landfire.gov/fuel/cbd); and 2) based on the [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) equations and the FIA forest type group we got above
 
 ```{r}
 # where should we save the file?

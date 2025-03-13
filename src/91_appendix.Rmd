@@ -242,8 +242,6 @@ gc()
 Let's go through the process to extract CBH from the point cloud using the same settings as in our [point cloud processing](#processing). CBH is extracted directly from the height normalized point cloud using the process outlined in [Viedma et al. (2024)](https://doi.org/10.1111/2041-210X.14427) and implemented via `cloud2trees::ladderfuelsr_cbh()`. See `cloud2trees::trees_cbh()` for a simple way to extract tree CBH from a height normalized point cloud based on a tree list with crown polygons.
 
 ```{r, results=F, message=F}
-# pointsByZSlice from leafR causes errors
-pointsByZSlice <- leafR::pointsByZSlice
 # CALL IT
 ladderfuelsr_cbh_ans <- cloud2trees::ladderfuelsr_cbh(
   las = one_tree_las
