@@ -1,6 +1,6 @@
-# CBH Process{#cbh}
+# Appendix
 
-let's go through the process to extract CBH from the point cloud
+In this section we'll provide some more detail and work through examples for select processes to extract individual tree components using aerial point cloud data
 
 ```{r, include=F, warning=F, message=F}
 # bread-and-butter
@@ -73,7 +73,7 @@ remove(list = ls())
 gc()
 ```
 
-## Example lidar data
+## Example lidar data{#data_ex}
 
 we'll use some of our trees and height-normalized point cloud data generated in our [point cloud processing](#processing)
 
@@ -189,7 +189,7 @@ one_tree_las <- las %>% lidR::filter_poi(treeID==one_tree_sf$treeID)
 
 check our one tree point cloud
 
-```{r,echo=FALSE,message=FALSE,warning=FALSE}
+```{r, eval=FALSE,echo=FALSE,message=FALSE,warning=FALSE}
 # ## if want to get current rgl parameters
 # par3d()$zoom
 # par3d()$FOV
@@ -206,9 +206,8 @@ r3dDefaults$userMatrix <- m
 r3dDefaults$zoom <- 1.05
 r3dDefaults$windowRect <- c(0,23,1536,864)
 rgl::setupKnitr(autoprint = TRUE)
-```
 
-```{r, rgl = TRUE}
+# ```{r, rgl = TRUE}
 one_tree_las %>% 
   lidR::plot(
     color = "Z", bg = "white", legend = T
@@ -216,22 +215,35 @@ one_tree_las %>%
   )
 ```
 
+```{r}
+# plot it
+plot3D::scatter3D(
+  x = one_tree_las@data$X
+  , y = one_tree_las@data$Y
+  , z = one_tree_las@data$Z
+  , colvar = one_tree_las@data$Z
+  , cex = 0.6, pch = 19
+  , colkey = T
+  , phi = 11
+  , col = harrypotter::hp(n=50, house = "gryffindor")
+  , main ="single tree point cloud"
+)
+```
+
+
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 remove(las_ctg, aoi)
 gc()
 ```
 
-## Extract CBH
+## CBH Process{#cbh}
 
-using the same settings as our processing
+Let's go through the process to extract CBH from the point cloud using the same settings as in our [point cloud processing](#processing). CBH is extracted directly from the height normalized point cloud using the process outlined in [Viedma et al. (2024)](https://doi.org/10.1111/2041-210X.14427) and implemented via `cloud2trees::ladderfuelsr_cbh()`. See `cloud2trees::trees_cbh()` for a simple way to extract tree CBH from a height normalized point cloud based on a tree list with crown polygons.
 
-```{r, include=FALSE, eval=TRUE}
+```{r, results=F, message=F}
 # pointsByZSlice from leafR causes errors
 pointsByZSlice <- leafR::pointsByZSlice
-```
-
-```{r}
 # CALL IT
 ladderfuelsr_cbh_ans <- cloud2trees::ladderfuelsr_cbh(
   las = one_tree_las
@@ -244,12 +256,17 @@ ladderfuelsr_cbh_ans <- cloud2trees::ladderfuelsr_cbh(
   , num_jump_steps = 1
   , min_lad_pct = 10
   , frst_layer_min_ht_m = 1
-) 
+)
+```
+
+let's see what we got
+
+```{r}
 ladderfuelsr_cbh_ans %>% names()
 ladderfuelsr_cbh_ans$lad_profile %>% dplyr::glimpse()
 ```
 
-Create our own plot of the gaps and fuel layers base height in the vertical tree profile
+Create our own plot of the gaps and fuel layers base height in the vertical tree leaf area density (LAD) profile. [Almeida et al. (2019)](https://doi.org/10.3390/rs11010092) describe the process for generating leaf area density profiles and make the process accessible via the `leafR` [package](https://github.com/DRAAlmeida/leafR). In `cloud2trees`, methods to generate LAD profiles are packaged in `cloud2trees::leafr_for_ladderfuelsr()` which enables batch processing of individual tree point clouds and generates the input needed to extract tree CBH
 
 ```{r}
 ggplot() + 
@@ -349,9 +366,15 @@ these plots represent the three criteria to define the CBH in a segmented tree:
 * `get_plots_cbh_maxdist` = the fuel layer located at the highest distance (column named `max_Hcbh`)
 * `get_plots_cbh_lastdist` = the fuel layer separated by the last effective distance (column named `last_Hcbh`)
 
+in our [point cloud processing](#processing) we used the fuel layer separated by the last effective distance (column named `last_Hcbh`) by setting the parameter `which_cbh = "lowest"` in `cloud2trees::trees_cbh()`
+
+```{r}
+plots_cbh_lastdist[[1]]
+```
+
 ### CBH on the point cloud
 
-can we make a view of the CBH on the point cloud?
+make a view of the CBH we estimated plotted on the point cloud
 
 ```{r}
 # make a matrix to represent the cbh
@@ -379,9 +402,9 @@ plot3D::scatter3D(
   , y = one_tree_las@data$Y
   , z = one_tree_las@data$Z
   , colvar = one_tree_las@data$Z
-  , cex = 0.3, pch = 19
+  , cex = 0.6, pch = 19
   , colkey = T
-  , phi = -6
+  , phi = 11
   , col = harrypotter::hp(n=50, house = "gryffindor")
   , main ="CBH shown in black"
   , surf = list(
@@ -398,7 +421,170 @@ plot3D::scatter3D(
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 remove(list = ls()[grep("plots_",ls())])
-remove(one_tree_sf, one_tree_las, crowns_nlas_ctg, chrs, html, crowns_sf_poly)
+remove(m, r3dDefaults, pointsByZSlice, ladderfuelsr_cbh_ans)
 gc()
 ```
+
+## HMD Process{#hmd}
+
+Let's go through the process to extract height of the maximum crown diameter (HMD) from the point cloud using the same settings as in our [point cloud processing](#processing). HMD is extracted directly from the height normalized point cloud by finding the height of the non-ground point farthest from the tree center (i.e. tree top). See `cloud2trees::trees_hmd()` for a simple way to extract tree CBH from a height normalized point cloud based on a tree list with crown polygons.
+
+### One Tree Example
+
+this is the `tidy` data process using the data frame of the point cloud grouped by `treeID` implemented in `cloud2trees::trees_hmd()`
+
+look at this point cloud data
+
+```{r}
+one_tree_las@data %>% dplyr::glimpse()
+```
+
+the key components we'll use are the xyz coordinates
+
+```{r}
+pts_temp <- one_tree_las@data %>% 
+  dplyr::rename_with(.cols = -c(treeID), .fn = tolower) %>% 
+  # get rid of ground, water, and noise points
+  dplyr::filter(!classification %in% c(2,9,18)) %>% 
+  dplyr::group_by(treeID) %>% # this is key
+  dplyr::mutate(
+    # find the highest point in the tree as the tree "center"
+    is_tree_center = z==max(z)
+    , tree_center_x = dplyr::first(ifelse(is_tree_center, x, NA), na_rm = T) # first in case many points are center
+    , tree_center_y = dplyr::first(ifelse(is_tree_center, y, NA), na_rm = T) # first in case many points are center
+    # Calculate the distance from the center to the point
+    , dist_to_center = sqrt((x - tree_center_x)^2 + (y - tree_center_y)^2)
+    , is_max_dist_to_center = dist_to_center == max(dist_to_center)
+    # classify points for plotting
+    , grp_pt = dplyr::case_when(
+        is_tree_center ~ 0
+        , is_max_dist_to_center ~ 1
+        , T ~ 2
+      ) %>% 
+      factor(
+        ordered = T
+        , levels = 0:2
+        , labels = c("tree center", "farthest point\nfrom center", "other")
+      )
+  ) %>% 
+  dplyr::ungroup()
+```
+
+let's plot all of that in 2-D space as if we are looking down at the tree from above
+
+```{r}
+# plot
+ggplot(data = pts_temp, mapping = aes(x=x,y=y,color=z, shape = grp_pt)) +
+  geom_point(
+    mapping = aes(
+      size = ifelse(is_tree_center | is_max_dist_to_center, 1.5, 1)
+    )
+  ) +
+  harrypotter::scale_color_hp("gryffindor", name = "Z (ht m)") +
+  scale_shape_manual(values = c(17, 15, 16), name = "") +
+  labs(
+    title = "single tree point cloud HMD process"
+    , caption = paste0(
+      "HMD = "
+      , round(
+        pts_temp %>% 
+          dplyr::filter(is_max_dist_to_center) %>% 
+          dplyr::slice_head(n=1) %>% 
+          dplyr::pull(z)
+        , 1
+      )
+      , " m"
+      , "\n(ht of point farthest from center)"
+    )
+  ) +
+  theme_light() +
+  theme(axis.text = element_blank()) +
+  guides(size = "none")
+```
+
+look at the data on the point farthest from the tree center
+
+```{r}
+pts_temp %>% 
+  dplyr::filter(is_max_dist_to_center) %>% 
+  dplyr::select(x,y,z,dist_to_center,is_max_dist_to_center) %>% 
+  dplyr::glimpse()
+```
+
+the HMD for this tree is contained in the `z` column
+
+the `cloud2trees::trees_hmd()` process will give us the same answer (hopefully)
+
+```{r, warning=FALSE}
+# the function requires a LAScatalog
+file_temp <- tempfile(fileext = ".las")
+lidR::writeLAS(one_tree_las, file = file_temp)
+# trees_hmd that
+cloud2trees::trees_hmd(trees_poly = one_tree_sf, norm_las = file_temp) %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::select(treeID, max_crown_diam_height_m)
+```
+
+success!
+
+### Tree List Example
+
+let's work with our clipped las data and tree crown list that we [created above](#data_ex) and use `cloud2trees::trees_hmd()` to attempt a full census of tree HMD extraction, if HMD extraction is unsuccessful we'll estimate the missing HMD values using the successfully extracted trees as training data
+
+```{r}
+# the function requires a LAScatalog
+file_temp <- tempfile(fileext = ".las")
+lidR::writeLAS(las, file = file_temp)
+# call the function
+trees_hmd_ans <- cloud2trees::trees_hmd(
+  trees_poly = crowns_sf
+  , norm_las = file_temp
+  , tree_sample_prop = 1
+  , estimate_missing_hmd = T
+)
+```
+
+What is this data?
+
+```{r}
+trees_hmd_ans %>% 
+  dplyr::select(treeID, tree_height_m, max_crown_diam_height_m, is_training_hmd) %>% 
+  dplyr::glimpse()
+```
+
+Let’s look at the relationship between tree height and tree HMD as extracted from the point cloud. Note, that we do not expect a perfect linear relationship between tree height and HMD throughout the entire height range because HMD is also determined spatially (e.g. as a fire moves through a stand).
+
+```{r}
+trees_hmd_ans %>%
+  dplyr::arrange(is_training_cbh) %>%
+  ggplot2::ggplot(
+    mapping = ggplot2::aes(x = tree_height_m, y = max_crown_diam_height_m, color=is_training_hmd)
+  ) + 
+  ggplot2::geom_point() +
+  ggplot2::labs(x = "tree ht. (m)", y = "tree HMD (m)") +
+  ggplot2::scale_y_continuous(breaks = scales::extended_breaks(n=12)) +
+  ggplot2::scale_x_continuous(breaks = scales::extended_breaks(n=14)) +
+  ggplot2::scale_color_viridis_d(option = "turbo", begin = 0.2, alpha = 0.8, name = "is HMD\nfrom cloud?") +
+  ggplot2::theme_light()
+```
+
+We can look at this data spatially too.
+
+```{r}
+trees_hmd_ans %>%
+  dplyr::arrange(is_training_hmd) %>%
+  ggplot2::ggplot(mapping = ggplot2::aes(fill = max_crown_diam_height_m, color=is_training_hmd)) + 
+  ggplot2::geom_sf() +
+  ggplot2::scale_color_viridis_d(option = "turbo", begin = 0.2, alpha = 0.8, name = "is HMD\nfrom cloud?") +
+  ggplot2::scale_fill_distiller(palette = "Greys", name = "tree HMD (m)", direction = 1) +
+  ggplot2::theme_void() +
+  ggplot2::theme(
+    legend.position = "top", legend.direction = "horizontal"
+    , panel.border = ggplot2::element_rect(color = "black", fill = NA)
+  ) +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(lwd = 3, fill = NA))
+  )
+```
+
 

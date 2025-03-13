@@ -205,12 +205,21 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 </ul></li>
 <li class="chapter" data-level="3.3" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#spatial-forest-structure"><i class="fa fa-check"></i><b>3.3</b> Spatial Forest Structure</a>
 <ul>
-<li class="chapter" data-level="3.3.1" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#chm"><i class="fa fa-check"></i><b>3.3.1</b> CHM</a></li>
+<li class="chapter" data-level="3.3.1" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#chm_plt"><i class="fa fa-check"></i><b>3.3.1</b> CHM</a></li>
 <li class="chapter" data-level="3.3.2" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#function-to-rasterize"><i class="fa fa-check"></i><b>3.3.2</b> Function to Rasterize</a></li>
 <li class="chapter" data-level="3.3.3" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#mean-dbh"><i class="fa fa-check"></i><b>3.3.3</b> Mean DBH</a></li>
-<li class="chapter" data-level="3.3.4" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#qmd"><i class="fa fa-check"></i><b>3.3.4</b> QMD</a></li>
-<li class="chapter" data-level="3.3.5" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#basal-area"><i class="fa fa-check"></i><b>3.3.5</b> Basal Area</a></li>
-<li class="chapter" data-level="3.3.6" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#tph"><i class="fa fa-check"></i><b>3.3.6</b> TPH</a></li>
+<li class="chapter" data-level="3.3.4" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#mean-height"><i class="fa fa-check"></i><b>3.3.4</b> Mean Height</a></li>
+<li class="chapter" data-level="3.3.5" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#qmd"><i class="fa fa-check"></i><b>3.3.5</b> QMD</a></li>
+<li class="chapter" data-level="3.3.6" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#basal-area"><i class="fa fa-check"></i><b>3.3.6</b> Basal Area</a></li>
+<li class="chapter" data-level="3.3.7" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#tph"><i class="fa fa-check"></i><b>3.3.7</b> TPH</a></li>
+<li class="chapter" data-level="3.3.8" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#cfl-cruz"><i class="fa fa-check"></i><b>3.3.8</b> CFL Cruz</a></li>
+<li class="chapter" data-level="3.3.9" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#cfl-landfire"><i class="fa fa-check"></i><b>3.3.9</b> CFL LANDFIRE</a></li>
+<li class="chapter" data-level="3.3.10" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#combine-by-stand-unit"><i class="fa fa-check"></i><b>3.3.10</b> Combine by stand unit</a></li>
+</ul></li>
+<li class="chapter" data-level="3.4" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#canopy-cover"><i class="fa fa-check"></i><b>3.4</b> Canopy Cover</a>
+<ul>
+<li class="chapter" data-level="3.4.1" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#entire-area"><i class="fa fa-check"></i><b>3.4.1</b> Entire Area</a></li>
+<li class="chapter" data-level="3.4.2" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#stands"><i class="fa fa-check"></i><b>3.4.2</b> Stands</a></li>
 </ul></li>
 </ul></li>
 <li class="chapter" data-level="4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html"><i class="fa fa-check"></i><b>4</b> Validate Tree Detection and Crown Delineation</a>
@@ -265,28 +274,28 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <h2><span class="header-section-number">5.1</span> Example lidar data<a href="cbh.html#example-lidar-data" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>we’ll use some of our trees and height-normalized point cloud data generated in our <a href="processing.html#processing">point cloud processing</a></p>
 <p>load the tree crown polygons</p>
-<div class="sourceCode" id="cb209"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb209-1"><a href="cbh.html#cb209-1" tabindex="-1"></a><span class="co"># get the data from already run</span></span>
-<span id="cb209-2"><a href="cbh.html#cb209-2" tabindex="-1"></a>crowns_sf <span class="ot">&lt;-</span></span>
-<span id="cb209-3"><a href="cbh.html#cb209-3" tabindex="-1"></a>  <span class="fu">list.files</span>(</span>
-<span id="cb209-4"><a href="cbh.html#cb209-4" tabindex="-1"></a>    <span class="st">&quot;../data/point_cloud_processing_delivery&quot;</span></span>
-<span id="cb209-5"><a href="cbh.html#cb209-5" tabindex="-1"></a>    , <span class="at">pattern =</span> <span class="st">&quot;final_detected_crowns.*</span><span class="sc">\\</span><span class="st">.gpkg$&quot;</span></span>
-<span id="cb209-6"><a href="cbh.html#cb209-6" tabindex="-1"></a>    , <span class="at">full.names =</span> T</span>
-<span id="cb209-7"><a href="cbh.html#cb209-7" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
-<span id="cb209-8"><a href="cbh.html#cb209-8" tabindex="-1"></a>  <span class="fu">normalizePath</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb209-9"><a href="cbh.html#cb209-9" tabindex="-1"></a>  purrr<span class="sc">::</span><span class="fu">map</span>(\(x)</span>
-<span id="cb209-10"><a href="cbh.html#cb209-10" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">st_read</span>(</span>
-<span id="cb209-11"><a href="cbh.html#cb209-11" tabindex="-1"></a>      <span class="at">dsn =</span> x</span>
-<span id="cb209-12"><a href="cbh.html#cb209-12" tabindex="-1"></a>      , <span class="at">quiet =</span> T</span>
-<span id="cb209-13"><a href="cbh.html#cb209-13" tabindex="-1"></a>    )</span>
-<span id="cb209-14"><a href="cbh.html#cb209-14" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
-<span id="cb209-15"><a href="cbh.html#cb209-15" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">bind_rows</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb234"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb234-1"><a href="cbh.html#cb234-1" tabindex="-1"></a><span class="co"># get the data from already run</span></span>
+<span id="cb234-2"><a href="cbh.html#cb234-2" tabindex="-1"></a>crowns_sf <span class="ot">&lt;-</span></span>
+<span id="cb234-3"><a href="cbh.html#cb234-3" tabindex="-1"></a>  <span class="fu">list.files</span>(</span>
+<span id="cb234-4"><a href="cbh.html#cb234-4" tabindex="-1"></a>    <span class="st">&quot;../data/point_cloud_processing_delivery&quot;</span></span>
+<span id="cb234-5"><a href="cbh.html#cb234-5" tabindex="-1"></a>    , <span class="at">pattern =</span> <span class="st">&quot;final_detected_crowns.*</span><span class="sc">\\</span><span class="st">.gpkg$&quot;</span></span>
+<span id="cb234-6"><a href="cbh.html#cb234-6" tabindex="-1"></a>    , <span class="at">full.names =</span> T</span>
+<span id="cb234-7"><a href="cbh.html#cb234-7" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb234-8"><a href="cbh.html#cb234-8" tabindex="-1"></a>  <span class="fu">normalizePath</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb234-9"><a href="cbh.html#cb234-9" tabindex="-1"></a>  purrr<span class="sc">::</span><span class="fu">map</span>(\(x)</span>
+<span id="cb234-10"><a href="cbh.html#cb234-10" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">st_read</span>(</span>
+<span id="cb234-11"><a href="cbh.html#cb234-11" tabindex="-1"></a>      <span class="at">dsn =</span> x</span>
+<span id="cb234-12"><a href="cbh.html#cb234-12" tabindex="-1"></a>      , <span class="at">quiet =</span> T</span>
+<span id="cb234-13"><a href="cbh.html#cb234-13" tabindex="-1"></a>    )</span>
+<span id="cb234-14"><a href="cbh.html#cb234-14" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb234-15"><a href="cbh.html#cb234-15" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">bind_rows</span>()</span></code></pre></div>
 <p>load the central 0.1 ha area of our study area</p>
-<div class="sourceCode" id="cb210"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb210-1"><a href="cbh.html#cb210-1" tabindex="-1"></a>aoi <span class="ot">&lt;-</span></span>
-<span id="cb210-2"><a href="cbh.html#cb210-2" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_read</span>(<span class="st">&quot;../data/point_cloud_processing_delivery/raw_las_ctg_info.gpkg&quot;</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb210-3"><a href="cbh.html#cb210-3" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_union</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb210-4"><a href="cbh.html#cb210-4" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_centroid</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb210-5"><a href="cbh.html#cb210-5" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_buffer</span>(<span class="fu">sqrt</span>(<span class="dv">1000</span><span class="sc">/</span><span class="dv">4</span>), <span class="at">endCapStyle =</span> <span class="st">&quot;SQUARE&quot;</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb210-6"><a href="cbh.html#cb210-6" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_transform</span>(sf<span class="sc">::</span><span class="fu">st_crs</span>(crowns_sf))</span></code></pre></div>
+<div class="sourceCode" id="cb235"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb235-1"><a href="cbh.html#cb235-1" tabindex="-1"></a>aoi <span class="ot">&lt;-</span></span>
+<span id="cb235-2"><a href="cbh.html#cb235-2" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_read</span>(<span class="st">&quot;../data/point_cloud_processing_delivery/raw_las_ctg_info.gpkg&quot;</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb235-3"><a href="cbh.html#cb235-3" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_union</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb235-4"><a href="cbh.html#cb235-4" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_centroid</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb235-5"><a href="cbh.html#cb235-5" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_buffer</span>(<span class="fu">sqrt</span>(<span class="dv">1000</span><span class="sc">/</span><span class="dv">4</span>), <span class="at">endCapStyle =</span> <span class="st">&quot;SQUARE&quot;</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb235-6"><a href="cbh.html#cb235-6" tabindex="-1"></a>  sf<span class="sc">::</span><span class="fu">st_transform</span>(sf<span class="sc">::</span><span class="fu">st_crs</span>(crowns_sf))</span></code></pre></div>
 <pre><code>## Reading layer `raw_las_ctg_info&#39; from data source 
 ##   `C:\Data\usfs\lidar_phys_fire_mods\data\point_cloud_processing_delivery\raw_las_ctg_info.gpkg&#39; 
 ##   using driver `GPKG&#39;
@@ -296,109 +305,109 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 ## Bounding box:  xmin: 467000 ymin: 3808000 xmax: 473000 ymax: 3815000
 ## Projected CRS: NAD83(2011) / UTM zone 12N</code></pre>
 <p>filter for trees in the aoi</p>
-<div class="sourceCode" id="cb212"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb212-1"><a href="cbh.html#cb212-1" tabindex="-1"></a>crowns_sf <span class="ot">&lt;-</span> crowns_sf <span class="sc">%&gt;%</span> </span>
-<span id="cb212-2"><a href="cbh.html#cb212-2" tabindex="-1"></a>  <span class="co"># join so we get the full crown</span></span>
-<span id="cb212-3"><a href="cbh.html#cb212-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">inner_join</span>(</span>
-<span id="cb212-4"><a href="cbh.html#cb212-4" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">st_intersection</span>(crowns_sf, aoi) <span class="sc">%&gt;%</span> </span>
-<span id="cb212-5"><a href="cbh.html#cb212-5" tabindex="-1"></a>      sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb212-6"><a href="cbh.html#cb212-6" tabindex="-1"></a>      dplyr<span class="sc">::</span><span class="fu">distinct</span>(treeID)</span>
-<span id="cb212-7"><a href="cbh.html#cb212-7" tabindex="-1"></a>    , <span class="at">by =</span> <span class="st">&quot;treeID&quot;</span></span>
-<span id="cb212-8"><a href="cbh.html#cb212-8" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
-<span id="cb212-9"><a href="cbh.html#cb212-9" tabindex="-1"></a>  <span class="co"># make treeID numeric for later</span></span>
-<span id="cb212-10"><a href="cbh.html#cb212-10" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
-<span id="cb212-11"><a href="cbh.html#cb212-11" tabindex="-1"></a>    <span class="at">treeID_bu =</span> treeID</span>
-<span id="cb212-12"><a href="cbh.html#cb212-12" tabindex="-1"></a>    , <span class="at">treeID =</span> treeID <span class="sc">%&gt;%</span> as.factor <span class="sc">%&gt;%</span> <span class="fu">as.numeric</span>()</span>
-<span id="cb212-13"><a href="cbh.html#cb212-13" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
-<span id="cb212-14"><a href="cbh.html#cb212-14" tabindex="-1"></a>  cloud2trees<span class="sc">::</span><span class="fu">simplify_multipolygon_crowns</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb237"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb237-1"><a href="cbh.html#cb237-1" tabindex="-1"></a>crowns_sf <span class="ot">&lt;-</span> crowns_sf <span class="sc">%&gt;%</span> </span>
+<span id="cb237-2"><a href="cbh.html#cb237-2" tabindex="-1"></a>  <span class="co"># join so we get the full crown</span></span>
+<span id="cb237-3"><a href="cbh.html#cb237-3" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">inner_join</span>(</span>
+<span id="cb237-4"><a href="cbh.html#cb237-4" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">st_intersection</span>(crowns_sf, aoi) <span class="sc">%&gt;%</span> </span>
+<span id="cb237-5"><a href="cbh.html#cb237-5" tabindex="-1"></a>      sf<span class="sc">::</span><span class="fu">st_drop_geometry</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb237-6"><a href="cbh.html#cb237-6" tabindex="-1"></a>      dplyr<span class="sc">::</span><span class="fu">distinct</span>(treeID)</span>
+<span id="cb237-7"><a href="cbh.html#cb237-7" tabindex="-1"></a>    , <span class="at">by =</span> <span class="st">&quot;treeID&quot;</span></span>
+<span id="cb237-8"><a href="cbh.html#cb237-8" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb237-9"><a href="cbh.html#cb237-9" tabindex="-1"></a>  <span class="co"># make treeID numeric for later</span></span>
+<span id="cb237-10"><a href="cbh.html#cb237-10" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb237-11"><a href="cbh.html#cb237-11" tabindex="-1"></a>    <span class="at">treeID_bu =</span> treeID</span>
+<span id="cb237-12"><a href="cbh.html#cb237-12" tabindex="-1"></a>    , <span class="at">treeID =</span> treeID <span class="sc">%&gt;%</span> as.factor <span class="sc">%&gt;%</span> <span class="fu">as.numeric</span>()</span>
+<span id="cb237-13"><a href="cbh.html#cb237-13" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb237-14"><a href="cbh.html#cb237-14" tabindex="-1"></a>  cloud2trees<span class="sc">::</span><span class="fu">simplify_multipolygon_crowns</span>()</span></code></pre></div>
 <p>now, we’ll load in the point cloud data for our aoi</p>
-<div class="sourceCode" id="cb213"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb213-1"><a href="cbh.html#cb213-1" tabindex="-1"></a>las_ctg <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">readLAScatalog</span>(<span class="st">&quot;../data/point_cloud_processing_delivery/norm_las/&quot;</span>)</span>
-<span id="cb213-2"><a href="cbh.html#cb213-2" tabindex="-1"></a>lidR<span class="sc">::</span><span class="fu">opt_progress</span>(las_ctg) <span class="ot">&lt;-</span> F</span>
-<span id="cb213-3"><a href="cbh.html#cb213-3" tabindex="-1"></a>las <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">clip_roi</span>(las_ctg, crowns_sf <span class="sc">%&gt;%</span> sf<span class="sc">::</span><span class="fu">st_bbox</span>() <span class="sc">%&gt;%</span> sf<span class="sc">::</span><span class="fu">st_as_sfc</span>() <span class="sc">%&gt;%</span> sf<span class="sc">::</span><span class="fu">st_buffer</span>(<span class="dv">2</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb238"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb238-1"><a href="cbh.html#cb238-1" tabindex="-1"></a>las_ctg <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">readLAScatalog</span>(<span class="st">&quot;../data/point_cloud_processing_delivery/norm_las/&quot;</span>)</span>
+<span id="cb238-2"><a href="cbh.html#cb238-2" tabindex="-1"></a>lidR<span class="sc">::</span><span class="fu">opt_progress</span>(las_ctg) <span class="ot">&lt;-</span> F</span>
+<span id="cb238-3"><a href="cbh.html#cb238-3" tabindex="-1"></a>las <span class="ot">&lt;-</span> lidR<span class="sc">::</span><span class="fu">clip_roi</span>(las_ctg, crowns_sf <span class="sc">%&gt;%</span> sf<span class="sc">::</span><span class="fu">st_bbox</span>() <span class="sc">%&gt;%</span> sf<span class="sc">::</span><span class="fu">st_as_sfc</span>() <span class="sc">%&gt;%</span> sf<span class="sc">::</span><span class="fu">st_buffer</span>(<span class="dv">2</span>))</span></code></pre></div>
 <p>plot a sample</p>
-<div class="sourceCode" id="cb214"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb214-1"><a href="cbh.html#cb214-1" tabindex="-1"></a>las <span class="sc">%&gt;%</span> </span>
-<span id="cb214-2"><a href="cbh.html#cb214-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(</span>
-<span id="cb214-3"><a href="cbh.html#cb214-3" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;Z&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> T</span>
-<span id="cb214-4"><a href="cbh.html#cb214-4" tabindex="-1"></a>   , <span class="at">pal =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
-<span id="cb214-5"><a href="cbh.html#cb214-5" tabindex="-1"></a>  )</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-180-1.png" width="1008" /></p>
+<div class="sourceCode" id="cb239"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb239-1"><a href="cbh.html#cb239-1" tabindex="-1"></a>las <span class="sc">%&gt;%</span> </span>
+<span id="cb239-2"><a href="cbh.html#cb239-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(</span>
+<span id="cb239-3"><a href="cbh.html#cb239-3" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;Z&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> T</span>
+<span id="cb239-4"><a href="cbh.html#cb239-4" tabindex="-1"></a>   , <span class="at">pal =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
+<span id="cb239-5"><a href="cbh.html#cb239-5" tabindex="-1"></a>  )</span></code></pre></div>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-200-1.png" width="1008" /></p>
 <p>now we’ll attach the <code>treeID</code> column to the normalized las file</p>
-<div class="sourceCode" id="cb215"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb215-1"><a href="cbh.html#cb215-1" tabindex="-1"></a>las <span class="ot">&lt;-</span> cloud2trees<span class="sc">::</span><span class="fu">polygon_attribute_to_las</span>(<span class="at">las =</span> las, <span class="at">poly_df =</span> crowns_sf, <span class="at">attribute =</span> <span class="st">&quot;treeID&quot;</span>, <span class="at">force_crs =</span> T)</span></code></pre></div>
+<div class="sourceCode" id="cb240"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb240-1"><a href="cbh.html#cb240-1" tabindex="-1"></a>las <span class="ot">&lt;-</span> cloud2trees<span class="sc">::</span><span class="fu">polygon_attribute_to_las</span>(<span class="at">las =</span> las, <span class="at">poly_df =</span> crowns_sf, <span class="at">attribute =</span> <span class="st">&quot;treeID&quot;</span>, <span class="at">force_crs =</span> T)</span></code></pre></div>
 <p>let’s look at our point cloud colored by <code>treeID</code></p>
-<div class="sourceCode" id="cb216"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb216-1"><a href="cbh.html#cb216-1" tabindex="-1"></a>las <span class="sc">%&gt;%</span> </span>
-<span id="cb216-2"><a href="cbh.html#cb216-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">filter_poi</span>(<span class="sc">!</span><span class="fu">is.na</span>(treeID)) <span class="sc">%&gt;%</span> </span>
-<span id="cb216-3"><a href="cbh.html#cb216-3" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(<span class="at">color =</span> <span class="st">&quot;treeID&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> F)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-182-1.png" width="1008" /></p>
+<div class="sourceCode" id="cb241"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb241-1"><a href="cbh.html#cb241-1" tabindex="-1"></a>las <span class="sc">%&gt;%</span> </span>
+<span id="cb241-2"><a href="cbh.html#cb241-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">filter_poi</span>(<span class="sc">!</span><span class="fu">is.na</span>(treeID)) <span class="sc">%&gt;%</span> </span>
+<span id="cb241-3"><a href="cbh.html#cb241-3" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(<span class="at">color =</span> <span class="st">&quot;treeID&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> F)</span></code></pre></div>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-202-1.png" width="1008" /></p>
 <p>let’s filter for a single tree</p>
-<div class="sourceCode" id="cb217"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb217-1"><a href="cbh.html#cb217-1" tabindex="-1"></a><span class="co"># sf</span></span>
-<span id="cb217-2"><a href="cbh.html#cb217-2" tabindex="-1"></a>one_tree_sf <span class="ot">&lt;-</span> crowns_sf <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">filter</span>(tree_height_m <span class="sc">==</span> <span class="fu">max</span>(tree_height_m)) <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice</span>(<span class="dv">1</span>)</span>
-<span id="cb217-3"><a href="cbh.html#cb217-3" tabindex="-1"></a><span class="co"># las</span></span>
-<span id="cb217-4"><a href="cbh.html#cb217-4" tabindex="-1"></a>one_tree_las <span class="ot">&lt;-</span> las <span class="sc">%&gt;%</span> lidR<span class="sc">::</span><span class="fu">filter_poi</span>(treeID<span class="sc">==</span>one_tree_sf<span class="sc">$</span>treeID)</span></code></pre></div>
+<div class="sourceCode" id="cb242"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb242-1"><a href="cbh.html#cb242-1" tabindex="-1"></a><span class="co"># sf</span></span>
+<span id="cb242-2"><a href="cbh.html#cb242-2" tabindex="-1"></a>one_tree_sf <span class="ot">&lt;-</span> crowns_sf <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">filter</span>(tree_height_m <span class="sc">==</span> <span class="fu">max</span>(tree_height_m)) <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice</span>(<span class="dv">1</span>)</span>
+<span id="cb242-3"><a href="cbh.html#cb242-3" tabindex="-1"></a><span class="co"># las</span></span>
+<span id="cb242-4"><a href="cbh.html#cb242-4" tabindex="-1"></a>one_tree_las <span class="ot">&lt;-</span> las <span class="sc">%&gt;%</span> lidR<span class="sc">::</span><span class="fu">filter_poi</span>(treeID<span class="sc">==</span>one_tree_sf<span class="sc">$</span>treeID)</span></code></pre></div>
 <p>check our one tree point cloud</p>
-<div class="sourceCode" id="cb218"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb218-1"><a href="cbh.html#cb218-1" tabindex="-1"></a>one_tree_las <span class="sc">%&gt;%</span> </span>
-<span id="cb218-2"><a href="cbh.html#cb218-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(</span>
-<span id="cb218-3"><a href="cbh.html#cb218-3" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;Z&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> T</span>
-<span id="cb218-4"><a href="cbh.html#cb218-4" tabindex="-1"></a>   , <span class="at">pal =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
-<span id="cb218-5"><a href="cbh.html#cb218-5" tabindex="-1"></a>  )</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-185-1.png" width="1008" /></p>
+<div class="sourceCode" id="cb243"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb243-1"><a href="cbh.html#cb243-1" tabindex="-1"></a>one_tree_las <span class="sc">%&gt;%</span> </span>
+<span id="cb243-2"><a href="cbh.html#cb243-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(</span>
+<span id="cb243-3"><a href="cbh.html#cb243-3" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;Z&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> T</span>
+<span id="cb243-4"><a href="cbh.html#cb243-4" tabindex="-1"></a>   , <span class="at">pal =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
+<span id="cb243-5"><a href="cbh.html#cb243-5" tabindex="-1"></a>  )</span></code></pre></div>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-205-1.png" width="1008" /></p>
 </div>
 <div id="extract-cbh" class="section level2 hasAnchor" number="5.2">
 <h2><span class="header-section-number">5.2</span> Extract CBH<a href="cbh.html#extract-cbh" class="anchor-section" aria-label="Anchor link to header"></a></h2>
 <p>using the same settings as our processing</p>
-<div class="sourceCode" id="cb219"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb219-1"><a href="cbh.html#cb219-1" tabindex="-1"></a><span class="co"># CALL IT</span></span>
-<span id="cb219-2"><a href="cbh.html#cb219-2" tabindex="-1"></a>ladderfuelsr_cbh_ans <span class="ot">&lt;-</span> cloud2trees<span class="sc">::</span><span class="fu">ladderfuelsr_cbh</span>(</span>
-<span id="cb219-3"><a href="cbh.html#cb219-3" tabindex="-1"></a>  <span class="at">las =</span> one_tree_las</span>
-<span id="cb219-4"><a href="cbh.html#cb219-4" tabindex="-1"></a>  , <span class="at">min_vhp_n =</span> <span class="dv">3</span></span>
-<span id="cb219-5"><a href="cbh.html#cb219-5" tabindex="-1"></a>  , <span class="at">voxel_grain_size_m =</span> <span class="dv">1</span></span>
-<span id="cb219-6"><a href="cbh.html#cb219-6" tabindex="-1"></a>  , <span class="at">dist_btwn_bins_m =</span> <span class="dv">1</span></span>
-<span id="cb219-7"><a href="cbh.html#cb219-7" tabindex="-1"></a>  , <span class="at">min_fuel_layer_ht_m =</span> <span class="dv">1</span></span>
-<span id="cb219-8"><a href="cbh.html#cb219-8" tabindex="-1"></a>  , <span class="at">lad_pct_gap =</span> <span class="dv">25</span></span>
-<span id="cb219-9"><a href="cbh.html#cb219-9" tabindex="-1"></a>  , <span class="at">lad_pct_base =</span> <span class="dv">25</span></span>
-<span id="cb219-10"><a href="cbh.html#cb219-10" tabindex="-1"></a>  , <span class="at">num_jump_steps =</span> <span class="dv">1</span></span>
-<span id="cb219-11"><a href="cbh.html#cb219-11" tabindex="-1"></a>  , <span class="at">min_lad_pct =</span> <span class="dv">10</span></span>
-<span id="cb219-12"><a href="cbh.html#cb219-12" tabindex="-1"></a>  , <span class="at">frst_layer_min_ht_m =</span> <span class="dv">1</span></span>
-<span id="cb219-13"><a href="cbh.html#cb219-13" tabindex="-1"></a>) </span></code></pre></div>
+<div class="sourceCode" id="cb244"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb244-1"><a href="cbh.html#cb244-1" tabindex="-1"></a><span class="co"># CALL IT</span></span>
+<span id="cb244-2"><a href="cbh.html#cb244-2" tabindex="-1"></a>ladderfuelsr_cbh_ans <span class="ot">&lt;-</span> cloud2trees<span class="sc">::</span><span class="fu">ladderfuelsr_cbh</span>(</span>
+<span id="cb244-3"><a href="cbh.html#cb244-3" tabindex="-1"></a>  <span class="at">las =</span> one_tree_las</span>
+<span id="cb244-4"><a href="cbh.html#cb244-4" tabindex="-1"></a>  , <span class="at">min_vhp_n =</span> <span class="dv">3</span></span>
+<span id="cb244-5"><a href="cbh.html#cb244-5" tabindex="-1"></a>  , <span class="at">voxel_grain_size_m =</span> <span class="dv">1</span></span>
+<span id="cb244-6"><a href="cbh.html#cb244-6" tabindex="-1"></a>  , <span class="at">dist_btwn_bins_m =</span> <span class="dv">1</span></span>
+<span id="cb244-7"><a href="cbh.html#cb244-7" tabindex="-1"></a>  , <span class="at">min_fuel_layer_ht_m =</span> <span class="dv">1</span></span>
+<span id="cb244-8"><a href="cbh.html#cb244-8" tabindex="-1"></a>  , <span class="at">lad_pct_gap =</span> <span class="dv">25</span></span>
+<span id="cb244-9"><a href="cbh.html#cb244-9" tabindex="-1"></a>  , <span class="at">lad_pct_base =</span> <span class="dv">25</span></span>
+<span id="cb244-10"><a href="cbh.html#cb244-10" tabindex="-1"></a>  , <span class="at">num_jump_steps =</span> <span class="dv">1</span></span>
+<span id="cb244-11"><a href="cbh.html#cb244-11" tabindex="-1"></a>  , <span class="at">min_lad_pct =</span> <span class="dv">10</span></span>
+<span id="cb244-12"><a href="cbh.html#cb244-12" tabindex="-1"></a>  , <span class="at">frst_layer_min_ht_m =</span> <span class="dv">1</span></span>
+<span id="cb244-13"><a href="cbh.html#cb244-13" tabindex="-1"></a>) </span></code></pre></div>
 <pre><code>## [1] &quot;treeID: 21&quot;</code></pre>
-<div class="sourceCode" id="cb221"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb221-1"><a href="cbh.html#cb221-1" tabindex="-1"></a>ladderfuelsr_cbh_ans <span class="sc">%&gt;%</span> <span class="fu">names</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb246"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb246-1"><a href="cbh.html#cb246-1" tabindex="-1"></a>ladderfuelsr_cbh_ans <span class="sc">%&gt;%</span> <span class="fu">names</span>()</span></code></pre></div>
 <pre><code>##  [1] &quot;gaps_fbhs&quot;        &quot;lad_profile&quot;      &quot;gaps_perc&quot;        &quot;metrics_distance&quot;
 ##  [5] &quot;metrics_depth&quot;    &quot;real_fbh&quot;         &quot;real_depth&quot;       &quot;eff_gap&quot;         
 ##  [9] &quot;layers_lad_df&quot;    &quot;cbh_metrics&quot;</code></pre>
-<div class="sourceCode" id="cb223"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb223-1"><a href="cbh.html#cb223-1" tabindex="-1"></a>ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb248"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb248-1"><a href="cbh.html#cb248-1" tabindex="-1"></a>ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 30
 ## Columns: 3
 ## $ treeID &lt;fct&gt; 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21,…
 ## $ height &lt;dbl&gt; 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, …
 ## $ lad    &lt;dbl&gt; 0.000000000, 0.002752691, 0.000000000, 0.000000000, 0.000000000…</code></pre>
 <p>Create our own plot of the gaps and fuel layers base height in the vertical tree profile</p>
-<div class="sourceCode" id="cb225"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb225-1"><a href="cbh.html#cb225-1" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span> </span>
-<span id="cb225-2"><a href="cbh.html#cb225-2" tabindex="-1"></a>  <span class="fu">geom_path</span>(<span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile, <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> lad, <span class="at">y =</span> height)) <span class="sc">+</span></span>
-<span id="cb225-3"><a href="cbh.html#cb225-3" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile, <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> lad, <span class="at">y =</span> height)) <span class="sc">+</span></span>
-<span id="cb225-4"><a href="cbh.html#cb225-4" tabindex="-1"></a>  <span class="co"># gaps data</span></span>
-<span id="cb225-5"><a href="cbh.html#cb225-5" tabindex="-1"></a>  <span class="fu">geom_hline</span>(</span>
-<span id="cb225-6"><a href="cbh.html#cb225-6" tabindex="-1"></a>    <span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>gaps_fbhs <span class="sc">%&gt;%</span> </span>
-<span id="cb225-7"><a href="cbh.html#cb225-7" tabindex="-1"></a>      dplyr<span class="sc">::</span><span class="fu">select</span>(</span>
-<span id="cb225-8"><a href="cbh.html#cb225-8" tabindex="-1"></a>        tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;gap&quot;</span>) <span class="sc">&amp;</span> <span class="sc">!</span>tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;gap_&quot;</span>)</span>
-<span id="cb225-9"><a href="cbh.html#cb225-9" tabindex="-1"></a>      ) <span class="sc">%&gt;%</span> </span>
-<span id="cb225-10"><a href="cbh.html#cb225-10" tabindex="-1"></a>      tidyr<span class="sc">::</span><span class="fu">pivot_longer</span>(dplyr<span class="sc">::</span><span class="fu">everything</span>())</span>
-<span id="cb225-11"><a href="cbh.html#cb225-11" tabindex="-1"></a>    , <span class="fu">aes</span>(<span class="at">yintercept =</span> value, <span class="at">color =</span> <span class="st">&quot;gaps&quot;</span>)</span>
-<span id="cb225-12"><a href="cbh.html#cb225-12" tabindex="-1"></a>    , <span class="at">linetype =</span> <span class="st">&quot;dotted&quot;</span></span>
-<span id="cb225-13"><a href="cbh.html#cb225-13" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="fl">1.2</span></span>
-<span id="cb225-14"><a href="cbh.html#cb225-14" tabindex="-1"></a>  ) <span class="sc">+</span> </span>
-<span id="cb225-15"><a href="cbh.html#cb225-15" tabindex="-1"></a>  <span class="co"># fbh data</span></span>
-<span id="cb225-16"><a href="cbh.html#cb225-16" tabindex="-1"></a>  <span class="fu">geom_hline</span>(</span>
-<span id="cb225-17"><a href="cbh.html#cb225-17" tabindex="-1"></a>    <span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>gaps_fbhs <span class="sc">%&gt;%</span> </span>
-<span id="cb225-18"><a href="cbh.html#cb225-18" tabindex="-1"></a>      dplyr<span class="sc">::</span><span class="fu">select</span>(</span>
-<span id="cb225-19"><a href="cbh.html#cb225-19" tabindex="-1"></a>        tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;cbh&quot;</span>) <span class="sc">&amp;</span> <span class="sc">!</span>tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;cbh_&quot;</span>)</span>
-<span id="cb225-20"><a href="cbh.html#cb225-20" tabindex="-1"></a>      ) <span class="sc">%&gt;%</span> </span>
-<span id="cb225-21"><a href="cbh.html#cb225-21" tabindex="-1"></a>      tidyr<span class="sc">::</span><span class="fu">pivot_longer</span>(dplyr<span class="sc">::</span><span class="fu">everything</span>())</span>
-<span id="cb225-22"><a href="cbh.html#cb225-22" tabindex="-1"></a>    , <span class="fu">aes</span>(<span class="at">yintercept =</span> value, <span class="at">color =</span> <span class="st">&quot;FBHs&quot;</span>)</span>
-<span id="cb225-23"><a href="cbh.html#cb225-23" tabindex="-1"></a>    , <span class="at">linetype =</span> <span class="st">&quot;dotdash&quot;</span></span>
-<span id="cb225-24"><a href="cbh.html#cb225-24" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="fl">1.2</span></span>
-<span id="cb225-25"><a href="cbh.html#cb225-25" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb225-26"><a href="cbh.html#cb225-26" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;green4&quot;</span>, <span class="st">&quot;red&quot;</span>), <span class="at">name =</span> <span class="st">&quot;&quot;</span>) <span class="sc">+</span></span>
-<span id="cb225-27"><a href="cbh.html#cb225-27" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> scales<span class="sc">::</span><span class="fu">extended_breaks</span>(<span class="dv">10</span>)) <span class="sc">+</span></span>
-<span id="cb225-28"><a href="cbh.html#cb225-28" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
-<span id="cb225-29"><a href="cbh.html#cb225-29" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-189-1.png" width="1008" /></p>
+<div class="sourceCode" id="cb250"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb250-1"><a href="cbh.html#cb250-1" tabindex="-1"></a><span class="fu">ggplot</span>() <span class="sc">+</span> </span>
+<span id="cb250-2"><a href="cbh.html#cb250-2" tabindex="-1"></a>  <span class="fu">geom_path</span>(<span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile, <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> lad, <span class="at">y =</span> height)) <span class="sc">+</span></span>
+<span id="cb250-3"><a href="cbh.html#cb250-3" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile, <span class="at">mapping =</span> <span class="fu">aes</span>(<span class="at">x =</span> lad, <span class="at">y =</span> height)) <span class="sc">+</span></span>
+<span id="cb250-4"><a href="cbh.html#cb250-4" tabindex="-1"></a>  <span class="co"># gaps data</span></span>
+<span id="cb250-5"><a href="cbh.html#cb250-5" tabindex="-1"></a>  <span class="fu">geom_hline</span>(</span>
+<span id="cb250-6"><a href="cbh.html#cb250-6" tabindex="-1"></a>    <span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>gaps_fbhs <span class="sc">%&gt;%</span> </span>
+<span id="cb250-7"><a href="cbh.html#cb250-7" tabindex="-1"></a>      dplyr<span class="sc">::</span><span class="fu">select</span>(</span>
+<span id="cb250-8"><a href="cbh.html#cb250-8" tabindex="-1"></a>        tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;gap&quot;</span>) <span class="sc">&amp;</span> <span class="sc">!</span>tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;gap_&quot;</span>)</span>
+<span id="cb250-9"><a href="cbh.html#cb250-9" tabindex="-1"></a>      ) <span class="sc">%&gt;%</span> </span>
+<span id="cb250-10"><a href="cbh.html#cb250-10" tabindex="-1"></a>      tidyr<span class="sc">::</span><span class="fu">pivot_longer</span>(dplyr<span class="sc">::</span><span class="fu">everything</span>())</span>
+<span id="cb250-11"><a href="cbh.html#cb250-11" tabindex="-1"></a>    , <span class="fu">aes</span>(<span class="at">yintercept =</span> value, <span class="at">color =</span> <span class="st">&quot;gaps&quot;</span>)</span>
+<span id="cb250-12"><a href="cbh.html#cb250-12" tabindex="-1"></a>    , <span class="at">linetype =</span> <span class="st">&quot;dotted&quot;</span></span>
+<span id="cb250-13"><a href="cbh.html#cb250-13" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="fl">1.2</span></span>
+<span id="cb250-14"><a href="cbh.html#cb250-14" tabindex="-1"></a>  ) <span class="sc">+</span> </span>
+<span id="cb250-15"><a href="cbh.html#cb250-15" tabindex="-1"></a>  <span class="co"># fbh data</span></span>
+<span id="cb250-16"><a href="cbh.html#cb250-16" tabindex="-1"></a>  <span class="fu">geom_hline</span>(</span>
+<span id="cb250-17"><a href="cbh.html#cb250-17" tabindex="-1"></a>    <span class="at">data =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>gaps_fbhs <span class="sc">%&gt;%</span> </span>
+<span id="cb250-18"><a href="cbh.html#cb250-18" tabindex="-1"></a>      dplyr<span class="sc">::</span><span class="fu">select</span>(</span>
+<span id="cb250-19"><a href="cbh.html#cb250-19" tabindex="-1"></a>        tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;cbh&quot;</span>) <span class="sc">&amp;</span> <span class="sc">!</span>tidyselect<span class="sc">::</span><span class="fu">starts_with</span>(<span class="st">&quot;cbh_&quot;</span>)</span>
+<span id="cb250-20"><a href="cbh.html#cb250-20" tabindex="-1"></a>      ) <span class="sc">%&gt;%</span> </span>
+<span id="cb250-21"><a href="cbh.html#cb250-21" tabindex="-1"></a>      tidyr<span class="sc">::</span><span class="fu">pivot_longer</span>(dplyr<span class="sc">::</span><span class="fu">everything</span>())</span>
+<span id="cb250-22"><a href="cbh.html#cb250-22" tabindex="-1"></a>    , <span class="fu">aes</span>(<span class="at">yintercept =</span> value, <span class="at">color =</span> <span class="st">&quot;FBHs&quot;</span>)</span>
+<span id="cb250-23"><a href="cbh.html#cb250-23" tabindex="-1"></a>    , <span class="at">linetype =</span> <span class="st">&quot;dotdash&quot;</span></span>
+<span id="cb250-24"><a href="cbh.html#cb250-24" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="fl">1.2</span></span>
+<span id="cb250-25"><a href="cbh.html#cb250-25" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb250-26"><a href="cbh.html#cb250-26" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;green4&quot;</span>, <span class="st">&quot;red&quot;</span>), <span class="at">name =</span> <span class="st">&quot;&quot;</span>) <span class="sc">+</span></span>
+<span id="cb250-27"><a href="cbh.html#cb250-27" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> scales<span class="sc">::</span><span class="fu">extended_breaks</span>(<span class="dv">10</span>)) <span class="sc">+</span></span>
+<span id="cb250-28"><a href="cbh.html#cb250-28" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
+<span id="cb250-29"><a href="cbh.html#cb250-29" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-209-1.png" width="1008" /></p>
 <p>note, the <code>gap</code> and <code>cbh</code> columns in <code>ladderfuelsr_cbh_ans$gaps_fbhs</code> contain the data needed for the plot ( but not the <code>gap_</code> and <code>cbh_</code> columns ;/ ).</p>
 <p>but what are these columns?</p>
 <ul>
@@ -407,7 +416,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 </ul>
 <div id="return-cbh-metrics" class="section level3 hasAnchor" number="5.2.1">
 <h3><span class="header-section-number">5.2.1</span> Return CBH Metrics<a href="cbh.html#return-cbh-metrics" class="anchor-section" aria-label="Anchor link to header"></a></h3>
-<div class="sourceCode" id="cb226"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb226-1"><a href="cbh.html#cb226-1" tabindex="-1"></a>ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb251"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb251-1"><a href="cbh.html#cb251-1" tabindex="-1"></a>ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">glimpse</span>()</span></code></pre></div>
 <pre><code>## Rows: 1
 ## Columns: 29
 ## $ treeID         &lt;fct&gt; 21
@@ -461,28 +470,28 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li>max_height - Maximum height of the tree profile</li>
 </ul>
 <p>there are also some plotting functions</p>
-<div class="sourceCode" id="cb228"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb228-1"><a href="cbh.html#cb228-1" tabindex="-1"></a><span class="co"># Generate plots for fuels LAD metrics</span></span>
-<span id="cb228-2"><a href="cbh.html#cb228-2" tabindex="-1"></a>plots_cbh_maxlad <span class="ot">&lt;-</span> LadderFuelsR<span class="sc">::</span><span class="fu">get_plots_cbh_LAD</span>(</span>
-<span id="cb228-3"><a href="cbh.html#cb228-3" tabindex="-1"></a>  <span class="at">LAD_profiles =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile</span>
-<span id="cb228-4"><a href="cbh.html#cb228-4" tabindex="-1"></a>  , <span class="at">cbh_metrics =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics</span>
-<span id="cb228-5"><a href="cbh.html#cb228-5" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">0.5</span></span>
-<span id="cb228-6"><a href="cbh.html#cb228-6" tabindex="-1"></a>)</span>
-<span id="cb228-7"><a href="cbh.html#cb228-7" tabindex="-1"></a>plots_cbh_maxdist <span class="ot">&lt;-</span> LadderFuelsR<span class="sc">::</span><span class="fu">get_plots_cbh_maxdist</span>(</span>
-<span id="cb228-8"><a href="cbh.html#cb228-8" tabindex="-1"></a>  <span class="at">LAD_profiles =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile</span>
-<span id="cb228-9"><a href="cbh.html#cb228-9" tabindex="-1"></a>  , <span class="at">cbh_metrics =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics</span>
-<span id="cb228-10"><a href="cbh.html#cb228-10" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">0.5</span></span>
-<span id="cb228-11"><a href="cbh.html#cb228-11" tabindex="-1"></a>)</span>
-<span id="cb228-12"><a href="cbh.html#cb228-12" tabindex="-1"></a>plots_cbh_lastdist <span class="ot">&lt;-</span> LadderFuelsR<span class="sc">::</span><span class="fu">get_plots_cbh_lastdist</span>(</span>
-<span id="cb228-13"><a href="cbh.html#cb228-13" tabindex="-1"></a>  <span class="at">LAD_profiles =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile</span>
-<span id="cb228-14"><a href="cbh.html#cb228-14" tabindex="-1"></a>  , <span class="at">cbh_metrics =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics</span>
-<span id="cb228-15"><a href="cbh.html#cb228-15" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">0.5</span></span>
-<span id="cb228-16"><a href="cbh.html#cb228-16" tabindex="-1"></a>)</span>
-<span id="cb228-17"><a href="cbh.html#cb228-17" tabindex="-1"></a><span class="co"># patchwork them</span></span>
-<span id="cb228-18"><a href="cbh.html#cb228-18" tabindex="-1"></a>(plots_cbh_maxlad[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_LAD&quot;</span>)) <span class="sc">+</span></span>
-<span id="cb228-19"><a href="cbh.html#cb228-19" tabindex="-1"></a>(plots_cbh_maxdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_maxdist&quot;</span>)) <span class="sc">+</span></span>
-<span id="cb228-20"><a href="cbh.html#cb228-20" tabindex="-1"></a>(plots_cbh_lastdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_lastdist&quot;</span>)) <span class="sc">+</span></span>
-<span id="cb228-21"><a href="cbh.html#cb228-21" tabindex="-1"></a>  patchwork<span class="sc">::</span><span class="fu">plot_layout</span>(<span class="at">ncol =</span> <span class="dv">2</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-191-1.png" width="1008" /></p>
+<div class="sourceCode" id="cb253"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb253-1"><a href="cbh.html#cb253-1" tabindex="-1"></a><span class="co"># Generate plots for fuels LAD metrics</span></span>
+<span id="cb253-2"><a href="cbh.html#cb253-2" tabindex="-1"></a>plots_cbh_maxlad <span class="ot">&lt;-</span> LadderFuelsR<span class="sc">::</span><span class="fu">get_plots_cbh_LAD</span>(</span>
+<span id="cb253-3"><a href="cbh.html#cb253-3" tabindex="-1"></a>  <span class="at">LAD_profiles =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile</span>
+<span id="cb253-4"><a href="cbh.html#cb253-4" tabindex="-1"></a>  , <span class="at">cbh_metrics =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics</span>
+<span id="cb253-5"><a href="cbh.html#cb253-5" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">0.5</span></span>
+<span id="cb253-6"><a href="cbh.html#cb253-6" tabindex="-1"></a>)</span>
+<span id="cb253-7"><a href="cbh.html#cb253-7" tabindex="-1"></a>plots_cbh_maxdist <span class="ot">&lt;-</span> LadderFuelsR<span class="sc">::</span><span class="fu">get_plots_cbh_maxdist</span>(</span>
+<span id="cb253-8"><a href="cbh.html#cb253-8" tabindex="-1"></a>  <span class="at">LAD_profiles =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile</span>
+<span id="cb253-9"><a href="cbh.html#cb253-9" tabindex="-1"></a>  , <span class="at">cbh_metrics =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics</span>
+<span id="cb253-10"><a href="cbh.html#cb253-10" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">0.5</span></span>
+<span id="cb253-11"><a href="cbh.html#cb253-11" tabindex="-1"></a>)</span>
+<span id="cb253-12"><a href="cbh.html#cb253-12" tabindex="-1"></a>plots_cbh_lastdist <span class="ot">&lt;-</span> LadderFuelsR<span class="sc">::</span><span class="fu">get_plots_cbh_lastdist</span>(</span>
+<span id="cb253-13"><a href="cbh.html#cb253-13" tabindex="-1"></a>  <span class="at">LAD_profiles =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>lad_profile</span>
+<span id="cb253-14"><a href="cbh.html#cb253-14" tabindex="-1"></a>  , <span class="at">cbh_metrics =</span> ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics</span>
+<span id="cb253-15"><a href="cbh.html#cb253-15" tabindex="-1"></a>  , <span class="at">min_height =</span> <span class="fl">0.5</span></span>
+<span id="cb253-16"><a href="cbh.html#cb253-16" tabindex="-1"></a>)</span>
+<span id="cb253-17"><a href="cbh.html#cb253-17" tabindex="-1"></a><span class="co"># patchwork them</span></span>
+<span id="cb253-18"><a href="cbh.html#cb253-18" tabindex="-1"></a>(plots_cbh_maxlad[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_LAD&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb253-19"><a href="cbh.html#cb253-19" tabindex="-1"></a>(plots_cbh_maxdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_maxdist&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb253-20"><a href="cbh.html#cb253-20" tabindex="-1"></a>(plots_cbh_lastdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_lastdist&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb253-21"><a href="cbh.html#cb253-21" tabindex="-1"></a>  patchwork<span class="sc">::</span><span class="fu">plot_layout</span>(<span class="at">ncol =</span> <span class="dv">2</span>)</span></code></pre></div>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-211-1.png" width="1008" /></p>
 <p>these plots represent the three criteria to define the CBH in a segmented tree:</p>
 <ul>
 <li><code>get_plots_cbh_LAD</code> = the fuel layer containing the maximum LAD percentage (column named <code>maxlad_Hcbh</code>)</li>
@@ -493,46 +502,46 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="cbh-on-the-point-cloud" class="section level3 hasAnchor" number="5.2.2">
 <h3><span class="header-section-number">5.2.2</span> CBH on the point cloud<a href="cbh.html#cbh-on-the-point-cloud" class="anchor-section" aria-label="Anchor link to header"></a></h3>
 <p>can we make a view of the CBH on the point cloud?</p>
-<div class="sourceCode" id="cb229"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb229-1"><a href="cbh.html#cb229-1" tabindex="-1"></a><span class="co"># make a matrix to represent the cbh</span></span>
-<span id="cb229-2"><a href="cbh.html#cb229-2" tabindex="-1"></a>x_temp <span class="ot">&lt;-</span> <span class="fu">seq</span>(</span>
-<span id="cb229-3"><a href="cbh.html#cb229-3" tabindex="-1"></a>    <span class="fu">min</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>X)</span>
-<span id="cb229-4"><a href="cbh.html#cb229-4" tabindex="-1"></a>    , <span class="fu">max</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>X)</span>
-<span id="cb229-5"><a href="cbh.html#cb229-5" tabindex="-1"></a>    , <span class="at">length.out =</span> <span class="dv">2</span></span>
-<span id="cb229-6"><a href="cbh.html#cb229-6" tabindex="-1"></a>  )</span>
-<span id="cb229-7"><a href="cbh.html#cb229-7" tabindex="-1"></a>y_temp <span class="ot">&lt;-</span> <span class="fu">seq</span>(</span>
-<span id="cb229-8"><a href="cbh.html#cb229-8" tabindex="-1"></a>    <span class="fu">min</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Y)</span>
-<span id="cb229-9"><a href="cbh.html#cb229-9" tabindex="-1"></a>    , <span class="fu">max</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Y)</span>
-<span id="cb229-10"><a href="cbh.html#cb229-10" tabindex="-1"></a>    , <span class="at">length.out =</span> <span class="dv">2</span></span>
-<span id="cb229-11"><a href="cbh.html#cb229-11" tabindex="-1"></a>  )</span>
-<span id="cb229-12"><a href="cbh.html#cb229-12" tabindex="-1"></a>xy_temp <span class="ot">&lt;-</span> <span class="fu">expand.grid</span>(<span class="at">x =</span> x_temp, <span class="at">y =</span> y_temp)</span>
-<span id="cb229-13"><a href="cbh.html#cb229-13" tabindex="-1"></a>z_temp <span class="ot">&lt;-</span> <span class="fu">matrix</span>(</span>
-<span id="cb229-14"><a href="cbh.html#cb229-14" tabindex="-1"></a>  <span class="fu">rep</span>(</span>
-<span id="cb229-15"><a href="cbh.html#cb229-15" tabindex="-1"></a>    ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics<span class="sc">$</span>last_Hcbh</span>
-<span id="cb229-16"><a href="cbh.html#cb229-16" tabindex="-1"></a>    , <span class="fu">nrow</span>(xy_temp)</span>
-<span id="cb229-17"><a href="cbh.html#cb229-17" tabindex="-1"></a>  )</span>
-<span id="cb229-18"><a href="cbh.html#cb229-18" tabindex="-1"></a>  , <span class="at">nrow =</span> <span class="fu">length</span>(x_temp), <span class="at">ncol =</span> <span class="fu">length</span>(y_temp)</span>
-<span id="cb229-19"><a href="cbh.html#cb229-19" tabindex="-1"></a>)</span>
-<span id="cb229-20"><a href="cbh.html#cb229-20" tabindex="-1"></a><span class="co"># plot it</span></span>
-<span id="cb229-21"><a href="cbh.html#cb229-21" tabindex="-1"></a>plot3D<span class="sc">::</span><span class="fu">scatter3D</span>(</span>
-<span id="cb229-22"><a href="cbh.html#cb229-22" tabindex="-1"></a>  <span class="at">x =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>X</span>
-<span id="cb229-23"><a href="cbh.html#cb229-23" tabindex="-1"></a>  , <span class="at">y =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Y</span>
-<span id="cb229-24"><a href="cbh.html#cb229-24" tabindex="-1"></a>  , <span class="at">z =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Z</span>
-<span id="cb229-25"><a href="cbh.html#cb229-25" tabindex="-1"></a>  , <span class="at">colvar =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Z</span>
-<span id="cb229-26"><a href="cbh.html#cb229-26" tabindex="-1"></a>  , <span class="at">cex =</span> <span class="fl">0.3</span>, <span class="at">pch =</span> <span class="dv">19</span></span>
-<span id="cb229-27"><a href="cbh.html#cb229-27" tabindex="-1"></a>  , <span class="at">colkey =</span> T</span>
-<span id="cb229-28"><a href="cbh.html#cb229-28" tabindex="-1"></a>  , <span class="at">phi =</span> <span class="sc">-</span><span class="dv">6</span></span>
-<span id="cb229-29"><a href="cbh.html#cb229-29" tabindex="-1"></a>  , <span class="at">col =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
-<span id="cb229-30"><a href="cbh.html#cb229-30" tabindex="-1"></a>  , <span class="at">main =</span><span class="st">&quot;CBH shown in black&quot;</span></span>
-<span id="cb229-31"><a href="cbh.html#cb229-31" tabindex="-1"></a>  , <span class="at">surf =</span> <span class="fu">list</span>(</span>
-<span id="cb229-32"><a href="cbh.html#cb229-32" tabindex="-1"></a>    <span class="at">x =</span> x_temp</span>
-<span id="cb229-33"><a href="cbh.html#cb229-33" tabindex="-1"></a>    , <span class="at">y =</span> y_temp</span>
-<span id="cb229-34"><a href="cbh.html#cb229-34" tabindex="-1"></a>    , <span class="at">z =</span> z_temp</span>
-<span id="cb229-35"><a href="cbh.html#cb229-35" tabindex="-1"></a>    , <span class="at">facets =</span> <span class="cn">NA</span></span>
-<span id="cb229-36"><a href="cbh.html#cb229-36" tabindex="-1"></a>    , <span class="at">border =</span> <span class="st">&quot;black&quot;</span></span>
-<span id="cb229-37"><a href="cbh.html#cb229-37" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="dv">2</span></span>
-<span id="cb229-38"><a href="cbh.html#cb229-38" tabindex="-1"></a>  )</span>
-<span id="cb229-39"><a href="cbh.html#cb229-39" tabindex="-1"></a>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-192-1.png" width="1008" /></p>
+<div class="sourceCode" id="cb254"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb254-1"><a href="cbh.html#cb254-1" tabindex="-1"></a><span class="co"># make a matrix to represent the cbh</span></span>
+<span id="cb254-2"><a href="cbh.html#cb254-2" tabindex="-1"></a>x_temp <span class="ot">&lt;-</span> <span class="fu">seq</span>(</span>
+<span id="cb254-3"><a href="cbh.html#cb254-3" tabindex="-1"></a>    <span class="fu">min</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>X)</span>
+<span id="cb254-4"><a href="cbh.html#cb254-4" tabindex="-1"></a>    , <span class="fu">max</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>X)</span>
+<span id="cb254-5"><a href="cbh.html#cb254-5" tabindex="-1"></a>    , <span class="at">length.out =</span> <span class="dv">2</span></span>
+<span id="cb254-6"><a href="cbh.html#cb254-6" tabindex="-1"></a>  )</span>
+<span id="cb254-7"><a href="cbh.html#cb254-7" tabindex="-1"></a>y_temp <span class="ot">&lt;-</span> <span class="fu">seq</span>(</span>
+<span id="cb254-8"><a href="cbh.html#cb254-8" tabindex="-1"></a>    <span class="fu">min</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Y)</span>
+<span id="cb254-9"><a href="cbh.html#cb254-9" tabindex="-1"></a>    , <span class="fu">max</span>(one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Y)</span>
+<span id="cb254-10"><a href="cbh.html#cb254-10" tabindex="-1"></a>    , <span class="at">length.out =</span> <span class="dv">2</span></span>
+<span id="cb254-11"><a href="cbh.html#cb254-11" tabindex="-1"></a>  )</span>
+<span id="cb254-12"><a href="cbh.html#cb254-12" tabindex="-1"></a>xy_temp <span class="ot">&lt;-</span> <span class="fu">expand.grid</span>(<span class="at">x =</span> x_temp, <span class="at">y =</span> y_temp)</span>
+<span id="cb254-13"><a href="cbh.html#cb254-13" tabindex="-1"></a>z_temp <span class="ot">&lt;-</span> <span class="fu">matrix</span>(</span>
+<span id="cb254-14"><a href="cbh.html#cb254-14" tabindex="-1"></a>  <span class="fu">rep</span>(</span>
+<span id="cb254-15"><a href="cbh.html#cb254-15" tabindex="-1"></a>    ladderfuelsr_cbh_ans<span class="sc">$</span>cbh_metrics<span class="sc">$</span>last_Hcbh</span>
+<span id="cb254-16"><a href="cbh.html#cb254-16" tabindex="-1"></a>    , <span class="fu">nrow</span>(xy_temp)</span>
+<span id="cb254-17"><a href="cbh.html#cb254-17" tabindex="-1"></a>  )</span>
+<span id="cb254-18"><a href="cbh.html#cb254-18" tabindex="-1"></a>  , <span class="at">nrow =</span> <span class="fu">length</span>(x_temp), <span class="at">ncol =</span> <span class="fu">length</span>(y_temp)</span>
+<span id="cb254-19"><a href="cbh.html#cb254-19" tabindex="-1"></a>)</span>
+<span id="cb254-20"><a href="cbh.html#cb254-20" tabindex="-1"></a><span class="co"># plot it</span></span>
+<span id="cb254-21"><a href="cbh.html#cb254-21" tabindex="-1"></a>plot3D<span class="sc">::</span><span class="fu">scatter3D</span>(</span>
+<span id="cb254-22"><a href="cbh.html#cb254-22" tabindex="-1"></a>  <span class="at">x =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>X</span>
+<span id="cb254-23"><a href="cbh.html#cb254-23" tabindex="-1"></a>  , <span class="at">y =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Y</span>
+<span id="cb254-24"><a href="cbh.html#cb254-24" tabindex="-1"></a>  , <span class="at">z =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Z</span>
+<span id="cb254-25"><a href="cbh.html#cb254-25" tabindex="-1"></a>  , <span class="at">colvar =</span> one_tree_las<span class="sc">@</span>data<span class="sc">$</span>Z</span>
+<span id="cb254-26"><a href="cbh.html#cb254-26" tabindex="-1"></a>  , <span class="at">cex =</span> <span class="fl">0.3</span>, <span class="at">pch =</span> <span class="dv">19</span></span>
+<span id="cb254-27"><a href="cbh.html#cb254-27" tabindex="-1"></a>  , <span class="at">colkey =</span> T</span>
+<span id="cb254-28"><a href="cbh.html#cb254-28" tabindex="-1"></a>  , <span class="at">phi =</span> <span class="sc">-</span><span class="dv">6</span></span>
+<span id="cb254-29"><a href="cbh.html#cb254-29" tabindex="-1"></a>  , <span class="at">col =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
+<span id="cb254-30"><a href="cbh.html#cb254-30" tabindex="-1"></a>  , <span class="at">main =</span><span class="st">&quot;CBH shown in black&quot;</span></span>
+<span id="cb254-31"><a href="cbh.html#cb254-31" tabindex="-1"></a>  , <span class="at">surf =</span> <span class="fu">list</span>(</span>
+<span id="cb254-32"><a href="cbh.html#cb254-32" tabindex="-1"></a>    <span class="at">x =</span> x_temp</span>
+<span id="cb254-33"><a href="cbh.html#cb254-33" tabindex="-1"></a>    , <span class="at">y =</span> y_temp</span>
+<span id="cb254-34"><a href="cbh.html#cb254-34" tabindex="-1"></a>    , <span class="at">z =</span> z_temp</span>
+<span id="cb254-35"><a href="cbh.html#cb254-35" tabindex="-1"></a>    , <span class="at">facets =</span> <span class="cn">NA</span></span>
+<span id="cb254-36"><a href="cbh.html#cb254-36" tabindex="-1"></a>    , <span class="at">border =</span> <span class="st">&quot;black&quot;</span></span>
+<span id="cb254-37"><a href="cbh.html#cb254-37" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="dv">2</span></span>
+<span id="cb254-38"><a href="cbh.html#cb254-38" tabindex="-1"></a>  )</span>
+<span id="cb254-39"><a href="cbh.html#cb254-39" tabindex="-1"></a>)</span></code></pre></div>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-212-1.png" width="1008" /></p>
 
 </div>
 </div>

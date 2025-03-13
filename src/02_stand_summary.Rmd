@@ -219,7 +219,7 @@ terra::plot(terra::vect(stand_sf), add = T, col = NA, border = "black", lwd = 2)
 
 aggregate to 2 m
 
-```{r}
+```{r, results=F, message=FALSE}
 res_temp <- terra::res(dtm_rast)[1]
 des_res_temp <- 2
 if(res_temp<des_res_temp){
@@ -476,7 +476,7 @@ plot_raster_stand_fn <- function(
 
 the canopy height model is a raster dataset that represents the height of objects above the ground, we set the minimum height at `r min(terra::values(chm_rast), na.rm = T)` m
 
-```{r}
+```{r, results=F, message=F}
 # get the plot for each stand
 plt_chm <- 1:nrow(stand_sf) %>% 
   purrr::map(function(x, ul = max(terra::values(chm_rast), na.rm = T), ll = 0){
