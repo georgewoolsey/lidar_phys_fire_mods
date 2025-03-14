@@ -131,6 +131,12 @@ treetops_sf <-
   dplyr::bind_rows()
 ```
 
+```{r, eval=FALSE, include=FALSE}
+treetops_sf %>% dplyr::filter(is.na(landfire_tree_kg_per_m3)) %>% nrow()
+xxx <- cloud2trees::trees_biomass_landfire(treetops_sf)
+xxx$tree_list %>% dplyr::filter(is.na(landfire_tree_kg_per_m3)) %>% nrow()
+```
+
 we'll keep only trees where the tree top point falls within one of our stands and then use this tree list to filter our crown data so that we get the full crown polygon even if it extends outside of the stand boundary
 
 ```{r}

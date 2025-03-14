@@ -862,6 +862,12 @@ trees_hmd_temp <- trees_hmd_temp %>%
   recast_id_fn(cl = class(treetops_sf$treeID))
 trees_type_temp <- trees_type_temp %>% 
   recast_id_fn(cl = class(treetops_sf$treeID))
+# c("700000","600000","100000","200000","300000","2000000","800000","400000","1000000","900000","500000" )
+# trees_type_temp %>% 
+#   dplyr::filter(
+#     treeID %in% 
+#       c("700000","600000","100000","200000","300000","2000000","800000","400000","1000000","900000","500000" )
+#   )
 # now we'll get a list of the columns in our component data to drop from our main data
 cols_to_drop_temp <- c(
     names(trees_dbh_temp), names(trees_cbh_temp)
@@ -873,13 +879,12 @@ cols_to_drop_temp <- c(
 treetops_sf <- treetops_sf %>% 
   dplyr::select( -dplyr::any_of(cols_to_drop_temp))
 # join altogether using the magical purrr::reduce
-treetops_sf <- 
+treetops_sf <-
   list(
     treetops_sf, trees_dbh_temp, trees_cbh_temp
     , trees_hmd_temp, trees_type_temp
   ) %>% 
   purrr::reduce(\(x,y) dplyr::left_join(x, y, by = "treeID"))
-
 ```
 
 let's glimpse our almost final data
@@ -1120,10 +1125,12 @@ names_temp <-
     , treetops_sf %>% names()
   )
 # recast id if needed
-trees_biomass_ans$tree_list <- trees_biomass_ans$tree_list %>% 
+trees_biomass_ans$tree_list <-
+  trees_biomass_ans$tree_list %>% 
   recast_id_fn(cl = class(treetops_sf$treeID))
 # attach to our spatial tree points
-treetops_sf <- treetops_sf %>% 
+treetops_sf <-
+  treetops_sf %>% 
   dplyr::left_join(
     trees_biomass_ans$tree_list %>%
       sf::st_drop_geometry() %>% 
