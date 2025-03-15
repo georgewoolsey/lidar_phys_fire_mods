@@ -571,7 +571,8 @@ treetops_sf %>%
 let's fill in these estimates with the LANDFIRE value
 
 ```{r}
-treetops_sf <- treetops_sf %>% 
+treetops_sf <- 
+  treetops_sf %>% 
   dplyr::mutate(
     is_missing_cruz = is.na(cruz_crown_biomass_kg)
     , cruz_tree_kg_per_m3 = dplyr::coalesce(cruz_tree_kg_per_m3, landfire_tree_kg_per_m3)
@@ -582,47 +583,64 @@ treetops_sf <- treetops_sf %>%
 
 ### Summary Statistics
 
+let's get summary statistics for selected metrics by stand unit
+
 ```{r}
-table_temp =
-  ptcld_processing_data %>% 
-  dplyr::group_by(software, depth_maps_generation_quality, depth_maps_generation_filtering_mode) %>%
+# table_temp =
+  treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::group_by(unit_id, unit_name) %>%
   dplyr::summarise(
     dplyr::across(
-      total_sfm_time_norm
-      , .fns = list(mean = mean, sd = sd, min = min, max = max)
+      c(tree_height_m, dbh_cm, tree_cbh_m, cruz_tree_kg_per_m3, landfire_tree_kg_per_m3)
+      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
     )
     , n = dplyr::n()
   ) %>% 
-  dplyr::mutate(
-    range = paste0(
-      total_sfm_time_norm_min %>% scales::number(accuracy = 0.01)
-      , "—"
-      , total_sfm_time_norm_max %>% scales::number(accuracy = 0.01)
-    )
-    , depth_maps_generation_quality = depth_maps_generation_quality %>% forcats::fct_rev()
-  ) %>% 
-  select(-c(n,total_sfm_time_norm_min, total_sfm_time_norm_max)) %>% 
   dplyr::ungroup() %>% 
-  dplyr::arrange(software, depth_maps_generation_quality, depth_maps_generation_filtering_mode)
-
-table_temp %>% 
-  # dplyr::select(-c(software)) %>% 
+  tidyr::pivot_longer(cols = -c(unit_id, unit_name,n)) %>% 
+  dplyr::mutate(
+    agg = stringr::word(name,-1,sep = "_")
+    , metric = stringr::str_remove_all(name, paste0("_",agg))
+  ) %>% 
+  dplyr::select(-name) %>% 
+  dplyr::mutate(
+    value = dplyr::case_when(
+      metric == "tree_height_m" ~ scales::comma(value,accuracy=0.1)
+      , metric == "dbh_cm" ~ scales::comma(value,accuracy=0.1)
+      , metric == "tree_cbh_m" ~ scales::comma(value,accuracy=0.1)
+      , metric == "cruz_tree_kg_per_m3" ~ scales::comma(value,accuracy=0.001)
+      , metric == "landfire_tree_kg_per_m3" ~ scales::comma(value,accuracy=0.001)
+      , T ~ scales::comma(value,accuracy=0.1)
+    )
+  ) %>% 
+  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
+  dplyr::mutate(
+    unit_lab = paste0(
+      unit_name
+      ,"<br>("
+      , scales::comma(n,accuracy=1)
+      ," trees)"
+    )
+    , range = paste0(min, "—", max)
+  ) %>% 
+  dplyr::arrange(unit_id, unit_name, desc(n)) %>% 
+  dplyr::select(-c(unit_id,unit_name,n,min,max)) %>% 
+  dplyr::relocate(unit_lab) %>% 
   kableExtra::kbl(
-    digits = 2
-    , caption = "Normalized SfM Image Processing Time"
+    caption = "Summary statistics for selected metrics by stand"
     , col.names = c(
-      "software", "quality", "filtering mode"
-      , "Mean"
+      ".", "Metric"
+      , "Mean", "Median"
       , "Std Dev", "Range"
     )
     , escape = F
+    # , digits = 2
   ) %>% 
   kableExtra::kable_styling() %>% 
   # kableExtra::pack_rows(index = table(forcats::fct_inorder(table_temp$software))) %>% 
-  kableExtra::collapse_rows(columns = 1:2, valign = "top") %>%
-  kableExtra::scroll_box(height = "8in")
+  kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
-
 
 ## Spatial Forest Structure
 
@@ -892,7 +910,7 @@ plt_dbh <- 1:nrow(stand_sf) %>%
       , field = "dbh_cm"
       , zero_na = F 
       , buffer = 5
-      , des_res = 20
+      , des_res = 30
       , stand_color = "black"
       , my_title = "Mean DBH"
       , scale_name = "DBH (cm)"
@@ -929,7 +947,7 @@ plt_height <- 1:nrow(stand_sf) %>%
       , field = "tree_height_m"
       , zero_na = F 
       , buffer = 5
-      , des_res = 20
+      , des_res = 30
       , stand_color = "black"
       , my_title = "Mean Height"
       , scale_name = "Height (m)"
@@ -977,7 +995,7 @@ plt_qmd <- 1:nrow(stand_sf) %>%
       , field = "dbh_cm"
       , zero_na = F 
       , buffer = 5
-      , des_res = 20
+      , des_res = 30
       , stand_color = "black"
       , my_title = "Quadratic Mean Diameter"
       , scale_name = "QMD (cm)"
@@ -1007,7 +1025,7 @@ to get Basal Area (BA) in square meters per hectare we will also need to create 
 # get the plot for each stand
 # max(silv_metrics$basal_area_m2_per_ha)*2
 plt_ba <- 1:nrow(stand_sf) %>% 
-  purrr::map(function(x, my_res = 20, ul = NA, ll = NA){
+  purrr::map(function(x, my_res = 30, ul = NA, ll = NA){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
       , stand_vect = stand_sf[x,]
@@ -1044,7 +1062,7 @@ to get trees per hectare (TPH) we will also need to create a function that uses 
 ```{r}
 # get the plot for each stand
 plt_tph <- 1:nrow(stand_sf) %>% 
-  purrr::map(function(x, my_res = 20, ul = 2444, ll = NA){
+  purrr::map(function(x, my_res = 30, ul = 2444, ll = NA){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
       , stand_vect = stand_sf[x,]
@@ -1085,7 +1103,7 @@ First, we'll look at CFL based on the [Cruz et al. (2003)](https://scholar.googl
 ```{r}
 # get the plot for each stand
 plt_cfl_cruz <- 1:nrow(stand_sf) %>% 
-  purrr::map(function(x, my_res = 20, ul = 6.2, ll = 0){
+  purrr::map(function(x, my_res = 30, ul = 6.2, ll = 0){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
       , stand_vect = stand_sf[x,]
@@ -1126,7 +1144,7 @@ First, we'll look at CFL based on the [Cruz et al. (2003)](https://scholar.googl
 ```{r}
 # get the plot for each stand
 plt_cfl_landfire <- 1:nrow(stand_sf) %>% 
-  purrr::map(function(x, my_res = 20, ul = 6.2, ll = 0){
+  purrr::map(function(x, my_res = 30, ul = 6.2, ll = 0){
     vect_to_rast_plot_fn(
       trees_vect = treetops_sf %>% dplyr::filter(unit_id == stand_sf[x,]$unit_id)
       , stand_vect = stand_sf[x,]
@@ -1388,14 +1406,26 @@ crowns_sf <-
     )
   ) %>% 
   dplyr::bind_rows() %>% 
+  dplyr::select( -dplyr::any_of(c(
+    "cruz_tree_kg_per_m3"
+    , "cruz_stand_kg_per_m3"
+    , "cruz_crown_biomass_kg"
+  ))) %>% 
   dplyr::inner_join(
     treetops_sf %>% 
       sf::st_drop_geometry() %>% 
-      dplyr::select(treeID,unit_id,unit_name,tidyselect::starts_with("stand_area_"))
+      dplyr::select(
+        treeID,unit_id,unit_name,tidyselect::starts_with("stand_area_")
+        , is_missing_cruz
+        , cruz_tree_kg_per_m3
+        , cruz_stand_kg_per_m3
+        , cruz_crown_biomass_kg
+      )
     , by = "treeID"
   )
 # the records are the same
 identical(nrow(treetops_sf), nrow(crowns_sf))
+# crowns_sf %>% dplyr::filter(is.na(cruz_crown_biomass_kg)) %>% nrow()
 ```
 
 save the data by unit for sharing with a boss, coworker, friend, etc.

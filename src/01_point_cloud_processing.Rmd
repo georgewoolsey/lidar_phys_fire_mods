@@ -902,6 +902,45 @@ gc()
 
 Lastly, we'll use `trees_biomass()` to estimate tree crown biomass in kilograms. We'll estimate biomass based on: 1) LANDFIRE's [Forest Canopy Bulk Density (CBD) data](https://landfire.gov/fuel/cbd); and 2) based on the [Cruz et al. (2003)](https://scholar.google.com/scholar?cluster=316241498622221569&oi=gsb&hl=en&as_sdt=0,5) equations and the FIA forest type group we got above
 
+```{r, include=FALSE, eval=FALSE}
+treetops_sf %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(
+    treeID %in%
+    c("700000","600000","100000","200000","300000","2000000","800000","400000","1000000","900000","500000" )
+  ) %>% 
+  dplyr::arrange(treeID) %>% 
+  View()
+
+treetops_sf %>% 
+      dplyr::filter(
+        treeID %in%
+        c("700000","600000","100000","200000","300000","2000000","800000","400000","1000000","900000","500000" )
+      ) %>% 
+      dplyr::bind_rows(
+        treetops_sf %>% 
+          dplyr::filter(
+            !treeID %in%
+            c("700000","600000","100000","200000","300000","2000000","800000","400000","1000000","900000","500000" )
+          ) %>% 
+        dplyr::slice_sample(n = 6666)
+      ) %>% sf::st_write("c:/users/georg/Downloads/wtf.gpkg")
+
+trees_biomass_ans <- cloud2trees::trees_biomass(
+    tree_list = sf::st_read("c:/users/georg/Downloads/wtf.gpkg")
+    , method = c("cruz","landfire")
+  )
+trees_biomass_ans$tree_list %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(
+    treeID %in%
+    as.numeric(c("700000","600000","100000","200000","300000","2000000","800000","400000","1000000","900000","500000" ))
+    # is.na(landfire_crown_biomass_kg)
+  ) %>%
+  dplyr::arrange(landfire_crown_biomass_kg, treeID) %>% 
+  View()
+```
+
 ```{r}
 # where should we save the file?
 biomass_fnm <- "../data/point_cloud_processing_delivery/biomass_data.csv"
@@ -948,6 +987,7 @@ if(!file.exists(biomass_fnm)){
     readr::read_csv(file = "../data/point_cloud_processing_delivery/stand_cell_data_cruz.csv", progress = F, show_col_types = F)
 }
 ```
+
 
 Tree crown biomass estimation took a total of **`r scales::comma(processing_data$timer_trees_biomass_mins, accuracy = 0.1)`** minutes at processing rate of **`r scales::comma((processing_data$timer_trees_biomass_mins/round(processing_data$las_area_m2[1]/10000))*60, accuracy = 0.01)`** seconds per hectare
 
@@ -1122,7 +1162,13 @@ first we'll attach the biomass metrics to our spatial tree list
 names_temp <- 
   setdiff(
     trees_biomass_ans$tree_list %>% names()
-    , treetops_sf %>% names()
+    , treetops_sf %>% 
+      dplyr::select(!tidyselect::starts_with("cruz_")) %>%
+      dplyr::select(!tidyselect::starts_with("landfire_")) %>% 
+      dplyr::select( -dplyr::any_of(c(
+        "crown_dia_m","crown_length_m","crown_volume_m3"
+      ))) %>% 
+      names()
   )
 # recast id if needed
 trees_biomass_ans$tree_list <-
@@ -1131,6 +1177,11 @@ trees_biomass_ans$tree_list <-
 # attach to our spatial tree points
 treetops_sf <-
   treetops_sf %>% 
+  dplyr::select(!tidyselect::starts_with("cruz_")) %>%
+  dplyr::select(!tidyselect::starts_with("landfire_")) %>% 
+  dplyr::select( -dplyr::any_of(c(
+    "crown_dia_m","crown_length_m","crown_volume_m3"
+  ))) %>% 
   dplyr::left_join(
     trees_biomass_ans$tree_list %>%
       sf::st_drop_geometry() %>% 
@@ -1142,6 +1193,7 @@ treetops_sf %>% dplyr::glimpse()
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+# treetops_sf %>% dplyr::filter(is.na(landfire_crown_biomass_kg)) %>% nrow()
 remove(list = ls()[grep("_temp",ls())])
 remove(trees_biomass_ans)
 gc()
