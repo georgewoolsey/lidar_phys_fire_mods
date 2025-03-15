@@ -190,9 +190,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="2.4" data-path="processing.html"><a href="processing.html#dbh-modeling-trees_dbh"><i class="fa fa-check"></i><b>2.4</b> DBH Modeling: <code>trees_dbh()</code></a></li>
 <li class="chapter" data-level="2.5" data-path="processing.html"><a href="processing.html#hmd-modeling-trees_hmd"><i class="fa fa-check"></i><b>2.5</b> HMD Modeling: <code>trees_hmd()</code></a></li>
 <li class="chapter" data-level="2.6" data-path="processing.html"><a href="processing.html#cbh-modeling-trees_cbh"><i class="fa fa-check"></i><b>2.6</b> CBH Modeling: <code>trees_cbh()</code></a></li>
-<li class="chapter" data-level="2.7" data-path="processing.html"><a href="processing.html#forest-type-trees_type"><i class="fa fa-check"></i><b>2.7</b> Forest Type: <code>trees_type()</code></a></li>
+<li class="chapter" data-level="2.7" data-path="processing.html"><a href="processing.html#forest-type-trees_type"><i class="fa fa-check"></i><b>2.7</b> Forest Type: <code id="trees_type">trees_type()</code></a></li>
 <li class="chapter" data-level="2.8" data-path="processing.html"><a href="processing.html#combine-data"><i class="fa fa-check"></i><b>2.8</b> Combine data</a></li>
-<li class="chapter" data-level="2.9" data-path="processing.html"><a href="processing.html#crown-biomass-trees_biomass"><i class="fa fa-check"></i><b>2.9</b> Crown Biomass: <code>trees_biomass()</code></a></li>
+<li class="chapter" data-level="2.9" data-path="processing.html"><a href="processing.html#crown-biomass-trees_biomass"><i class="fa fa-check"></i><b>2.9</b> Crown Biomass: <code id="trees_biomass">trees_biomass()</code></a></li>
 <li class="chapter" data-level="2.10" data-path="processing.html"><a href="processing.html#data-export"><i class="fa fa-check"></i><b>2.10</b> Data Export</a></li>
 </ul></li>
 <li class="chapter" data-level="3" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html"><i class="fa fa-check"></i><b>3</b> Forest Stand Summary</a>
@@ -202,6 +202,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <ul>
 <li class="chapter" data-level="3.2.1" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#height-distribution"><i class="fa fa-check"></i><b>3.2.1</b> Height Distribution</a></li>
 <li class="chapter" data-level="3.2.2" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#dbh-distribution"><i class="fa fa-check"></i><b>3.2.2</b> DBH Distribution</a></li>
+<li class="chapter" data-level="3.2.3" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#forest-type"><i class="fa fa-check"></i><b>3.2.3</b> Forest Type</a></li>
+<li class="chapter" data-level="3.2.4" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#crown-biomass"><i class="fa fa-check"></i><b>3.2.4</b> Crown Biomass</a></li>
+<li class="chapter" data-level="3.2.5" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#summary-statistics"><i class="fa fa-check"></i><b>3.2.5</b> Summary Statistics</a></li>
 </ul></li>
 <li class="chapter" data-level="3.3" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#spatial-forest-structure"><i class="fa fa-check"></i><b>3.3</b> Spatial Forest Structure</a>
 <ul>
@@ -214,13 +217,15 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="3.3.7" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#tph"><i class="fa fa-check"></i><b>3.3.7</b> TPH</a></li>
 <li class="chapter" data-level="3.3.8" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#cfl-cruz"><i class="fa fa-check"></i><b>3.3.8</b> CFL Cruz</a></li>
 <li class="chapter" data-level="3.3.9" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#cfl-landfire"><i class="fa fa-check"></i><b>3.3.9</b> CFL LANDFIRE</a></li>
-<li class="chapter" data-level="3.3.10" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#combine-by-stand-unit"><i class="fa fa-check"></i><b>3.3.10</b> Combine by stand unit</a></li>
+<li class="chapter" data-level="3.3.10" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#fia-forest-type-group"><i class="fa fa-check"></i><b>3.3.10</b> FIA Forest Type Group</a></li>
+<li class="chapter" data-level="3.3.11" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#combine-by-stand-unit"><i class="fa fa-check"></i><b>3.3.11</b> Combine by stand unit</a></li>
 </ul></li>
 <li class="chapter" data-level="3.4" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#canopy-cover"><i class="fa fa-check"></i><b>3.4</b> Canopy Cover</a>
 <ul>
 <li class="chapter" data-level="3.4.1" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#entire-area"><i class="fa fa-check"></i><b>3.4.1</b> Entire Area</a></li>
 <li class="chapter" data-level="3.4.2" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#stands"><i class="fa fa-check"></i><b>3.4.2</b> Stands</a></li>
 </ul></li>
+<li class="chapter" data-level="3.5" data-path="forest-stand-summary.html"><a href="forest-stand-summary.html#write-data"><i class="fa fa-check"></i><b>3.5</b> Write Data</a></li>
 </ul></li>
 <li class="chapter" data-level="4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html"><i class="fa fa-check"></i><b>4</b> Validate Tree Detection and Crown Delineation</a>
 <ul>
