@@ -291,7 +291,7 @@ silv_metrics %>%
       , "Cruz CFL<br>kg m<sup>-2</sup>"
       )
   ) %>% 
-  kableExtra::kable_styling()
+  kableExtra::kable_styling(font_size = 12)
 ```
 
 ### Height Distribution
@@ -627,18 +627,37 @@ let's get summary statistics for selected metrics by stand unit
   dplyr::arrange(unit_id, unit_name, desc(n)) %>% 
   dplyr::select(-c(unit_id,unit_name,n,min,max)) %>% 
   dplyr::relocate(unit_lab) %>% 
+  dplyr::mutate(
+    metric = factor(
+      metric
+      , ordered = T
+      , levels = c(
+          "tree_height_m"
+          , "tree_cbh_m"
+          , "dbh_cm"
+          , "cruz_tree_kg_per_m3"
+          , "landfire_tree_kg_per_m3"
+        )
+      , labels = c(
+          "Height (m)"
+          , "Crown Base Ht. (m)"
+          , "DBH (cm)"
+          , "LANDFIRE CBD<br>kg m<sup>-3</sup>"
+          , "Cruz CBD<br>kg m<sup>-3</sup>"
+        )
+    )
+  ) %>% 
   kableExtra::kbl(
     caption = "Summary statistics for selected metrics by stand"
     , col.names = c(
-      ".", "Metric"
+      "Unit Name", "Metric"
       , "Mean", "Median"
       , "Std Dev", "Range"
     )
     , escape = F
     # , digits = 2
   ) %>% 
-  kableExtra::kable_styling() %>% 
-  # kableExtra::pack_rows(index = table(forcats::fct_inorder(table_temp$software))) %>% 
+  kableExtra::kable_styling(font_size = 13) %>% 
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
@@ -1465,4 +1484,138 @@ write_temp <- crowns_sf$unit_id %>%
       , quiet = TRUE
     )
   })
+```
+
+we now need to attach the `treeID` to the point cloud for use in performing tree species classification based on the three-dimensional data based on the methods developed within our study area by [Blackburn (2022)](https://scholar.google.com/scholar?cluster=12483518836038968271&hl=en&as_sdt=0,6)
+
+we'll use the height normalized point cloud data dropped off by `cloud2trees::cloud2trees()` during our [point cloud processing](#processing) by loading the data in as a LAScatalog via `lidR::readLAScatalog()` and attaching the `treeID` attribute with `cloud2trees::polygon_attribute_to_las()`
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE, results=F}
+# use the height normalized las files dropped off by cloud2trees::cloud2trees()
+las_ctg <- lidR::readLAScatalog("../data/point_cloud_processing_delivery/norm_las/")
+# set the lascatalog options
+lidR::opt_progress(las_ctg) <- F
+lidR::opt_filter(las_ctg) <- "-drop_duplicates -drop_class 2 9 18" ## 2 = ground; 9 = water; 18 = noise
+lidR::opt_select(las_ctg) <- "xyz0" # 0 enables all extra bytes to be loaded...possibly treeID
+# lidR::opt_output_files(las_ctg) <- paste0(tempdir(), "/{*}_treed")
+# define a function to attach treeID to the point cloud and return only points with a treeID
+# this will get used in our lidR::catalog_apply()
+ctg_polygon_attribute_to_las <- function(
+  chunk
+  , poly_df
+  , attribute = "treeID"
+  , force_crs = F
+){
+  las <- lidR::readLAS(chunk)
+  if(lidR::is.empty(las)){return(NULL)}
+  # attach treeID
+    nlas_tree <- cloud2trees::polygon_attribute_to_las(
+      las
+      , cloud2trees::simplify_multipolygon_crowns(poly_df) # if already simplified, does nothing
+      , attribute = attribute
+      , force_crs = force_crs
+    )
+  # filter for only points with trees
+  nlas_tree <- lidR::filter_poi(nlas_tree, !is.na(treeID))
+  if(lidR::is.empty(nlas_tree)){
+    return(NULL)
+  }else{
+    return(nlas_tree)
+  }
+}
+```
+
+now we'll simplify the multipolygon crowns using `cloud2trees::simplify_multipolygon_crowns()` and attach the `treeID` attribute to the point cloud by applying our `ctg_polygon_attribute_to_las()` function defined above with `lidR::catalog_apply()`
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE, results=F}
+# simplify multipolygon crowns
+simp_crowns_sf <- crowns_sf %>% 
+    cloud2trees::simplify_multipolygon_crowns()
+# make the treeID numeric
+# !!!!! this only works because our treeID is already numeric and can be cast as such
+# !!!!! if you have a treeID that cannot be cast to numeric then you will need to make a unique treeID
+# !!!!! and save it as a backup numeric treeID so that your numeric treeID can be tied to the character treeID
+simp_crowns_sf <- simp_crowns_sf %>% 
+  dplyr::mutate(treeID = as.numeric(treeID))
+# get the attribute attached to the las
+# apply it
+las <- lidR::catalog_apply(
+    ctg = las_ctg
+    , FUN = ctg_polygon_attribute_to_las
+    , .options = list(automerge = TRUE)
+    # ctg_polygon_attribute_to_las options
+    , poly_df = simp_crowns_sf
+    , attribute = "treeID"
+    , force_crs = T
+  ) %>% 
+  lidR::filter_duplicates() %>%
+  lidR::remove_lasattribute("buffer") %>% 
+  lidR::filter_poi(!is.na(treeID) & Z>0) %>% 
+  lidR::add_lasattribute(name = "treeID", desc = "treeID")
+```
+
+check that we have treeID
+
+```{r, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE, results=F}
+if(
+  identical(ls()[ls() %in% "las"], character(0))
+){
+  las <- lidR::readLAS(file.path(outdir, "norm_las_trees.las"), select = "xyz0")
+}
+```
+
+```{r}
+las %>% 
+  purrr::pluck("data") %>% 
+  dplyr::glimpse()
+```
+
+let's look at our point cloud for a single tree (the tallest tree)
+
+```{r}
+# get the tallest tree cloud
+one_tree_las_temp <- las %>% 
+  lidR::filter_poi(
+    treeID==( 
+        treetops_sf %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(tree_height_m==max(tree_height_m)) %>%  
+        dplyr::slice(1) %>% 
+        dplyr::pull(treeID) %>% 
+        as.numeric() # because we converted to numeric for our las
+      )
+    )
+# plot it
+plot3D::scatter3D(
+  x = one_tree_las_temp@data$X
+  , y = one_tree_las_temp@data$Y
+  , z = one_tree_las_temp@data$Z
+  , colvar = one_tree_las_temp@data$Z
+  , cex = 0.6, pch = 19
+  , colkey = T
+  , phi = 6
+  , col = harrypotter::hp(n=50, house = "gryffindor")
+  , main ="single tree point cloud"
+)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+finally, we'll save this point cloud data to our output folder for sharing
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE, results=F}
+lidR::writeLAS(
+  las = las
+  , file = file.path(outdir, "norm_las_trees.las")
+  , index = T
+)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+# clean session
+remove(list = ls())
+gc()
 ```

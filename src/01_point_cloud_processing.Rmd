@@ -471,7 +471,7 @@ that's how many FIA measured trees were used to train our model
 
 The `trees_hmd()` function uses the tree crown polygons we [delineated from the point cloud](#trees) with the columns `treeID` and `tree_height_m` to attempt to extract height to maximum crown diameter (HMD) directly from the height normalized point cloud by finding the height of the non-ground point farthest from the tree center (i.e. tree top). HMD refers to the vertical height at which a tree's crown has its widest horizontal spread. It describes a characteristic of the overall crown shape and structure.
 
-Because we have `r scales::comma(nrow(cloud2trees_ans$crowns_sf), suffix = " M", scale = 1e-6, accuracy = .01)` trees, we'll attempt to extract HMD for a sample and model the rest based on the data we successfully extracted from the point cloud. This is a memory-intensive process, so we'll clear all objects from our R session and read them back in later after processing.
+We have `r scales::comma(nrow(cloud2trees_ans$crowns_sf), suffix = " M", scale = 1e-6, accuracy = .01)` trees but we'll attempt to extract HMD for the full tree list (100% census) and model the trees for which this process cannot extract a value based on the data we successfully extracted from the point cloud. This is a memory-intensive process, so we'll clear all objects from our R session and read them back in later after processing.
 
 ```{r, message=FALSE, warning=FALSE}
 # clean session
@@ -635,7 +635,7 @@ trees_cbh_ans %>%
 
 That equates to a `r scales::percent(nrow(dplyr::filter(trees_cbh_ans,is_training_cbh==T))/(nrow(trees_cbh_ans)*processing_data$sttng_cbh_tree_sample_prop),accuracy=0.1)` CBH extraction success rate....not a great success ;(
 
-This is especially worrisome given the significant time required to attempt CBH extraction from the point cloud. The low success rate is 
+This is especially worrisome given the significant time required to attempt CBH extraction from the point cloud. The low success rate was influenced by numerous factors including: 1) the low point density of this aerial point cloud; 2) the abundance of short, understory trees which likely lack a sufficient point density to extract a defined LAD profile; 3) in the settings used in the `trees_cbh()` call we required a tree to have at least three vertical height profiles using a 1 m voxel grain size and classified fuel layers as having at least 10 percent leaf area density.
 
 all of the records marked as training data had CBH successfully extracted from the point cloud and were used to estimate a height-CBH allometry relationship that is spatially informed using the relative tree location
 
@@ -1151,6 +1151,71 @@ trees_biomass_ans$stand_cell_data_cruz %>%
   ) +
   ggplot2::theme_void()
 ```
+
+## Processing Time Summary
+
+Let's summarize how long all of this point cloud processing took and determine which steps were most computationally intensive.
+
+```{r}
+# aggregate the total processing time
+processing_data <- processing_data %>% 
+  dplyr::mutate(
+    timer_total_time_mins = timer_cloud2raster_mins + timer_raster2trees_mins +
+      timer_trees_dbh_mins + timer_trees_cbh_mins + timer_trees_type_mins +
+      timer_trees_hmd_mins + timer_trees_biomass_mins + timer_write_data_mins
+    , timer_tree_extraction_mins = timer_cloud2raster_mins + timer_raster2trees_mins
+  ) %>% 
+  dplyr::mutate(dplyr::across(
+     .cols = c(timer_tree_extraction_mins,
+      timer_trees_dbh_mins, timer_trees_cbh_mins, timer_trees_type_mins,
+      timer_trees_hmd_mins, timer_trees_biomass_mins, timer_write_data_mins)
+     , .fns = ~ .x/timer_total_time_mins
+     , .names = "{.col}_pct"
+  ))
+# table it
+table_temp <- processing_data %>% 
+  dplyr::select(
+    c(timer_tree_extraction_mins,
+      timer_trees_dbh_mins, timer_trees_cbh_mins, timer_trees_type_mins,
+      timer_trees_hmd_mins, timer_trees_biomass_mins, timer_write_data_mins
+      , c(tidyselect::ends_with("_pct") & tidyselect::starts_with("timer_"))
+    )
+  ) %>% 
+  tidyr::pivot_longer(dplyr::everything()) %>% 
+  dplyr::mutate(
+    units = stringr::word(name, -1, sep = "_")
+    , section = name %>% 
+      stringr::str_remove_all("timer_") %>% 
+      stringr::str_remove_all("_mins") %>% 
+      stringr::str_remove_all("_pct")
+  ) %>% 
+  dplyr::select(-name) %>% 
+  tidyr::pivot_wider(names_from = units, values_from = value) %>% 
+  dplyr::mutate(
+    mins_lab = scales::comma(mins,accuracy = 0.1)
+    , pct_lab = scales::percent(pct,accuracy = 0.1)
+  )
+```
+
+table it
+
+```{r}
+table_temp %>% 
+  dplyr::select(section, tidyselect::ends_with("_lab")) %>% 
+  kableExtra::kbl(
+    caption = "Point cloud processing section run time"
+    , col.names = c(
+      "Processing section"
+      , "time (minutes)"
+      , "% of total time"
+      )
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+plot it
+
+
 
 ## Data Export
 

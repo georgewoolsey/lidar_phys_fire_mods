@@ -902,11 +902,11 @@ rslt_img_annttd_crwns$plot_level %>%
   kableExtra::kable_styling()
 ```
 
-how many plots did we evaluate that met all criteria?:
+how many plots did we evaluate that met all criteria:
 
-*had point cloud data in the benchmark
-*was from a NEON site with primarily conifer trees
-*had image-annotated crowns for evaluation
+* had point cloud data in the benchmark
+* was from a NEON site with primarily conifer trees
+* had image-annotated crowns for evaluation
 
 ```{r}
 # how many plots did we evaluate that met all criteria?
@@ -1345,9 +1345,9 @@ rslt_fld_stems$plot_level %>%
 
 how many plots did we evaluate that met all criteria?:
 
-*had point cloud data in the benchmark
-*was from a NEON site with primarily conifer trees
-*had field-collected stems for evaluation
+* had point cloud data in the benchmark
+* was from a NEON site with primarily conifer trees
+* had field-collected stems for evaluation
 
 ```{r}
 # how many plots did we evaluate that met all criteria?
