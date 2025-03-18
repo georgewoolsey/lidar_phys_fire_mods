@@ -95,11 +95,17 @@ CRS:            NA
 6 POLYGON ((316.2738 378.9802...
 ```
 
-So we are going to: run `cloud2trees::cloud2trees()` on all lidar data, combine into a single tree list with a row unique by a detected tree and the `plot_name` column (e.g. "SJER_021_2018"), as an unprojected `sf` data with polygons in image coordinates. We may need to run `cloud2trees::simplify_multipolygon_crowns()` prior to submission.
+So we are going to: run `cloud2trees::cloud2trees()` on all of the lidar data for which there is evaluation (i.e. ground truth) data, combine into a single tree list with a row unique by a detected tree and the `plot_name` column (e.g. "SJER_021_2018"), as an unprojected `sf` data with polygons in image coordinates. We may need to run `cloud2trees::simplify_multipolygon_crowns()` prior to submission.
 
 ## lidar data in `NeonTreeEvaluation`
 
-we first have to download evaluation data from the Zenodo archive (1GB), use the download() function to place the data in the correct package location. Download the much larger training data, set `training=TRUE`.
+we first have to download evaluation data from the Zenodo archive (1GB), use the `NeonTreeEvaluation::download()` function to place the data in the correct package location. Download the much larger training data, set `training=TRUE`. We are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure".
+
+Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) describe the training data: 
+
+>During our research on canopy crown detection algorithms, we annotated many geographic tiles separate from the evaluation data. The training sites were selected to capture a range of forest conditions...The training tiles were chosen at random from the NEON data portal, with the requirement that they did not contain a large amount of missing data and they did not overlap with any evaluation plots. Depending on the tree density at the site, we either annotated the entire 1 km2 tile or cropped it to a smaller size to create more tractable sizes for annotation. This data is released alongside the benchmark dataset; however, our goal is to promote the best possible crown-delineation algorithm regardless of training data, and it is not necessary to use this training data to generate predictions. Given the large size of training tiles, the training annotations were less thoroughly reviewed and were only based on the RGB imagery. (p. 11)
+
+*Note: the current version of `NeonTreeEvaluation::download()` does not download the training data even if setting `training = T`. I dug around and found the archive of the training data at [https://zenodo.org/records/5914554](https://zenodo.org/records/5914554). I'll need to circle back with a GitHub pull request to fix the `NeonTreeEvaluation::download()` function so that it gets the training data which is hosted at the link mentioned previously and does not reside at where the function currently points to ([https://zenodo.org/records/4770593](https://zenodo.org/records/4770593))*
 
 ```{r, warning=FALSE, message=F,results=F}
 NeonTreeEvaluation::download(training = T, force = F)
@@ -116,31 +122,64 @@ NeonTreeEvaluation::list_rgb() %>%
 NeonTreeEvaluation::field %>% dplyr::glimpse()
 ```
 
-let's find what data is available
+### Training data
+
+Let's find what *training* data is available. We'll use this data to determine the best window size function for use in our individual tree detection (ITD) process
 
 ```{r}
-# i did some digging around and the lidar data is here
-lidar_dir_temp <- system.file(package = "NeonTreeEvaluation", "extdata", "NeonTreeEvaluation", "evaluation", "LiDAR")
+# i did some digging around and the TRAINING lidar data is here
+training_dir_temp <- system.file(package = "NeonTreeEvaluation", "extdata", "NeonTreeEvaluation", "training", "LiDAR")
 # files
-lidar_files_temp <- lidar_dir_temp %>% list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% unique()
-# look at this
-lidar_files_temp %>% basename() %>% sample(size = 9)
+training_files_temp <- training_dir_temp %>% list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% unique()
 ```
+
+let's pull out all NEON sites with point cloud data and create a data frame for tracking purposes
 
 ```{r}
 # let's pull out all sites with `.laz` data and create a data frame for tracking purposes
-lidar_df <- lidar_files_temp %>% 
+lidar_df <- training_files_temp %>% 
     dplyr::as_tibble() %>% 
     dplyr::rename(f_path = 1) %>% 
     # create some other variables
     dplyr::mutate(
       plot_name = f_path %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")
+      , data_type = "training"
     )
 # what?
 lidar_df %>% dplyr::glimpse()
 ```
 
-that's a lot of files...let's only process the sites with evaluation data
+### Evaluation data
+
+Let's find what *evaluation* data is available. We'll use this data to evaluate our point cloud-based tree detection methodology.
+
+```{r}
+# i did some digging around and the EVALUATION lidar data is here
+eval_dir_temp <- system.file(package = "NeonTreeEvaluation", "extdata", "NeonTreeEvaluation", "evaluation", "LiDAR")
+# files
+eval_files_temp <- eval_dir_temp %>% list.files(recursive = T, pattern = ".*\\.(laz|las)$", full.names = T) %>% unique()
+```
+
+bind the rows onto our tracking data
+
+```{r}
+lidar_df <- lidar_df %>% 
+  dplyr::bind_rows(
+    eval_files_temp %>% 
+    dplyr::as_tibble() %>% 
+    dplyr::rename(f_path = 1) %>% 
+    # create some other variables
+    dplyr::mutate(
+      plot_name = f_path %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")
+      , data_type = "evaluation"
+    )
+  ) %>% 
+  dplyr::mutate(data_type = as.factor(data_type))
+```
+
+### Filter for ground truth data
+
+that's a lot of files...let's only process the sites with evaluation data or image annotated crowns classified as training annotations
 
 ```{r}
 # there are functions to get a list of all evaluation data
@@ -155,27 +194,67 @@ plotnames_temp <- c(
     # there are plot_names from the submission data too
     , NeonTreeEvaluation::submission_polygons$plot_name %>% unique()
     , NeonTreeEvaluation::submission$plot_name %>% unique()
+    # make sure we have all image annotated crowns
+    , system.file(package = "NeonTreeEvaluation", "extdata", "NeonTreeEvaluation", "annotations") %>% 
+      list.files() %>% 
+      basename() %>% 
+      stringr::str_remove_all("\\.(xml)$") %>% 
+      unique()
   ) %>% 
   unique()
 # huh?
-plotnames_temp %>% sample(11)
+# plotnames_temp %>% sample(11) %>% sort()
 ```
 
-filter our lidar data list
+filter our lidar data list to keep only point clouds in plots for which there is validation data
 
 ```{r}
 lidar_df <- lidar_df %>% 
   #filter based on plots in evaluation data
-  dplyr::filter(plot_name %in% plotnames_temp) %>% 
-  # pull out site 
-  dplyr::mutate(
-    siteID = stringr::str_extract(plot_name, "[A-Z]+")
-  )
-# what?
-lidar_df %>% dplyr::glimpse()
+  dplyr::filter(plot_name %in% plotnames_temp)
 ```
 
-we will want to limit our evaluation to only sites with conifer trees since `cloud2trees` implements methods developed specifically to quantify conifer forest structure that may not be appropriate for other uses.
+We need to put the NEON site identifier in our data. We'll use the field-collected tree data from NEON sites made available which will also serve to filter our point cloud list for forested NEON sites only.
+
+```{r}
+# get a list of siteID
+neon_sites_temp <-
+  NeonTreeEvaluation::field %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::distinct(siteID) %>% 
+  # there are siteID's here too
+  dplyr::bind_rows(
+    NeonTreeEvaluation::crown_polygons %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::distinct(siteID)
+  ) %>% 
+  dplyr::mutate(siteID = as.character(siteID)) %>% 
+  dplyr::distinct(siteID) %>% 
+  dplyr::pull(siteID)
+# extract the siteID from the plot_name
+lidar_df <- lidar_df %>% 
+  # pull out site 
+  dplyr::mutate(
+    siteID = stringr::str_extract(
+      string = plot_name
+      , pattern = neon_sites_temp %>%
+        unique() %>%
+        toupper() %>%
+        paste(collapse = "|")
+    )
+  ) %>% 
+  dplyr::filter(!is.na(siteID))
+```
+
+what is the breakdown of training vs eval?
+
+```{r}
+lidar_df %>% dplyr::count(data_type)
+```
+
+### Filter for conifer sites
+
+we will want to limit our evaluation to only sites with conifer trees since `cloud2trees` implements methods developed specifically to quantify conifer forest structure that may not be appropriate for other forest types
 
 we'll use the field data in the package to look for NEON sites with conifer trees. We'll use the NEON plant list to identify conifer species: [https://data.neonscience.org/taxonomic-lists?taxonTypeCode=PLANT](https://data.neonscience.org/taxonomic-lists?taxonTypeCode=PLANT) (click "DOWNLOAD TAXONOMIC LIST"). We'll filter for species belonging to Class Pinopsida.
 
@@ -238,23 +317,46 @@ conifer_sites %>%
   kableExtra::kable_styling()
 ```
 
-let's only keep NEON sites with >50% of the woody vegetation sampled as conifer
+let's only keep NEON sites with a minimum threshold of the woody vegetation sampled as conifer
 
 ```{r}
 # minimum pct conifer
 min_conifer_pct <- .5
-# data frame of sites
-conifer_sites <- conifer_sites %>%
-  dplyr::filter(pct_conifer>min_conifer_pct)
 ```
 
-finally, we'll filter our lidar processing data for only these conifer sites
+now join on our proportion of conifer by NEON site to our lidar data list
 
 ```{r}
 lidar_df <- lidar_df %>% 
-  dplyr::inner_join(conifer_sites, by = "siteID") %>% 
-  sf::st_as_sf(coords = c("longitude","latitude"), crs = 4326, remove = F) %>% 
+  dplyr::left_join(conifer_sites, by = "siteID") %>% 
+  sf::st_as_sf(coords = c("longitude","latitude"), crs = 4326, remove = F)
+```
+
+before we filter for conifer sites only, let's check which sites we have lidar data from and whether or not they are classified as a conifer site based on this threshold of `r scales::percent(min_conifer_pct,accuracy=1)`
+
+```{r}
+lidar_df %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(pct_conifer = dplyr::first(pct_conifer)) %>% 
+  dplyr::mutate(
+    is_conifer_site = pct_conifer>min_conifer_pct
+    , pct_conifer = scales::percent(pct_conifer,accuracy=0.1)
+  ) %>% 
+  mapview::mapview(
+    zcol = "is_conifer_site", legend = T
+    , layer.name = "conifer site?"
+    , col.regions = viridis::viridis(n=2,begin = 0.3,end = 0.7)
+  )
+```
+
+looks reasonable, let's filter our point cloud processing data for conifer sites based on our proportional threshold of `r scales::percent(min_conifer_pct,accuracy=1)`
+
+```{r}
+# data frame of sites
+lidar_df <- lidar_df %>%
+  dplyr::filter(pct_conifer>min_conifer_pct) %>% 
   # filter out corrupt las files
+  # these don't load in lasR...maybe extrabytes issue???
   dplyr::filter(
     !plot_name %in% c(
       "NIWO_005_2018"
@@ -268,31 +370,53 @@ lidar_df <- lidar_df %>%
       , "YELL_051_2019"
       , "SOAP_014_2019"
       , "TEAK_005_2018"
+      , "DSNY_019_2019"
+      , "HEAL_004_2019"
+      , "SOAP_049_2018"
+      , "TEAK_016_2019"
     )
   )
 ```
 
-what NEON sites have conifers and the most lidar plots
+what NEON sites have conifers and training/evaluation data?
 
 ```{r}
 lidar_df %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::count(siteID) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    n = dplyr::n()
+    , training_plots = sum(ifelse(data_type=="training",1,0))
+    , evaluation_plots = sum(ifelse(data_type=="evaluation",1,0))
+  ) %>% 
   dplyr::arrange(desc(n)) %>% 
-  dplyr::slice_head(n=11) %>% 
+  dplyr::select(-n) %>% 
   kableExtra::kbl(caption = "NEON sites with conifers and lidar plots") %>% 
   kableExtra::kable_styling()
 ```
 
-what is the spatial distribution of these sites?
+what is the spatial distribution of these conifer sites for which lidar data is available?
 
 ```{r}
 lidar_df %>% 
-  dplyr::count(siteID) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    training_plots = sum(ifelse(data_type=="training",1,0))
+    , evaluation_plots = sum(ifelse(data_type=="evaluation",1,0))
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    data_type = dplyr::case_when(
+      training_plots>0 & evaluation_plots==0 ~ "training"
+      , training_plots>0 & evaluation_plots>0 ~ "training+evaluation"
+      , training_plots==0 & evaluation_plots>0 ~ "evaluation"
+      , T ~ "other"
+    )
+  ) %>% 
   mapview::mapview(
-    zcol = "siteID", legend = F
-    , layer.name = "NEON site"
-    , col.regions = viridis::turbo(n=nrow(conifer_sites))
+    zcol = "data_type", legend = T
+    , layer.name = "data type"
+    , col.regions = viridis::magma(n=2,begin = 0.2,end = 0.8)
   )
 ```
 
@@ -303,15 +427,105 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
-## Example validation process
+## Height threshold for "canopy" trees
 
-now that we have our lidar data that we can test our point cloud-based tree detection and crown segmentation process against, let's walk through the validation for a single plot
+We'll process the point cloud and get a tree list using our `cloud2trees::cloud2trees()` method with all default settings except for the ITD window function (see section below). However, an important consideration in the evaluation of our method is that the ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark was developed specifically for "canopy" trees and the field-collected stems evaluation data only includes >10 cm DBH trees:
 
-we'll test with a single point cloud in our filtered list from conifer sites with validation data
+>NEON field crews sample all trees within a plot that are greater than 10cm DBH, regardless of whether the tree crown can be seen in the remote sensing image data. While understory tree detection is an important area of future work, the scope of this benchmark is focused on crowns in the canopy that are visible from above. (p. 10)
+
+In order to align our point cloud-based algorithm with the evaluation data inclusion of only "canopy" trees, we'll identify the shortest live tree in the field-collected stems evaluation data by NEON site. We'll use this value to filter our `cloud2trees::cloud2trees()` tree list in post-processing. This filtering process is analogous to setting a diameter threshold during a forest inventory (e.g. >10 cm DBH), meaning only trees with a DBH of 10 cm, for example, or greater are tallied and measured which a common practice because it focuses on trees that are potentially merchantable.
+
+In working with the `NeonTreeEvaluation::field` data we'll use the filters found in `clean_field_data()` from [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package/blob/724bdb0a9a3ea6433450f62c69a8fadce9ccdb66/R/evaluate_field_stems.R) as an internal function
 
 ```{r}
-lidar_df_row <- 1
-# lidar_df$f_path[47] %>% lidR::readLAS() %>% lidR::st_crs()
+# set the percentile to determine the shortest live tree in the field-collected stems evaluation data
+# using a percentile helps to avoid outlier measurements that might occur if we used a minimum value
+percentile_for_ht <- 0.05
+# get non-na heights from neon field measured trees
+neon_field_heights <-
+  NeonTreeEvaluation::field %>% 
+  # filters found in `clean_field_data()`
+  dplyr::filter(
+    !is.na(itcEasting)
+    , !stringr::str_detect(eventID,"2014")
+    , growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling")
+    , stemDiameter>15
+    , (height>3|is.na(height))
+  ) %>%
+  # getting only non-na
+  dplyr::filter(!is.na(height)) %>% 
+  # and finally, filter for our conifer sites only
+  dplyr::inner_join(
+    conifer_sites %>% 
+      dplyr::filter(pct_conifer>min_conifer_pct)
+  )
+# get 5th tile ht by site
+neon_site_heights <- 
+  neon_field_heights %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    site_prcntl_ht = quantile(floor(height), probs = percentile_for_ht, na.rm = T)
+  ) %>% 
+  dplyr::ungroup()
+```
+
+look at the summary of height data across all sites and plots
+
+```{r}
+summary(neon_field_heights$height)
+```
+
+what does this look like for each NEON site?
+
+```{r}
+neon_field_heights %>% 
+  dplyr::inner_join(neon_site_heights, by = "siteID") %>% 
+  ggplot2::ggplot(ggplot2::aes(x = height, group = siteID)) +
+    ggplot2::geom_density(color = "gold",fill = "gold", alpha = 0.7, lwd = 1.2) +
+    ggplot2::geom_vline(aes(xintercept = site_prcntl_ht), linetype = "dashed") +
+    ggplot2::facet_wrap(facets = vars(siteID), ncol = 6, scales = "free") +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
+    ggplot2::labs(
+      x = "height (m)", y = ""
+      , subtitle = paste0(
+        "field-collected heights of \"canopy\" trees in conifer NEON sites with "
+        , scales::number(percentile_for_ht*100, accuracy = 1)
+        , "th percentile by site"
+      )
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(axis.text.y = ggplot2::element_blank(), axis.ticks.y = ggplot2::element_blank())
+```
+
+what is the overall `r scales::number(percentile_for_ht*100, accuracy = 1)`th percentile to use for minimum height?
+
+```{r}
+(neon_min_ht <- quantile(neon_field_heights$height, probs = percentile_for_ht) %>% floor())
+```
+
+let's attach this to our data frame of lidar data files
+
+```{r}
+lidar_df <- lidar_df %>% 
+  dplyr::left_join(neon_site_heights, by = "siteID") %>% 
+  dplyr::mutate(site_prcntl_ht = dplyr::coalesce(site_prcntl_ht,neon_min_ht))
+# dplyr::glimpse(lidar_df)
+```
+
+## Example validation process
+
+now that we have our lidar data and post-processing height filter that we can test our point cloud-based tree detection and crown segmentation process against, let's walk through the validation for a single point cloud
+
+we'll test with a single evaluation point cloud
+
+```{r}
+lidar_df_row <- lidar_df %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::mutate(rn = ifelse(data_type=="evaluation",dplyr::row_number(),NA)) %>% 
+  dplyr::filter(!is.na(rn)) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::pull(rn)
+# lidar_df$f_path[lidar_df_row] %>% lidR::readLAS() %>% lidR::st_crs()
 ```
 
 ### Preliminaries
@@ -334,6 +548,7 @@ lidar_df$f_path[lidar_df_row] %>%
 there are trees in there for sure (and conifer trees by the looks of it)
 
 let's look at the co-registered RGB imagery (notice that the `NeonTreeEvaluation` commands rely on the deprecated `raster` package :\)
+
 ```{r}
 # read rgb
 rgb_temp <- lidar_df$plot_name[lidar_df_row] %>%
@@ -401,158 +616,22 @@ terra::plot(
 )
 ```
 
-#### ITD variable window
-
-We discussed our method for individual tree detection (ITD) in [this prior section](#itd). For our validation, we'll be using the default window size in the `cloud2trees::cloud2trees()` and `cloud2trees::raster2trees()` settings.
-
-Let's see what that looks like
-
-```{r}
-ws_temp <- cloud2trees::itd_ws_functions()[["log_fn"]]
-ggplot() +
-  geom_function(fun=ws_temp, lwd=1.2, color = "navy") +
-  xlim(-5,60) +
-  labs(
-    x = "heights", y = "ws"
-    , subtitle = "`cloud2trees` default ITD variable window function"
-  ) +
-  theme_light()
-```
-
-```{r, include=FALSE, eval=FALSE}
-itd_ws_functions()[["log_fn"]]
-my_fn2 <- function (x) {
-    y <- dplyr::case_when(
-      is.na(x) ~ 0.001
-      , x < 0 ~ 0.001
-      # , x < 2 ~ 0.6
-      # , x < 5.4 ~ 0.9 + (x * 0.24)
-      , x > 100 ~ 5
-      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
-      , TRUE ~ exp(-(2.2 * (1/x)) + (x^0.1))
-    )
-    return(y)
-}
-my_fn <- function (x) {
-    y <- dplyr::case_when(
-      is.na(x) ~ 0.001
-      , x < 0 ~ 0.001
-      # , x < 2 ~ 0.6
-      # , x < 5.4 ~ 0.9 + (x * 0.24)
-      , x > 100 ~ 5
-      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
-      , TRUE ~ exp(-(1 * (1/x)) + (x^0.1))
-    )
-    return(y)
-}
-my_fn3 <- function (x) 
-{
-    y <- dplyr::case_when(is.na(x) ~ 0.001, x < 0 ~ 0.001, x < 
-        2 ~ 0.6, x > 16.5 ~ 4, TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17)))
-    return(y)
-}
-
- # can we plot all functions?
-  ggplot2::ggplot() +
-    ggplot2::geom_function(ggplot2::aes(color="lin_fn"), fun = itd_ws_functions()[["lin_fn"]]) +
-    ggplot2::geom_function(ggplot2::aes(color="exp_fn"), fun = itd_ws_functions()[["exp_fn"]]) +
-    ggplot2::geom_function(ggplot2::aes(color="log_fn"), fun = itd_ws_functions()[["log_fn"]]) +
-    ggplot2::geom_function(ggplot2::aes(color="my_fn3"), fun = my_fn3) +
-    ggplot2::geom_function(ggplot2::aes(color="my_fn2"), fun = my_fn2) +
-    ggplot2::geom_function(ggplot2::aes(color="my_fn"), fun = my_fn) +
-    ggplot2::xlim(-1,60)
-
-```
-
-### Filter for "canopy" trees
-
-First, we'll process the point cloud and get a tree list using our `cloud2trees::cloud2trees()` method with all defaults except we'll raise the minimum height of trees to search to 3 m. The ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark was developed specifically for "canopy" trees and the field-collected stems evaluation data only includes >10 cm DBH trees:
-
->NEON field crews sample all trees within a plot that are greater than 10cm DBH, regardless of whether the tree crown can be seen in the remote sensing image data. While understory tree detection is an important area of future work, the scope of this benchmark is focused on crowns in the canopy that are visible from above. (p. 10)
-
-In order to set up our point cloud-based algorithm to find "canopy" trees, we'll identify the shortest live tree in the field-collected stems data to set our `min_height` in `cloud2trees::cloud2trees()`
-
-we'll use the filters found in `clean_field_data()` from [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package/blob/724bdb0a9a3ea6433450f62c69a8fadce9ccdb66/R/evaluate_field_stems.R) as an internal function
-
-```{r}
-percentile_for_ht <- 0.05
-# get non-na heights from neon field measured trees
-neon_field_heights <-
-  NeonTreeEvaluation::field %>% 
-  # filters found in `clean_field_data()`
-  dplyr::filter(
-    !is.na(itcEasting)
-    , !stringr::str_detect(eventID,"2014")
-    , growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling")
-    , stemDiameter>15
-    , (height>3|is.na(height))
-  ) %>%
-  # getting only non-na
-  dplyr::filter(!is.na(height))
-# get 5th tile ht by site
-neon_site_heights <- 
-  neon_field_heights %>% 
-  dplyr::group_by(siteID) %>% 
-  dplyr::summarise(
-    site_prcntl_ht = quantile(floor(height), probs = percentile_for_ht, na.rm = T)
-  ) %>% 
-  dplyr::ungroup()
-```
-
-look at the summary of height data across all sites and plots
-
-```{r}
-summary(neon_field_heights$height)
-```
-
-what does this look like for each NEON site?
-
-```{r}
-neon_field_heights %>% 
-  dplyr::inner_join(neon_site_heights) %>% 
-  ggplot(aes(x = height, group = siteID)) +
-    geom_density(color = "gold",fill = "gold", alpha = 0.7, lwd = 1.2) +
-    geom_vline(aes(xintercept = site_prcntl_ht), linetype = "dashed") +
-    facet_wrap(facets = vars(siteID), ncol = 7, scales = "free") +
-    scale_x_continuous(breaks = scales::breaks_extended(6)) +
-    labs(
-      x = "height (m)", y = ""
-      , subtitle = paste0(
-        "heights of \"canopy\" trees in NeonTreeEvaluation with "
-        , scales::number(percentile_for_ht*100, accuracy = 1)
-        , "th percentile by site"
-      )
-    ) +
-    theme_light() +
-    theme(axis.text.y = element_blank(), axis.ticks.y = element_blank())
-```
-
-what is the overall `r scales::number(percentile_for_ht*100, accuracy = 1)`th percentile to use for minimum height?
-
-```{r}
-(neon_min_ht <- quantile(neon_field_heights$height, probs = percentile_for_ht) %>% floor())
-```
-
-let's attach this to our data frame of lidar data files
-
-```{r}
-lidar_df <- lidar_df %>% 
-  dplyr::left_join(neon_site_heights, by = "siteID") %>% 
-  dplyr::mutate(site_prcntl_ht = dplyr::coalesce(site_prcntl_ht,neon_min_ht))
-```
-
 
 ### `cloud2trees::cloud2trees()`
+
+for our example, we'll use all default settings in `cloud2trees::cloud2trees()` to get a point cloud-detected tree list
 
 ```{r}
 ans <- cloud2trees::cloud2trees(
   input_las_dir = lidar_df$f_path[lidar_df_row]
   , output_dir = tempdir()
-  , min_height = lidar_df$site_prcntl_ht[lidar_df_row]
 )
+# filter the tree list based on the height threshold
+ans$crowns_sf <- ans$crowns_sf %>% 
+  dplyr::filter(tree_height_m >= lidar_df$site_prcntl_ht[lidar_df_row])
 ```
 
-quick check our our heights
+quick check of our heights
 
 ```{r}
 ans$crowns_sf$tree_height_m %>% summary()
@@ -737,6 +816,80 @@ remove(rslt_img_annttd_crwns,rslt_fld_crwns,rslt_fld_stems)
 gc()
 ```
 
+## ITD tuning
+
+We'll use the training data to tune our process for lidar-based tree detection implemented via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package. Specifically, We are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure". See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
+
+```{r}
+
+```
+
+#### ITD variable window
+
+We discussed our method for individual tree detection (ITD) in [this prior section](#itd). For our validation, we'll be using the default window size in the `cloud2trees::cloud2trees()` and `cloud2trees::raster2trees()` settings.
+
+Let's see what that looks like
+
+```{r}
+ws_temp <- cloud2trees::itd_ws_functions()[["log_fn"]]
+ggplot() +
+  geom_function(fun=ws_temp, lwd=1.2, color = "navy") +
+  xlim(-5,60) +
+  labs(
+    x = "heights", y = "ws"
+    , subtitle = "`cloud2trees` default ITD variable window function"
+  ) +
+  theme_light()
+```
+
+```{r, include=FALSE, eval=FALSE}
+itd_ws_functions()[["log_fn"]]
+my_fn2 <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      # , x < 2 ~ 0.6
+      # , x < 5.4 ~ 0.9 + (x * 0.24)
+      , x > 100 ~ 5
+      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
+      , TRUE ~ exp(-(2.2 * (1/x)) + (x^0.1))
+    )
+    return(y)
+}
+my_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      # , x < 2 ~ 0.6
+      # , x < 5.4 ~ 0.9 + (x * 0.24)
+      , x > 100 ~ 5
+      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
+      , TRUE ~ exp(-(1 * (1/x)) + (x^0.1))
+    )
+    return(y)
+}
+my_fn3 <- function (x) 
+{
+    y <- dplyr::case_when(is.na(x) ~ 0.001, x < 0 ~ 0.001, x < 
+        2 ~ 0.6, x > 16.5 ~ 4, TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17)))
+    return(y)
+}
+
+ # can we plot all functions?
+  ggplot2::ggplot() +
+    ggplot2::geom_function(ggplot2::aes(color="lin_fn"), fun = itd_ws_functions()[["lin_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="exp_fn"), fun = itd_ws_functions()[["exp_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="log_fn"), fun = itd_ws_functions()[["log_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="my_fn3"), fun = my_fn3) +
+    ggplot2::geom_function(ggplot2::aes(color="my_fn2"), fun = my_fn2) +
+    ggplot2::geom_function(ggplot2::aes(color="my_fn"), fun = my_fn) +
+    ggplot2::xlim(-1,60)
+
+```
+
+
+
+
 ## Full validation process
 
 Above, we tested the validation process for a single sample plot. Here we'll create a function to detect trees and delineate tree crowns using our `cloud2trees::cloud2trees()` method to apply over all sample plots. Then we'll compare our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. (2021): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.
@@ -790,9 +943,36 @@ cloud2trees_for_eval <- function(lidar_df_row, lidar_df, ws, min_height = NA) {
 let's run each point cloud through our lidar-based tree detection implemented via `cloud2trees::cloud2trees()`
 
 ```{r, include=FALSE, eval=FALSE}
-xxxx <- c("2018_TEAK_3_315000_4107000_image_237" ,"2018_TEAK_3_316000_4097000_image_35",  "2018_TEAK_3_322000_4107000_image_518"
-,"NIWO_002_2018"                        ,"OSBS_029_2019"  )
+xxxx <- 
+  c(
+      "NIWO_005_2018"
+      , "SOAP_014_2018"
+      , "MOAB_003_2018"
+      , "NIWO_009_2018"
+      , "TEAK_028_2018"
+      , "YELL_058_2020"
+      , "RMNP_011_2018"
+      , "YELL_030_2018"
+      , "YELL_051_2019"
+      , "SOAP_014_2019"
+      , "TEAK_005_2018"
+      , "DSNY_019_2019"
+  )
+# c(
+#   "2018_TEAK_3_315000_4107000_image_237" 
+#   ,"2018_TEAK_3_316000_4097000_image_35"
+#   ,  "2018_TEAK_3_322000_4107000_image_518"
+#   ,"NIWO_002_2018"
+#   ,"OSBS_029_2019"  
+# )
 temp_temp <- lidar_df %>% dplyr::filter(plot_name %in% xxxx)
+temp_temp %>% dplyr::glimpse()
+
+las_xxx <- lidR::readLAS(temp_temp$f_path[3])
+las_xxx %>% lidR::plot()
+
+c_xxx <- cloud2trees::cloud2trees(output_dir = tempdir(), input_las_dir = temp_temp$f_path[3])
+
 my_submission6 <- 
     1:nrow(temp_temp) %>% # uncomment this when it gets real
     purrr::map(\(x) 
@@ -800,7 +980,7 @@ my_submission6 <-
         lidar_df_row = x
         , lidar_df = temp_temp
         # , min_height = neon_min_ht
-        , ws = my_fn3
+        , ws = cloud2trees::itd_ws_functions()[["log_fn"]]
       )
     ) %>% 
     dplyr::bind_rows()
@@ -810,11 +990,12 @@ my_submission6 <-
 # where should we save the file?
 submission_fn <- "../data/NeonTreeEvaluation_submission.gpkg"
 # if we don't already have the data, run it
-if(!file.exists(submission_fn)){
-# if(T){
+# if(!file.exists(submission_fn)){
+if(T){
+  lidar_df %>% write.csv("../data/lidar_df.csv")
   my_submission <- 
-    # 1:nrow(lidar_df) %>% # uncomment this when it gets real
-    sample(1:nrow(lidar_df), size = 222) %>% 
+    623:nrow(lidar_df) %>% # uncomment this when it gets real
+    # sample(1:nrow(lidar_df), size = 222) %>% 
     purrr::map(\(x) 
       cloud2trees_for_eval(
         lidar_df_row = x

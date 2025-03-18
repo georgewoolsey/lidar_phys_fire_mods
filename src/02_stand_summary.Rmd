@@ -642,8 +642,8 @@ let's get summary statistics for selected metrics by stand unit
           "Height (m)"
           , "Crown Base Ht. (m)"
           , "DBH (cm)"
-          , "LANDFIRE CBD<br>kg m<sup>-3</sup>"
           , "Cruz CBD<br>kg m<sup>-3</sup>"
+          , "LANDFIRE CBD<br>kg m<sup>-3</sup>"
         )
     )
   ) %>% 
