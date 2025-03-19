@@ -664,7 +664,7 @@ ggplot2::ggplot() +
   ) +
   ggplot2::geom_sf(
     data = ans$crowns_sf
-    , fill = NA, color = "gray33", lwd = 1
+    , fill = NA, color = "gray44", lwd = 1.2
   ) +
   ggplot2::scale_x_continuous(expand = c(0, 0)) +
   ggplot2::scale_y_continuous(expand = c(0, 0)) +
@@ -812,83 +812,214 @@ nope!
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 remove(ans, lidar_df_row, min_conifer_pct)
-remove(rslt_img_annttd_crwns,rslt_fld_crwns,rslt_fld_stems)
+remove(rslt_img_annttd_crwns,rslt_fld_crwns,rslt_fld_stems,conifer_sites,conifer_spp,neon_field_heights,neon_site_heights,return_sf)
 gc()
 ```
 
 ## ITD tuning
 
-We'll use the training data to tune our process for lidar-based tree detection implemented via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package. Specifically, We are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure". See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
-
-```{r}
-
-```
+Before we perform tree extraction on the evaluation data we'll use the training data to tune our process for lidar-based tree detection implemented via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package. Specifically, we are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure". See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
 
 #### ITD variable window
 
-We discussed our method for individual tree detection (ITD) in [this prior section](#itd). For our validation, we'll be using the default window size in the `cloud2trees::cloud2trees()` and `cloud2trees::raster2trees()` settings.
+We discussed our method for individual tree detection (ITD) in [this prior section](#itd). For the purpose of working across different conifer sites with potentially vastly different forest structures we are going to augment the default ITD variable window size functions in `cloud2trees::itd_ws_functions()`
 
-Let's see what that looks like
+Let's see what the default variable window functions look like
 
 ```{r}
-ws_temp <- cloud2trees::itd_ws_functions()[["log_fn"]]
-ggplot() +
-  geom_function(fun=ws_temp, lwd=1.2, color = "navy") +
-  xlim(-5,60) +
-  labs(
+# get ws by ht for each fn
+ws_fn_df <- 1:length(cloud2trees::itd_ws_functions()) %>%
+  purrr::map(function(x){
+    nm <- cloud2trees::itd_ws_functions()[x] %>% names() %>% as.character()
+    fn <- cloud2trees::itd_ws_functions()[[x]]
+    # est
+    height <- seq(from=0,to=60,by=0.5)
+    ws <- fn(height) %>% unlist()
+    df <- dplyr::tibble(
+        height = height
+        , ws = ws
+      ) %>% 
+      dplyr::mutate(ws_fn_nm = nm) %>% 
+      dplyr::relocate(ws_fn_nm)
+    return(df)
+  }) %>% 
+  dplyr::bind_rows()
+# huh?
+ws_fn_df %>% dplyr::glimpse()
+```
+
+plot of `cloud2trees` default ITD variable window function
+
+```{r}
+# define custom colors
+mypal_temp <- 
+  c(
+    RColorBrewer::brewer.pal(n = 11, name = "PRGn")[1:4]
+    , RColorBrewer::brewer.pal(n = 6, name = "Greys") %>% rev()
+    , RColorBrewer::brewer.pal(n = 11, name = "PRGn")[8:11] %>% rev()
+    # , RColorBrewer::brewer.pal(n = 4, name = "Oranges") %>% rev()
+  )
+mypal_temp <- mypal_temp[c(2:4,5:9,12:14)]
+# scales::show_col(mypal_temp)
+
+ws_fn_df %>% 
+  ggplot2::ggplot(mapping = ggplot2::aes(x = height, y = ws, color = ws_fn_nm)) +
+  ggplot2::geom_line(lwd=1) +
+  ggplot2::scale_color_manual(values = mypal_temp[c(1,4,9)]) +
+  ggplot2::xlim(-3,NA) +
+  ggplot2::labs(
     x = "heights", y = "ws"
     , subtitle = "`cloud2trees` default ITD variable window function"
   ) +
-  theme_light()
+  ggplot2::theme_light()
 ```
 
-```{r, include=FALSE, eval=FALSE}
-itd_ws_functions()[["log_fn"]]
-my_fn2 <- function (x) {
+now we'll augment the default functions to make:
+
+* the exponential function (concave up) have more and less concavity (2 new functions)
+* the logarithmic function (concave down) have more and less concavity (2 new functions)
+* the linear function (concave down) have a higher and lower intercept and a higher and lower slope (4 new functions)
+
+for a total of 11 functions tested
+
+```{r}
+my_ws_functions <- itd_ws_functions()
+
+my_ws_functions$log_less_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      # , x < 2 ~ 0.6
-      # , x < 5.4 ~ 0.9 + (x * 0.24)
-      , x > 100 ~ 5
-      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
-      , TRUE ~ exp(-(2.2 * (1/x)) + (x^0.1))
+      , x < 2 ~ 0.6
+      , x > 17 ~ 5
+      , TRUE ~ exp(-(2.5 * (1/x)) + (x^0.2))
     )
-    return(y)
-}
-my_fn <- function (x) {
-    y <- dplyr::case_when(
-      is.na(x) ~ 0.001
-      , x < 0 ~ 0.001
-      # , x < 2 ~ 0.6
-      # , x < 5.4 ~ 0.9 + (x * 0.24)
-      , x > 100 ~ 5
-      # , TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17))
-      , TRUE ~ exp(-(1 * (1/x)) + (x^0.1))
-    )
-    return(y)
-}
-my_fn3 <- function (x) 
-{
-    y <- dplyr::case_when(is.na(x) ~ 0.001, x < 0 ~ 0.001, x < 
-        2 ~ 0.6, x > 16.5 ~ 4, TRUE ~ exp(-(3.5 * (1/x)) + (x^0.17)))
     return(y)
 }
 
- # can we plot all functions?
-  ggplot2::ggplot() +
-    ggplot2::geom_function(ggplot2::aes(color="lin_fn"), fun = itd_ws_functions()[["lin_fn"]]) +
-    ggplot2::geom_function(ggplot2::aes(color="exp_fn"), fun = itd_ws_functions()[["exp_fn"]]) +
-    ggplot2::geom_function(ggplot2::aes(color="log_fn"), fun = itd_ws_functions()[["log_fn"]]) +
-    ggplot2::geom_function(ggplot2::aes(color="my_fn3"), fun = my_fn3) +
-    ggplot2::geom_function(ggplot2::aes(color="my_fn2"), fun = my_fn2) +
-    ggplot2::geom_function(ggplot2::aes(color="my_fn"), fun = my_fn) +
-    ggplot2::xlim(-1,60)
+my_ws_functions$log_more_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x < 2 ~ 0.4
+      , x > 60 ~ 5
+      , TRUE ~ exp(-(4 * (1/x)) + (x^0.126))
+    )
+    return(y)
+}
+
+my_ws_functions$exp_more_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x < 3.6 ~ 0.9 + (x * 0.24)
+      , x > 58 ~ 5
+      , TRUE ~ exp((0.026 * x) + (x^-0.55))
+    )
+    return(y)
+}
+
+my_ws_functions$exp_less_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x < 3.6 ~ 0.9 + (x * 0.24)
+      , x > 28 ~ 5
+      , TRUE ~ exp((0.051 * x) + (x^-0.55))
+    )
+    return(y)
+}
+
+my_ws_functions$lin_hiint_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > 28 ~ 5
+      , TRUE ~ 1 + (x * 0.14)
+      # , TRUE ~ 0.75 + (x * 0.14)
+    )
+    return(y)
+}
+
+my_ws_functions$lin_loint_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > 32 ~ 5
+      , TRUE ~ 0.5 + (x * 0.14)
+      # , TRUE ~ 0.75 + (x * 0.14)
+    )
+    return(y)
+}
+
+my_ws_functions$lin_hislp_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > 21 ~ 5
+      , TRUE ~ 0.75 + (x * 0.2)
+    )
+    return(y)
+}
+
+my_ws_functions$lin_loslp_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > 53 ~ 5
+      , TRUE ~ 0.75 + (x * 0.08)
+    )
+    return(y)
+}
+
+ # # can we plot all functions?
+ #  ggplot2::ggplot() +
+ #    ggplot2::geom_function(ggplot2::aes(color="lin_fn"), fun = itd_ws_functions()[["lin_fn"]]) +
+ #    ggplot2::geom_function(ggplot2::aes(color="exp_fn"), fun = itd_ws_functions()[["exp_fn"]]) +
+ #    # ggplot2::geom_function(ggplot2::aes(color="log_fn"), fun = itd_ws_functions()[["log_fn"]]) +
+ #    # ggplot2::geom_function(ggplot2::aes(color="log_less_fn"), fun = log_less_fn) +
+ #    # ggplot2::geom_function(ggplot2::aes(color="log_more_fn"), fun = log_more_fn) +
+ #    ggplot2::geom_function(ggplot2::aes(color="my_fn"), fun = my_fn) +
+ #    ggplot2::xlim(-1,60)
 
 ```
 
 
+```{r}
+# get ws by ht for each fn
+ws_fn_df <- 1:length(my_ws_functions) %>%
+  purrr::map(function(x){
+    nm <- my_ws_functions[x] %>% names() %>% as.character()
+    fn <- my_ws_functions[[x]]
+    # est
+    height <- seq(from=0,to=60,by=0.5)
+    ws <- fn(height) %>% unlist()
+    df <- dplyr::tibble(
+        height = height
+        , ws = ws
+      ) %>% 
+      dplyr::mutate(ws_fn_nm = nm) %>% 
+      dplyr::relocate(ws_fn_nm)
+    return(df)
+  }) %>% 
+  dplyr::bind_rows()
+# huh?
+ws_fn_df %>% dplyr::glimpse()
+```
 
+plot of `cloud2trees` default ITD variable window function
+
+```{r}
+ws_fn_df %>% 
+  ggplot2::ggplot(mapping = ggplot2::aes(x = height, y = ws, color = ws_fn_nm)) +
+  ggplot2::geom_line(lwd=1) +
+  ggplot2::scale_color_manual(values = mypal_temp) +
+  ggplot2::xlim(-3,NA) +
+  ggplot2::labs(
+    x = "heights", y = "ws"
+    # , subtitle = "`cloud2trees` default ITD variable window function"
+  ) +
+  ggplot2::theme_light()
+```
 
 ## Full validation process
 
