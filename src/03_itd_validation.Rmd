@@ -206,12 +206,43 @@ plotnames_temp <- c(
 # plotnames_temp %>% sample(11) %>% sort()
 ```
 
+The field collected stem validation data will take a bit more to get the actual plots for which there is validation data. We have to pull `clean_field_data()` from [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package/blob/724bdb0a9a3ea6433450f62c69a8fadce9ccdb66/R/evaluate_field_stems.R) as an internal function which is used to filter `NeonTreeEvaluation::field`...we'll than match other filters used in `NeonTreeEvaluation::evaluate_field_stems()`
+
+```{r}
+# this is an internal function from `NeonTreeEvaluation::evaluate_field_stems()`
+clean_field_data<-function(field){
+  field$area<-field$maxCrownDiameter*field$ninetyCrownDiameter
+  field<-field %>%  filter(!is.na(itcEasting),!stringr::str_detect(eventID,"2014"),growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling"),stemDiameter>15) %>%
+    droplevels() %>%
+    filter(height>3|is.na(height))
+
+  #Limit difference in heights
+  to_remove<-field %>% group_by(individualID) %>%
+    summarize(mean=mean(height),sum_difference = abs(sum(diff(height)))) %>%
+    filter(sum_difference > 8)
+  field<-field %>%
+    filter(!individualID %in% to_remove$individualID)
+}
+# apply all the filters for field collected stems used in `NeonTreeEvaluation::evaluate_field_stems()`
+NeonTreeEvaluation::field %>% 
+  clean_field_data() %>% 
+  sf::st_as_sf(.,coords=c("itcEasting","itcNorthing")) %>% 
+  dplyr::filter(height>3) %>% 
+  dplyr::glimpse()
+xxxx
+```
+
+
 filter our lidar data list to keep only point clouds in plots for which there is validation data
 
 ```{r}
-lidar_df <- lidar_df %>% 
+lidar_df <-
+  lidar_df %>% 
   #filter based on plots in evaluation data
-  dplyr::filter(plot_name %in% plotnames_temp)
+  dplyr::filter(plot_name %in% plotnames_temp) %>% 
+  # flag the data with image annotated crowns which we'll use to train our ws fn
+  # if this doesn't make sense yet, keep reading down
+  dplyr::mutate(has_image_annotation = plot_name %in% NeonTreeEvaluation::list_annotations())
 ```
 
 We need to put the NEON site identifier in our data. We'll use the field-collected tree data from NEON sites made available which will also serve to filter our point cloud list for forested NEON sites only.
@@ -313,7 +344,13 @@ conifer_sites %>%
   dplyr::select(-c(longitude,latitude)) %>% 
   dplyr::arrange(desc(pct_conifer), desc(tot)) %>% 
   dplyr::slice_head(n = 19) %>% 
-  kableExtra::kbl(caption = "Conifers in NEON sites", digits = 2) %>% 
+  kableExtra::kbl(
+    caption = "Conifers in NEON sites"
+    , digits = 2
+    , col.names = c(
+      "site","total trees","conifer trees", "% conifer"
+    )
+  ) %>% 
   kableExtra::kable_styling()
 ```
 
@@ -388,10 +425,17 @@ lidar_df %>%
     n = dplyr::n()
     , training_plots = sum(ifelse(data_type=="training",1,0))
     , evaluation_plots = sum(ifelse(data_type=="evaluation",1,0))
+    , evaluation_ann_plots = sum(ifelse(has_image_annotation & data_type=="evaluation",1,0))
   ) %>% 
   dplyr::arrange(desc(n)) %>% 
   dplyr::select(-n) %>% 
-  kableExtra::kbl(caption = "NEON sites with conifers and lidar plots") %>% 
+  kableExtra::kbl(
+    caption = "NEON sites with conifers and lidar plots"
+    , col.names = c(
+      "site","training plots","evaluation plots","evaluation plots<br>with ground truth<br>image ann. crowns"
+    )
+    , escape = F
+  ) %>% 
   kableExtra::kable_styling()
 ```
 
@@ -420,7 +464,67 @@ lidar_df %>%
   )
 ```
 
-that's pretty good geographic coverage and in places that we expect to have conifers ;D
+### Augment training data
+
+While the map above shows that the training and evaluation data are in places that we expect to have conifers, the spatial coverage of training data is limited. This is especially true when one considers that even NEON sites that are close in proximity can have very different forest types. For example, the "NIWO" site north west of Denver, CO has both training and evaluation data and features vegetation described as "On the low-elevation east and south facing slopes, lodgepole pine (*Pinus contorta*) and aspen (*Populus tremuloides*) groves dominate the landscape" ([source](https://www.neonscience.org/field-sites/niwo)). While the RMNP site that is close in proximity and lacks training data has vegetation described as "vegetation in the lower elevation areas of RMNP are characteristic of the lower montane ecosystem and include an open canopy of ponderosa pine (*Pinus ponderosa*), juniper (*Juniperus sp.*), and Douglas fir (*Pseudotsuga menziesii*)" ([source](https://www.neonscience.org/field-sites/rmnp)). As such, we will augment the training data by borrowing two plots from the evaluation data for NEON sites that lack training data and have at least 5 image annotated crown validation data sets.
+
+```{r}
+# set seed to replicate results
+set.seed(22)
+# randomly assign 2 plots as training if:
+# no training already
+# at least 10 evaluation sites
+lidar_df <- lidar_df %>% 
+  dplyr::ungroup() %>% 
+  # generate rand
+  dplyr::mutate(rand = runif(n=dplyr::n())) %>% 
+  dplyr::arrange(siteID, rand) %>% 
+  # count training/eval by site and flag new training
+  dplyr::group_by(siteID) %>% 
+  dplyr::mutate(
+    training_plots = sum(ifelse(data_type=="training",1,0))
+    , evaluation_ann_plots = sum(ifelse(has_image_annotation & data_type=="evaluation",1,0))
+    , is_new_training = dplyr::case_when(
+      training_plots == 0 & evaluation_ann_plots>=5 & dplyr::row_number()<=2 ~ T
+      , T ~ F
+    )
+  ) %>%
+  dplyr::ungroup() %>% 
+  # update training/eval flag
+  dplyr::mutate(
+    data_type = ifelse(is_new_training==T,"training",as.character(data_type)) %>% 
+      as.factor()
+  ) %>% 
+  dplyr::select(-c(rand,tot,conifer,tidyselect::ends_with("_plots")))
+```
+
+check our new table of training/evaluation data by NEON site after we augmented the training data 
+
+```{r}
+lidar_df %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    n = dplyr::n()
+    , training_plots = sum(ifelse(data_type=="training",1,0))
+    , evaluation_plots = sum(ifelse(data_type=="evaluation",1,0))
+  ) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  dplyr::select(-n) %>% 
+  kableExtra::kbl(
+    caption = "NEON sites with conifers and lidar plots using augmented training data"
+    , col.names = c(
+      "site","training plots","evaluation plots"
+    )
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+what is the overall breakdown of training vs evaluation now after all the filtering and augmenting?
+
+```{r}
+lidar_df %>% sf::st_drop_geometry() %>% dplyr::count(data_type)
+```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
@@ -523,7 +627,7 @@ lidar_df_row <- lidar_df %>%
   sf::st_drop_geometry() %>% 
   dplyr::mutate(rn = ifelse(data_type=="evaluation",dplyr::row_number(),NA)) %>% 
   dplyr::filter(!is.na(rn)) %>% 
-  dplyr::slice(1) %>% 
+  dplyr::slice(11) %>% 
   dplyr::pull(rn)
 # lidar_df$f_path[lidar_df_row] %>% lidR::readLAS() %>% lidR::st_crs()
 ```
@@ -815,7 +919,7 @@ remove(rslt_img_annttd_crwns,rslt_fld_crwns,rslt_fld_stems,conifer_sites,conifer
 gc()
 ```
 
-## ITD tuning{itd_more}
+## ITD tuning{#itd_more}
 
 Before we perform tree extraction on the evaluation data we'll use the training data to tune our process for lidar-based tree detection implemented via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package. Specifically, we are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure". See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
 
@@ -853,18 +957,17 @@ plot of `cloud2trees` default ITD variable window function
 # define custom colors
 pal_ws <- 
   c(
-    RColorBrewer::brewer.pal(n = 11, name = "PRGn")[1:4]
-    , RColorBrewer::brewer.pal(n = 6, name = "Greys") %>% rev()
-    , RColorBrewer::brewer.pal(n = 11, name = "PRGn")[8:11] %>% rev()
-    # , RColorBrewer::brewer.pal(n = 4, name = "Oranges") %>% rev()
+    RColorBrewer::brewer.pal(n = 7, name = "Purples")[2:6] %>% rev()
+    , RColorBrewer::brewer.pal(n = 11, name = "BrBG")[7:11] %>% rev()
+    , RColorBrewer::brewer.pal(n = 7, name = "Oranges")[2:6] %>% rev()
+    , RColorBrewer::brewer.pal(n = 7, name = "Greys")[2:6] %>% rev()
   )
-pal_ws <- pal_ws[c(2:4,5:9,12:14)]
 # scales::show_col(pal_ws)
 # plot
 ws_fn_df %>% 
   ggplot2::ggplot(mapping = ggplot2::aes(x = height, y = ws, color = ws_fn_nm)) +
   ggplot2::geom_line(lwd=1) +
-  ggplot2::scale_color_manual(values = pal_ws[c(1,4,9)]) +
+  ggplot2::scale_color_manual(values = pal_ws[c(1,6,11)]) +
   ggplot2::xlim(-3,NA) +
   ggplot2::ylim(-0.1,NA) +
   ggplot2::labs(
@@ -872,52 +975,82 @@ ws_fn_df %>%
     , color = "variable\nwindow\nfunction"
     , subtitle = "`cloud2trees` default ITD variable window function"
   ) +
-  ggplot2::theme_light()
+  ggplot2::theme_light() +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(lwd = 6))
+  )
 ```
 
 ### Augmented variable window functions
 
 now we'll augment the default functions to make:
 
-* the exponential function (concave up) have more and less concavity (2 new functions)
-* the logarithmic function (concave down) have more and less concavity (2 new functions)
-* the linear function (concave down) have a higher and lower intercept and a higher and lower slope (4 new functions)
+* the exponential function (concave up) have slightly less ("les"), less ("less"), much less ("lesss") and slightly more ("mor") concavity (4 new functions)
+* the logarithmic function (concave down) have slightly more ("mor"), more ("morr"), slightly less ("les"), and less ("less") concavity (4 new functions)
+* the linear function have a higher and lower intercept and a higher and lower slope (4 new functions)
 
-for a total of 11 functions tested
+for a total of 15 functions tested
 
 ```{r}
 # set up initial list with default functions
-my_ws_functions <- itd_ws_functions()
+my_ws_functions <- cloud2trees::itd_ws_functions()
+# add to list
+my_ws_functions$log_les_ccv_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > exp(5)-1 ~ 5
+      , TRUE ~ log(x+1)
+    )
+    return(y)
+}
 # add to list
 my_ws_functions$log_less_ccv_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      , x < 2 ~ 0.6
-      , x > 16.2 ~ 5
-      , TRUE ~ exp(-(2.5 * (1/x)) + (x^0.2))
+      , x > exp(3/0.5)-1 ~ 3
+      , TRUE ~ 0.5*log(x+1)
     )
     return(y)
 }
 # add to list
-my_ws_functions$log_more_ccv_fn <- function (x) {
+my_ws_functions$log_morr_ccv_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      , x < 2 ~ 0.4
-      , x > 60 ~ 5
-      , TRUE ~ exp(-(4 * (1/x)) + (x^0.126))
+      , x > exp(9/2)-1 ~ 9
+      , TRUE ~ 2*log(x+1)
     )
     return(y)
 }
 # add to list
-my_ws_functions$exp_more_ccv_fn <- function (x) {
+my_ws_functions$log_mor_ccv_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      , x < 3.6 ~ 0.9 + (x * 0.24)
-      , x > 57.2 ~ 5
-      , TRUE ~ exp((0.026 * x) + (x^-0.55))
+      , x > exp(7/1.5)-1 ~ 7
+      , TRUE ~ 1.5*log(x+1)
+    )
+    return(y)
+}
+# add to list
+my_ws_functions$exp_mor_ccv_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > log(8+1)/log(1.1) ~ 8
+      , TRUE ~ (1.1^x)-1
+    )
+    return(y)
+}
+# add to list
+my_ws_functions$exp_lesss_ccv_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > log(5+1)/log(1.015) ~ 5
+      , TRUE ~ (1.015^x)-1
     )
     return(y)
 }
@@ -926,9 +1059,18 @@ my_ws_functions$exp_less_ccv_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      , x < 3.6 ~ 0.9 + (x * 0.24)
-      , x > 28 ~ 5
-      , TRUE ~ exp((0.051 * x) + (x^-0.55))
+      , x > log(5+1)/log(1.03) ~ 5
+      , TRUE ~ (1.03^x)-1
+    )
+    return(y)
+}
+# add to list
+my_ws_functions$exp_les_ccv_fn <- function (x) {
+    y <- dplyr::case_when(
+      is.na(x) ~ 0.001
+      , x < 0 ~ 0.001
+      , x > log(5+1)/log(1.05) ~ 5
+      , TRUE ~ (1.05^x)-1
     )
     return(y)
 }
@@ -937,9 +1079,8 @@ my_ws_functions$lin_hi_int_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      , x > 28.57 ~ 5
-      , TRUE ~ 1 + (x * 0.14)
-      # , TRUE ~ 0.75 + (x * 0.14)
+      , x > (8-1.2)/0.14 ~ 8
+      , TRUE ~ 1.2 + (x * 0.14)
     )
     return(y)
 }
@@ -947,9 +1088,9 @@ my_ws_functions$lin_hi_int_fn <- function (x) {
 my_ws_functions$lin_lo_int_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
-      , x < 0 ~ 0.001
-      , x > 32.14 ~ 5
-      , TRUE ~ 0.5 + (x * 0.14)
+      , x < (0.5+2)/0.14 ~ 0.5
+      , x > (6+2)/0.14 ~ 6
+      , TRUE ~ -2 + (x * 0.14)
     )
     return(y)
 }
@@ -958,8 +1099,8 @@ my_ws_functions$lin_hi_slp_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      , x > 21.25 ~ 5
-      , TRUE ~ 0.75 + (x * 0.2)
+      , x > (8-0.75)/0.3 ~ 8
+      , TRUE ~ 0.75 + (x * 0.3)
     )
     return(y)
 }
@@ -968,11 +1109,32 @@ my_ws_functions$lin_lo_slp_fn <- function (x) {
     y <- dplyr::case_when(
       is.na(x) ~ 0.001
       , x < 0 ~ 0.001
-      , x > 53.12 ~ 5
-      , TRUE ~ 0.75 + (x * 0.08)
+      , x > (4-0.75)/0.04 ~ 4
+      , TRUE ~ 0.75 + (x * 0.04)
     )
     return(y)
 }
+```
+
+```{r, include=FALSE, eval=FALSE}
+ggplot2::ggplot() +
+    ggplot2::geom_function(ggplot2::aes(color="lin_fn"), fun = my_ws_functions[["lin_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="exp_fn"), fun = my_ws_functions[["exp_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="log_fn"), fun = my_ws_functions[["log_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="log_mor_ccv_fn"), fun = my_ws_functions[["log_mor_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="log_morr_ccv_fn"), fun = my_ws_functions[["log_morr_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="log_les_ccv_fn"), fun = my_ws_functions[["log_les_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="log_less_ccv_fn"), fun = my_ws_functions[["log_less_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="exp_morrr_ccv_fn"), fun = my_ws_functions[["exp_morrr_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="exp_morr_ccv_fn"), fun = my_ws_functions[["exp_morr_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="exp_mor_ccv_fn"), fun = my_ws_functions[["exp_mor_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="exp_less_ccv_fn"), fun = my_ws_functions[["exp_less_ccv_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="lin_hi_int_fn"), fun = my_ws_functions[["lin_hi_int_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="lin_lo_int_fn"), fun = my_ws_functions[["lin_lo_int_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="lin_hi_slp_fn"), fun = my_ws_functions[["lin_hi_slp_fn"]]) +
+    ggplot2::geom_function(ggplot2::aes(color="lin_lo_slp_fn"), fun = my_ws_functions[["lin_lo_slp_fn"]]) +
+    ggplot2::xlim(-1,60) +
+    ggplot2::ylim(-1,12)
 ```
 
 run each function over a range of heights to see what they return on a plot
@@ -999,7 +1161,7 @@ ws_fn_df <- 1:length(my_ws_functions) %>%
 ws_fn_df %>% dplyr::glimpse()
 ```
 
-plot of `cloud2trees` default ITD variable window function
+plot of all ITD variable window functions for testing
 
 ```{r}
 ws_fn_df %>% 
@@ -1033,7 +1195,7 @@ We'll extract trees on each training data set using all `r length(my_ws_function
 
 ### Summary of training lidar data
 
-quick summary of the lidar data available for training
+Let's get a quick summary of the lidar data available for training. Note, we expect our augmented training data sets to be sized around 40m x 40m while the original training data sets will cover a larger area.
 
 ```{r}
 training_lidar_sum_temp <-
@@ -1063,8 +1225,13 @@ training_lidar_sum_temp %>%
   kableExtra::kbl(
     caption = "summary of training lidar data"
     , digits = 1
+    , col.names = c(
+      "plot","# points","area m<sup>2</sup>", "points m<sup>-2</sup>"
+    )
+    , escape = F
   ) %>% 
-  kableExtra::kable_styling()
+  kableExtra::kable_styling() %>% 
+  kableExtra::scroll_box(height = "600px",fixed_thead = T)
 ```
 
 do the 2019 "OSBS" point clouds overlap?
@@ -1181,14 +1348,23 @@ cloud2trees_for_eval <- function(lidar_df_row, lidar_df, ws) {
 # function to apply cloud2trees_for_eval over each ws
 ws_fn_eval <- function(lidar_df, lidar_df_row, ws_fn_list) {
   1:length(ws_fn_list) %>% 
-    purrr::map(\(x) 
-      cloud2trees_for_eval(
+    purrr::map(function(x){
+      ans <- cloud2trees_for_eval(
         lidar_df_row = lidar_df_row
         , lidar_df = lidar_df
         , ws = ws_fn_list[[x]]
-      ) %>% 
-      dplyr::mutate(ws_fn_nm = ws_fn_list[x] %>% names() %>% as.character())
-    ) %>% 
+      )
+      ### some of these ws functions may not extract any trees
+      ### account for this
+      if(is.null(ans) || !inherits(ans,"data.frame")){
+        return(NULL)
+      }else{
+        return(
+          ans %>% 
+            dplyr::mutate(ws_fn_nm = ws_fn_list[x] %>% names() %>% as.character())
+        )
+      }
+    }) %>% 
     dplyr::bind_rows()
 }
 ```
@@ -1202,10 +1378,11 @@ Now we'll extract trees from the training lidar data using each variable window 
 submission_fn <- "../data/NeonTreeEvaluation_training_submission.gpkg"
 # if we don't already have the data, run it
 if(!file.exists(submission_fn)){
-# if(T){
+# if(T){ ### !!!!!!! take out when it gets real
   # just get training
-  training_df_temp <- lidar_df %>% dplyr::filter(data_type=="training")
-  # get trees for each
+  training_df_temp <- lidar_df %>% dplyr::filter(data_type=="training") %>% 
+    dplyr::filter(is_new_training) ### !!!!!!! take out when it gets real
+  # get trees for each training plot and ws fn combination
   training_submission <- 
     1:nrow(training_df_temp) %>% 
     purrr::map(\(x) 
@@ -1219,7 +1396,7 @@ if(!file.exists(submission_fn)){
   # save it 
   sf::st_write(training_submission, submission_fn, append = F)
 }else{
-  training_submission <- sf::st_read(submission_fn)
+  training_submission <- sf::st_read(submission_fn, quiet = T)
 }
 ```
 
@@ -1245,9 +1422,7 @@ training_submission <-
   dplyr::select(-c(tree_height_m,site_prcntl_ht))
 ```
 
-tabulate detected "canopy" trees by plot and variable window function
-
-```{r}
+```{r, include=FALSE, eval=FALSE}
 training_submission %>% 
   sf::st_drop_geometry() %>% 
   dplyr::count(plot_name,ws_fn_nm) %>% 
@@ -1266,7 +1441,7 @@ training_submission %>%
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
-plot it
+tabulate detected "canopy" trees by plot and variable window function and plot it
 
 ```{r}
 training_submission %>% 
@@ -1293,11 +1468,71 @@ Get the benchmark score compared to image-annotated "ground truth" data.
 
 *in testing, including the `sf` polygon data did not work...switching to the bbox method with `sf::st_drop_geometry()`*
 
+```{r, include=FALSE,eval=FALSE}
+NeonTreeEvaluation::evaluate_image_crowns(
+    predictions = training_submission %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(ws_fn_nm == "log_fn") %>% 
+      dplyr::filter(plot_name=="YELL_048_2018") %>% 
+      dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+    , show = F
+    , summarize = T
+  )
+
+NeonTreeEvaluation::image_crowns(
+  predictions = training_submission %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(ws_fn_nm == "log_fn") %>% 
+      dplyr::filter(plot_name=="YELL_048_2018") %>% 
+      dplyr::select(xmin,ymin,xmax,ymax,label,plot_name) %>% 
+    dplyr::group_by(plot_name)
+  , project_boxes = F
+  , show = F
+)
+
+NeonTreeEvaluation::load_ground_truth(plot_name="YELL_048_2018", show = FALSE)
+
+# Load xml of annotations
+  (siteID <- stringr::str_match("YELL_048_2018", "(\\w+)_")[, 2])
+
+  (path_to_xml <- NeonTreeEvaluation::get_data("YELL_048_2018","annotations"))
+
+  if (!file.exists(path_to_xml)) {
+    message(paste("There are no annotations for file", path_to_xml, "skipping..."))
+    return(NULL)
+  }
+  xmls <- xml_parse(path_to_xml)
+
+  # load rgb
+  path_to_rgb <- get_data("YELL_048_2018","rgb")
+
+  if (file.exists(path_to_rgb)) {
+    rgb <- raster::stack(path_to_rgb)
+  } else {
+    warning(path_to_rgb, "does not exist in current benchmark, skipping")
+    return(NULL)
+  }
+
+  # Read RGB image as projected raster
+
+  # View one plot's annotations as polygons, project into UTM
+  # copy project utm zone (epsg), xml has no native projection metadata
+  ground_truth <- boxes_to_spatial_polygons(boxes = xmls, raster_object = rgb, project_boxes = TRUE)
+
+  if (show) {
+    raster::plotRGB(rgb)
+    raster::plot(ground_truth, add = TRUE)
+  }
+  return(ground_truth)
+
+```
+
 ```{r, results=F, message=FALSE}
 # where should we save the file?
 training_eval_temp <- "../data/NeonTreeEvaluation_training_evaluate_image_crowns.csv"
 # if we don't already have the data, run it
-if(!file.exists(training_eval_temp)){
+# if(!file.exists(training_eval_temp)){
+if(T){
   training_img_annttd_crwns <-
     training_submission$ws_fn_nm %>% 
     unique() %>% 
@@ -1514,7 +1749,7 @@ if(!file.exists(submission_fn)){
   # save it 
   sf::st_write(my_submission, submission_fn, append = F)
 }else{
-  my_submission <- sf::st_read(submission_fn)
+  my_submission <- sf::st_read(submission_fn, quiet = T)
 }
 ```
 
