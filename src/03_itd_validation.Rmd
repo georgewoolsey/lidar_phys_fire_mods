@@ -58,7 +58,7 @@ Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=498644871198
 
 ```{r, echo=FALSE, out.width="100%", out.height="100%", fig.align='center', fig.show='hold',results='asis'}
 # https://journals.plos.org/ploscompbiol/article/figure?id=10.1371/journal.pcbi.1009180.t001
-knitr::include_graphics("../data/journal.pcbi.1009180.t001.PNG")
+knitr::include_graphics("https://i.ibb.co/9kpdPKLN/journal-pcbi-1009180-t001.png")
 ```
 
 Note the three data labeled as "Evaluation data" in the table. If you are asking "why three evaluation datasets?", the authors provide some detail:
@@ -105,7 +105,7 @@ Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=498644871198
 
 >During our research on canopy crown detection algorithms, we annotated many geographic tiles separate from the evaluation data. The training sites were selected to capture a range of forest conditions...The training tiles were chosen at random from the NEON data portal, with the requirement that they did not contain a large amount of missing data and they did not overlap with any evaluation plots. Depending on the tree density at the site, we either annotated the entire 1 km2 tile or cropped it to a smaller size to create more tractable sizes for annotation. This data is released alongside the benchmark dataset; however, our goal is to promote the best possible crown-delineation algorithm regardless of training data, and it is not necessary to use this training data to generate predictions. Given the large size of training tiles, the training annotations were less thoroughly reviewed and were only based on the RGB imagery. (p. 11)
 
-*Note: the current version of `NeonTreeEvaluation::download()` does not download the training data even if setting `training = T`. I dug around and found the archive of the training data at [https://zenodo.org/records/5914554](https://zenodo.org/records/5914554). I'll need to circle back with a GitHub pull request to fix the `NeonTreeEvaluation::download()` function so that it gets the training data which is hosted at the link mentioned previously and does not reside at where the function currently points to ([https://zenodo.org/records/4770593](https://zenodo.org/records/4770593))*
+*Note: the current version of `NeonTreeEvaluation::download()` does not download the training data even if setting `training = T`. I dug around and found the archive of the training data at [https://zenodo.org/records/5914554](https://zenodo.org/records/5914554). I'll need to circle back with a GitHub pull request to fix the `NeonTreeEvaluation::download()` function so that it gets the training data which is hosted at the link mentioned previously and does not reside at where the function currently points to ([https://zenodo.org/records/4770593](https://zenodo.org/records/4770593)). I also manually copied the files in "NeonTreeEvaluation/extdata/NeonTreeEvaluation/training/RGB" to "NeonTreeEvaluation/extdata/NeonTreeEvaluation/evaluation/RGB" so that evaluation could be performed. See `list.dirs(system.file(package = "NeonTreeEvaluation"),recursive=T)`*
 
 ```{r, warning=FALSE, message=F,results=F}
 NeonTreeEvaluation::download(training = T, force = F)
@@ -547,7 +547,7 @@ lidar_df$f_path[lidar_df_row] %>%
 
 there are trees in there for sure (and conifer trees by the looks of it)
 
-let's look at the co-registered RGB imagery (notice that the `NeonTreeEvaluation` commands rely on the deprecated `raster` package :\)
+let's look at the RGB imagery and image annotated crowns (notice that the `NeonTreeEvaluation` commands rely on the deprecated `raster` package :\)
 
 ```{r}
 # read rgb
@@ -616,12 +616,11 @@ terra::plot(
 )
 ```
 
-
 ### `cloud2trees::cloud2trees()`
 
 for our example, we'll use all default settings in `cloud2trees::cloud2trees()` to get a point cloud-detected tree list
 
-```{r}
+```{r, warning=FALSE, message=FALSE, results=F}
 ans <- cloud2trees::cloud2trees(
   input_las_dir = lidar_df$f_path[lidar_df_row]
   , output_dir = tempdir()
@@ -852,20 +851,20 @@ plot of `cloud2trees` default ITD variable window function
 
 ```{r}
 # define custom colors
-mypal_temp <- 
+pal_ws <- 
   c(
     RColorBrewer::brewer.pal(n = 11, name = "PRGn")[1:4]
     , RColorBrewer::brewer.pal(n = 6, name = "Greys") %>% rev()
     , RColorBrewer::brewer.pal(n = 11, name = "PRGn")[8:11] %>% rev()
     # , RColorBrewer::brewer.pal(n = 4, name = "Oranges") %>% rev()
   )
-mypal_temp <- mypal_temp[c(2:4,5:9,12:14)]
-# scales::show_col(mypal_temp)
+pal_ws <- pal_ws[c(2:4,5:9,12:14)]
+# scales::show_col(pal_ws)
 # plot
 ws_fn_df %>% 
   ggplot2::ggplot(mapping = ggplot2::aes(x = height, y = ws, color = ws_fn_nm)) +
   ggplot2::geom_line(lwd=1) +
-  ggplot2::scale_color_manual(values = mypal_temp[c(1,4,9)]) +
+  ggplot2::scale_color_manual(values = pal_ws[c(1,4,9)]) +
   ggplot2::xlim(-3,NA) +
   ggplot2::ylim(-0.1,NA) +
   ggplot2::labs(
@@ -1006,7 +1005,7 @@ plot of `cloud2trees` default ITD variable window function
 ws_fn_df %>% 
   ggplot2::ggplot(mapping = ggplot2::aes(x = height, y = ws, color = ws_fn_nm)) +
   ggplot2::geom_line(lwd=1) +
-  ggplot2::scale_color_manual(values = mypal_temp) +
+  ggplot2::scale_color_manual(values = pal_ws) +
   ggplot2::xlim(-3,NA) +
   ggplot2::ylim(-0.1,NA) +
   ggplot2::labs(
@@ -1014,12 +1013,15 @@ ws_fn_df %>%
     , color = "variable\nwindow\nfunction"
     , subtitle = "ITD variable window functions for testing"
   ) +
-  ggplot2::theme_light()
+  ggplot2::theme_light() +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(lwd = 6))
+  )
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
-remove(mypal_temp, ws_fn_df)
+remove(ws_fn_df)
 gc()
 ```
 
@@ -1028,6 +1030,112 @@ gc()
 Now that we have been through the validation process for a [single sample plot](#ex_valid) and [defined different variable window functions](#itd_more) for use in ITD, we'll create a function to detect trees and delineate tree crowns using our `cloud2trees::cloud2trees()` method to apply over each lidar data set.
 
 We'll extract trees on each training data set using all `r length(my_ws_functions)` variable window functions, compare our point cloud-detected trees to the image annotated crowns (i.e. ground truth), and store the best variable window function by NEON site for use in validation on the evaluation lidar data. If a NEON site does not have training data, the best variable window function across NEON sites will be used.
+
+### Summary of training lidar data
+
+quick summary of the lidar data available for training
+
+```{r}
+training_lidar_sum_temp <-
+  lidar_df %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(data_type=="training") %>% 
+  dplyr::pull(f_path) %>% 
+  purrr::map(function(x){
+    ctg <- lidR::readLAScatalog(x)
+    ctg@data %>% 
+      dplyr::summarise(
+        num_points = sum(Number.of.point.records)
+        , area_m2 = sum(as.numeric(sf::st_area(.)))
+      ) %>% 
+      dplyr::mutate(points_per_m2 = num_points/area_m2) %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::mutate(
+        plot_name = x %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")    
+      ) %>% 
+      dplyr::relocate(plot_name)
+  }) %>% 
+  dplyr::bind_rows()
+# check it
+training_lidar_sum_temp %>% 
+  dplyr::mutate(dplyr::across(dplyr::where(is.numeric),~scales::comma(.x,accuracy=.1))) %>% 
+  dplyr::arrange(plot_name) %>% 
+  kableExtra::kbl(
+    caption = "summary of training lidar data"
+    , digits = 1
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+do the 2019 "OSBS" point clouds overlap?
+
+```{r}
+ggplot2::ggplot() +
+  ggplot2::geom_sf(
+    data = lidR::readLAScatalog(
+        lidar_df %>% 
+          dplyr::filter(plot_name == "2019_OSBS_5_405000_3287000_image_crop") %>% 
+          dplyr::pull(f_path)
+      ) %>% 
+      purrr::pluck("data") %>% 
+      dplyr::mutate(plot_name = basename(filename) %>% stringr::str_remove_all("\\.(laz|las)$"))
+    , ggplot2::aes(color = plot_name)
+    , fill = NA, lwd = 2
+  ) +
+  ggplot2::geom_sf(
+    data = lidR::readLAScatalog(
+        lidar_df %>% 
+          dplyr::filter(plot_name == "2019_OSBS_5_405000_3287000_image_crop2") %>% 
+          dplyr::pull(f_path)
+      ) %>% 
+      purrr::pluck("data") %>% 
+      dplyr::mutate(plot_name = basename(filename) %>% stringr::str_remove_all("\\.(laz|las)$"))
+    , ggplot2::aes(color = plot_name)
+    , fill = NA, lwd = 2
+  ) +
+  ggplot2::scale_color_manual(values = c("navy","gold")) +
+  ggplot2::labs(color="") +
+  ggplot2::theme_light() +
+  ggplot2::theme(legend.position = "top",axis.text = ggplot2::element_text(size=6)) +
+  ggplot2::guides(col = ggplot2::guide_legend(ncol = 1))
+
+```
+
+no
+
+let's look at the RGB imagery and image annotated crowns (notice that the `NeonTreeEvaluation` commands rely on the deprecated `raster` package :\)
+
+```{r}
+neontree_plot_fn <- function(plot_name,lwd=2) {
+  # read rgb
+  rgb_temp <- 
+    NeonTreeEvaluation::get_data(plot_name = plot_name, type = "rgb") %>% 
+    raster::stack()
+  
+  # read image annotated crown data and make polygons
+  polys_temp <-
+    NeonTreeEvaluation::get_data(plot_name = plot_name, type = "annotations") %>% 
+    NeonTreeEvaluation::xml_parse() 
+  polys_temp <- NeonTreeEvaluation::boxes_to_spatial_polygons(polys_temp,rgb_temp)
+  
+  # plot
+  terra::plotRGB(rgb_temp %>% terra::rast(), main = plot_name)
+  terra::plot(
+    polys_temp %>% terra::vect()
+    , col = NA, border = "red"
+    , lwd = lwd , add = TRUE
+  )
+}
+# 2019_OSBS_5_405000_3287000_image_crop
+neontree_plot_fn("2019_OSBS_5_405000_3287000_image_crop")
+# 2019_OSBS_5_405000_3287000_image_crop2
+neontree_plot_fn("2019_OSBS_5_405000_3287000_image_crop2")
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
 
 ### Function to extract trees
 
@@ -1133,7 +1241,8 @@ training_submission <-
       dplyr::select(plot_name,site_prcntl_ht)
     , by = "plot_name"
   ) %>% 
-  dplyr::filter(tree_height_m>=site_prcntl_ht)
+  dplyr::filter(tree_height_m>=site_prcntl_ht) %>% 
+  dplyr::select(-c(tree_height_m,site_prcntl_ht))
 ```
 
 tabulate detected "canopy" trees by plot and variable window function
@@ -1142,6 +1251,7 @@ tabulate detected "canopy" trees by plot and variable window function
 training_submission %>% 
   sf::st_drop_geometry() %>% 
   dplyr::count(plot_name,ws_fn_nm) %>% 
+  dplyr::mutate(dplyr::across(dplyr::where(is.numeric),~scales::comma(.x,accuracy=1))) %>% 
   kableExtra::kbl(
     caption = "Count of lidar-detected trees by plot name and variable window function"
     , digits = 0
@@ -1156,39 +1266,25 @@ training_submission %>%
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
-### Summary of training lidar data
-
-we need to get a summary of the lidar data 
+plot it
 
 ```{r}
-training_lidar_sum_temp <-
-  lidar_df %>% 
+training_submission %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::filter(data_type=="training") %>% 
-  dplyr::pull(f_path) %>% 
-  purrr::map(function(x){
-    ctg <- lidR::readLAScatalog(x)
-    ctg@data %>% 
-      dplyr::summarise(
-        num_points = sum(Number.of.point.records)
-        , area_m2 = sum(as.numeric(sf::st_area(.)))
-      ) %>% 
-      dplyr::mutate(points_per_m2 = num_points/area_m2) %>% 
-      sf::st_drop_geometry() %>% 
-      dplyr::mutate(
-        plot_name = x %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")    
-      ) %>% 
-      dplyr::relocate(plot_name)
-  }) %>% 
-  dplyr::bind_rows()
-# check it
-training_lidar_sum_temp %>% 
-  dplyr::mutate(dplyr::across(dplyr::where(is.numeric),~scales::comma(.x,accuracy=.1))) %>% 
-  kableExtra::kbl(
-    caption = "summary of training lidar data"
-    , digits = 1
-  ) %>% 
-  kableExtra::kable_styling()
+  dplyr::count(plot_name,ws_fn_nm) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = n, y = plot_name, color = ws_fn_nm)) +
+    ggplot2::geom_point(size = 6) +
+    ggplot2::scale_color_manual(values = pal_ws) +
+    ggplot2::scale_x_log10(labels=scales::comma) +
+    ggplot2::labs(
+      x = "# trees", y = ""
+      , color = "variable\nwindow\nfunction"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(panel.grid.major.y = ggplot2::element_line(color="gray22")) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+    )
 ```
 
 #### Scores for an image-annotated crowns
@@ -1198,12 +1294,47 @@ Get the benchmark score compared to image-annotated "ground truth" data.
 *in testing, including the `sf` polygon data did not work...switching to the bbox method with `sf::st_drop_geometry()`*
 
 ```{r, results=F, message=FALSE}
-training_img_annttd_crwns <- NeonTreeEvaluation::evaluate_image_crowns(
-  predictions = my_submission %>% sf::st_drop_geometry()
-  , show = F
-  , summarize = T
-)
+# where should we save the file?
+training_eval_temp <- "../data/NeonTreeEvaluation_training_evaluate_image_crowns.csv"
+# if we don't already have the data, run it
+if(!file.exists(training_eval_temp)){
+  training_img_annttd_crwns <-
+    training_submission$ws_fn_nm %>% 
+    unique() %>% 
+    purrr::map(\(x) 
+      NeonTreeEvaluation::evaluate_image_crowns(
+        predictions = training_submission %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::filter(ws_fn_nm == x) %>% 
+          dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+        , show = F
+        , summarize = T
+      ) %>% 
+      purrr::pluck("plot_level") %>% 
+      dplyr::ungroup() %>% 
+      dplyr::mutate(ws_fn_nm = x)
+    ) %>% 
+    dplyr::bind_rows()
+  # save
+  readr::write_csv(training_img_annttd_crwns, file = training_eval_temp)
+}else{
+  training_img_annttd_crwns <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
+}
 ```
+
+```{r}
+temp_temp <- training_img_annttd_crwns %>% 
+  dplyr::group_by(ws_fn_nm) %>% 
+  dplyr::summarise(dplyr::across(dplyr::where(is.numeric),mean))
+temp_temp %>% 
+  ggplot(aes(x=precision,y=recall,color=ws_fn_nm)) +
+  geom_hline(yintercept = median(temp_temp$recall),linetype="dashed") +
+  geom_vline(xintercept = median(temp_temp$precision),linetype="dashed") +
+  geom_point(size = 3) +
+  ggplot2::scale_color_manual(values = pal_ws) +
+  theme_light()
+```
+
 
 `overall`: must be across all NEON sites, plots, and trees included for evaluation
 
