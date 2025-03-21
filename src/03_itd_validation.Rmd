@@ -1798,6 +1798,79 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
+#### Scores for an field-collected stems
+
+```{r, include=FALSE, eval=FALSE}
+xxx <- NeonTreeEvaluation::evaluate_field_stems(
+  training_submission %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_image_annotation==F & has_field_stems==T) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    ) %>% 
+    dplyr::filter(plot_name=="ABBY_065_2019" & ws_fn_nm == "lin_fn") %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+  , show = F
+  , summarize = T
+)
+```
+
+
+```{r, results=F, message=FALSE}
+# where should we save the file?
+training_eval_temp <- "../data/NeonTreeEvaluation_training_evaluate_field_stems.csv"
+# if we don't already have the data, run it
+if(!file.exists(training_eval_temp)){
+# if(T){
+  # filter for only those with this type of validation data
+  submission_temp <- training_submission %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_image_annotation==F & has_field_stems==T) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    )
+  # safe it bc: error in `clue::solve_LSAP()`: long vectors (argument 1) are not supported
+  # would need to dig through NeonTreeEvaluation, fix, and pull request...
+  safe_evaluate_field_stems <- purrr::safely(NeonTreeEvaluation::evaluate_field_stems)
+  # validate
+  training_fld_cllctd_stems <-
+    submission_temp$ws_fn_nm %>% 
+    unique() %>% 
+    purrr::map(function(x){
+      ans <- safe_evaluate_field_stems(
+        predictions = submission_temp %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::filter(ws_fn_nm == x) %>% 
+          dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+        , show = F
+        , summarize = T
+      )
+      if(!is.null(ans$error)){
+        return(NULL)
+      }else{
+        return(
+          ans$result %>% 
+            purrr::pluck("plot_level") %>% 
+            dplyr::ungroup() %>% 
+            dplyr::mutate(ws_fn_nm = x)
+        ) 
+      }
+    }) %>% 
+    dplyr::bind_rows()
+  # save
+  readr::write_csv(training_fld_cllctd_stems, file = training_eval_temp)
+}else{
+  training_fld_cllctd_stems <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
+}
+# training_fld_cllctd_stems %>% dplyr::glimpse()
+```
+
+
 ## Evaluation validation process
 
 Above, we tested the validation process for a single sample plot. Here we'll create a function to detect trees and delineate tree crowns using our `cloud2trees::cloud2trees()` method to apply over all sample plots. Then we'll compare our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. (2021): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.

@@ -237,6 +237,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="4.2.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#evaluation-data"><i class="fa fa-check"></i><b>4.2.2</b> Evaluation data</a></li>
 <li class="chapter" data-level="4.2.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#filter-for-ground-truth-data"><i class="fa fa-check"></i><b>4.2.3</b> Filter for ground truth data</a></li>
 <li class="chapter" data-level="4.2.4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#filter-for-conifer-sites"><i class="fa fa-check"></i><b>4.2.4</b> Filter for conifer sites</a></li>
+<li class="chapter" data-level="4.2.5" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#augment-training-data"><i class="fa fa-check"></i><b>4.2.5</b> Augment training data</a></li>
 </ul></li>
 <li class="chapter" data-level="4.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#ht_filter"><i class="fa fa-check"></i><b>4.3</b> Height threshold for “canopy” trees</a></li>
 <li class="chapter" data-level="4.4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#ex_valid"><i class="fa fa-check"></i><b>4.4</b> Example validation process</a>
@@ -246,16 +247,16 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <li class="chapter" data-level="4.4.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#format-extracted-tree-polygons"><i class="fa fa-check"></i><b>4.4.3</b> Format extracted tree polygons</a></li>
 <li class="chapter" data-level="4.4.4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#test-evaluation"><i class="fa fa-check"></i><b>4.4.4</b> Test evaluation</a></li>
 </ul></li>
-<li class="chapter" data-level="4.5" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#itd-tuningitd_more"><i class="fa fa-check"></i><b>4.5</b> ITD tuning{itd_more}</a>
+<li class="chapter" data-level="4.5" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#itd_more"><i class="fa fa-check"></i><b>4.5</b> ITD tuning</a>
 <ul>
 <li class="chapter" data-level="4.5.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#default-variable-window-functions"><i class="fa fa-check"></i><b>4.5.1</b> Default variable window functions</a></li>
 <li class="chapter" data-level="4.5.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#augmented-variable-window-functions"><i class="fa fa-check"></i><b>4.5.2</b> Augmented variable window functions</a></li>
 </ul></li>
 <li class="chapter" data-level="4.6" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#training-validation-process"><i class="fa fa-check"></i><b>4.6</b> Training validation process</a>
 <ul>
-<li class="chapter" data-level="4.6.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#function-to-extract-trees"><i class="fa fa-check"></i><b>4.6.1</b> Function to extract trees</a></li>
-<li class="chapter" data-level="4.6.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#extract-trees-for-training-data"><i class="fa fa-check"></i><b>4.6.2</b> Extract trees for training data</a></li>
-<li class="chapter" data-level="4.6.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#summary-of-training-lidar-data"><i class="fa fa-check"></i><b>4.6.3</b> Summary of training lidar data</a></li>
+<li class="chapter" data-level="4.6.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#summary-of-training-lidar-data"><i class="fa fa-check"></i><b>4.6.1</b> Summary of training lidar data</a></li>
+<li class="chapter" data-level="4.6.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#function-to-extract-trees"><i class="fa fa-check"></i><b>4.6.2</b> Function to extract trees</a></li>
+<li class="chapter" data-level="4.6.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#extract-trees-for-training-data"><i class="fa fa-check"></i><b>4.6.3</b> Extract trees for training data</a></li>
 </ul></li>
 </ul></li>
 <li class="chapter" data-level="5" data-path="appendix.html"><a href="appendix.html"><i class="fa fa-check"></i><b>5</b> Appendix</a>
@@ -292,7 +293,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <div id="header">
 <h1 class="title">Aerial LiDAR for Fire Model Inputs</h1>
 <p class="author"><em>George Woolsey</em></p>
-<p class="date"><em>19 March, 2025</em></p>
+<p class="date"><em>21 March, 2025</em></p>
 </div>
 <div id="introduction" class="section level1 hasAnchor" number="1">
 <h1><span class="header-section-number">Section 1</span> Introduction<a href="index.html#introduction" class="anchor-section" aria-label="Anchor link to header"></a></h1>
