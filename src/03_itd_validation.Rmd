@@ -632,7 +632,11 @@ neon_field_heights %>%
       )
     ) +
     ggplot2::theme_light() +
-    ggplot2::theme(axis.text.y = ggplot2::element_blank(), axis.ticks.y = ggplot2::element_blank())
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_blank()
+      , axis.ticks.y = ggplot2::element_blank()
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    )
 ```
 
 what is the overall `r scales::number(percentile_for_ht*100, accuracy = 1)`th percentile to use for minimum height?
@@ -1501,6 +1505,11 @@ training_submission %>%
     )
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
 #### Scores for an image-annotated crowns
 
 Get the benchmark score compared to image-annotated "ground truth" data.
@@ -1570,10 +1579,58 @@ NeonTreeEvaluation::load_ground_truth(plot_name="YELL_048_2018", show = FALSE)
 # where should we save the file?
 training_eval_temp <- "../data/NeonTreeEvaluation_training_evaluate_image_crowns.csv"
 # if we don't already have the data, run it
-# if(!file.exists(training_eval_temp)){
-if(T){
+if(!file.exists(training_eval_temp)){
+# if(T){
   # filter for only those with this type of validation data
   submission_temp <- training_submission %>% 
+    ## !!!!!!!!!!!! do these separate b/c memory crash :/
+    ## hate that this is manual but i'm.....tired
+    dplyr::filter(!plot_name %in% c("2018_NIWO_2_450000_4426000_image_crop","2018_TEAK_3_315000_4094000_image_crop")) %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_image_annotation==T) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    )
+  # safe it bc: error in `clue::solve_LSAP()`: long vectors (argument 1) are not supported
+  # would need to dig through NeonTreeEvaluation, fix, and pull request...
+  safe_evaluate_image_crowns <- purrr::safely(NeonTreeEvaluation::evaluate_image_crowns)
+  # validate
+  training_img_annttd_crwns <-
+    submission_temp$ws_fn_nm %>% 
+    unique() %>% 
+    purrr::map(function(x){
+      ans <- safe_evaluate_image_crowns(
+        predictions = submission_temp %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::filter(ws_fn_nm == x) %>% 
+          dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+        , show = F
+        , summarize = T
+      )
+      if(!is.null(ans$error)){
+        return(NULL)
+      }else{
+        return(
+          ans$result %>% 
+            purrr::pluck("plot_level") %>% 
+            dplyr::ungroup() %>% 
+            dplyr::mutate(ws_fn_nm = x)
+        ) 
+      }
+    }) %>% 
+    dplyr::bind_rows()
+  # save
+  readr::write_csv(training_img_annttd_crwns, file = training_eval_temp)
+  #################################
+  # now for the big ones so we don't crash memory
+  ## hate that this is manual but i'm.....tired
+  #################################
+  # filter for only those with this type of validation data
+  submission_temp <- training_submission %>% 
+    ## !!!!!!!!!!!! do these separate
+    dplyr::filter(plot_name %in% c("2018_NIWO_2_450000_4426000_image_crop")) %>% 
     dplyr::inner_join(
       lidar_df %>% 
         sf::st_drop_geometry() %>% 
@@ -1582,147 +1639,164 @@ if(T){
       , by = "plot_name"
     )
   # validate
-  training_img_annttd_crwns <-
+  training_img_annttd_crwns_temp <-
     submission_temp$ws_fn_nm %>% 
     unique() %>% 
-    purrr::map(\(x) 
-      NeonTreeEvaluation::evaluate_image_crowns(
+    purrr::map(function(x){
+      ans <- safe_evaluate_image_crowns(
         predictions = submission_temp %>% 
           sf::st_drop_geometry() %>% 
           dplyr::filter(ws_fn_nm == x) %>% 
           dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
         , show = F
         , summarize = T
-      ) %>% 
-      purrr::pluck("plot_level") %>% 
-      dplyr::ungroup() %>% 
-      dplyr::mutate(ws_fn_nm = x)
-    ) %>% 
+      )
+      if(!is.null(ans$error)){
+        return(NULL)
+      }else{
+        return(
+          ans$result %>% 
+            purrr::pluck("plot_level") %>% 
+            dplyr::ungroup() %>% 
+            dplyr::mutate(ws_fn_nm = x)
+        ) 
+      }
+    }) %>% 
     dplyr::bind_rows()
+  # add it
+  training_img_annttd_crwns <- training_img_annttd_crwns %>% 
+    dplyr::bind_rows(training_img_annttd_crwns_temp)
+  # save
+  readr::write_csv(training_img_annttd_crwns, file = training_eval_temp)
+  #################################
+  # now for the big ones so we don't crash memory
+  ## hate that this is manual but i'm.....tired
+  #################################
+  # filter for only those with this type of validation data
+  submission_temp <- training_submission %>% 
+    ## !!!!!!!!!!!! do these separate
+    dplyr::filter(plot_name %in% c("2018_TEAK_3_315000_4094000_image_crop")) %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_image_annotation==T) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    )
+  # validate
+  training_img_annttd_crwns_temp <-
+    submission_temp$ws_fn_nm %>% 
+    unique() %>% 
+    purrr::map(function(x){
+      ans <- safe_evaluate_image_crowns(
+        predictions = submission_temp %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::filter(ws_fn_nm == x) %>% 
+          dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+        , show = F
+        , summarize = T
+      )
+      if(!is.null(ans$error)){
+        return(NULL)
+      }else{
+        return(
+          ans$result %>% 
+            purrr::pluck("plot_level") %>% 
+            dplyr::ungroup() %>% 
+            dplyr::mutate(ws_fn_nm = x)
+        ) 
+      }
+    }) %>% 
+    dplyr::bind_rows()
+  # add it
+  training_img_annttd_crwns <- training_img_annttd_crwns %>% 
+    dplyr::bind_rows(training_img_annttd_crwns_temp)
   # save
   readr::write_csv(training_img_annttd_crwns, file = training_eval_temp)
 }else{
   training_img_annttd_crwns <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
 }
-training_img_annttd_crwns %>% dplyr::glimpse()
+# training_img_annttd_crwns %>% dplyr::glimpse()
 ```
 
-```{r}
-temp_temp <- training_img_annttd_crwns %>% 
-  dplyr::group_by(ws_fn_nm) %>% 
-  dplyr::summarise(dplyr::across(dplyr::where(is.numeric),mean))
-temp_temp %>% 
-  ggplot(aes(x=precision,y=recall,color=ws_fn_nm)) +
-  geom_hline(yintercept = median(temp_temp$recall),linetype="dashed") +
-  geom_vline(xintercept = median(temp_temp$precision),linetype="dashed") +
-  geom_point(size = 3) +
-  ggplot2::scale_color_manual(values = pal_ws) +
-  theme_light()
-```
+our return data should include precision and recall values for each plot and variable window function that resulted in trees extracted (some window functions might not have extracted any trees) with image annotated crown evaluation data...unless the `NeonTreeEvaluation::evaluate_image_crowns()` resulted in an error
 
-
-`overall`: must be across all NEON sites, plots, and trees included for evaluation
+count of the variable window functions which resulted in trees extracted and were successfully evaluated using image annotated crown ground truth data by plot
 
 ```{r}
-training_img_annttd_crwns$overall %>% 
-  kableExtra::kbl(
-    caption = "Overall: cloud2trees ITD performance versus image-annotated crowns"
-    , digits = 3
-  ) %>% 
-  kableExtra::kable_styling()
-```
-
-`by_site`: must be across plots, and trees included for evaluation in a NEON sites
-
-```{r}
-training_img_annttd_crwns$by_site %>% 
-  kableExtra::kbl(
-    caption = "NEON site-level: cloud2trees ITD performance versus image-annotated crowns"
-    , digits = 3
-  ) %>% 
-  kableExtra::kable_styling()
-```
-
-`plot_level`: must be across trees included for evaluation in a NEON site, plot combination
-
-```{r}
-training_img_annttd_crwns$plot_level %>% 
-  dplyr::ungroup() %>% 
-  dplyr::slice_sample(n=14) %>% 
-  dplyr::arrange(plot_name) %>% 
-  kableExtra::kbl(
-    caption = "NEON plot-level: cloud2trees ITD performance versus image-annotated crowns"
-    , digits = 3
-  ) %>% 
-  kableExtra::kable_styling()
-```
-
-how many plots did we evaluate that met all criteria:
-
-* had point cloud data in the benchmark
-* was from a NEON site with primarily conifer trees
-* had image-annotated crowns for evaluation
-
-```{r}
-# how many plots did we evaluate that met all criteria?
-training_img_annttd_crwns$plot_level %>% 
-  dplyr::ungroup() %>% 
-  dplyr::distinct(plot_name) %>% 
-  nrow()
-```
-
-how many plots were evaluated using `cloud2trees::cloud2trees()` by NEON site?
-
-```{r}
-img_annttd_crwn_plots_temp <- lidar_df %>% 
+training_submission %>% 
+  sf::st_drop_geometry() %>% 
   dplyr::inner_join(
-    training_img_annttd_crwns$plot_level %>% 
-      dplyr::ungroup() %>% 
+    lidar_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(has_image_annotation==T) %>% 
       dplyr::distinct(plot_name)
     , by = "plot_name"
-  )
-# plots evaluated by neon site
-img_annttd_crwn_plots_temp %>% 
-  sf::st_drop_geometry() %>% 
-  dplyr::count(siteID) %>% 
-  dplyr::arrange(desc(n)) %>% 
+  ) %>% 
+  dplyr::count(plot_name,ws_fn_nm) %>% 
+  dplyr::left_join(
+    training_img_annttd_crwns
+    , by = dplyr::join_by(plot_name,ws_fn_nm)
+  ) %>% 
+  dplyr::group_by(plot_name) %>% 
+  dplyr::summarize(ws_trees = dplyr::n(), ws_eval = sum(ifelse(is.na(precision),0,1))) %>% 
+  dplyr::arrange(plot_name) %>% 
   kableExtra::kbl(
-    caption = "Number of 40m x 40m plots with image-annotated crowns evaluated using cloud2trees by NEON site"
-    , digits = 3
+    caption = "Count of variable window functions tested and successfully evaluated using image annotated crowns"
+    , digits = 0
+    , col.names = c(
+      "plot","window functions<br>with trees","window functions<br>successfully evaluated"
+    )
+    , escape = F
   ) %>% 
   kableExtra::kable_styling()
 ```
 
-where are these NEON sites evaluated using `cloud2trees::cloud2trees()`?
+plot precision and recall by plot
 
 ```{r}
-img_annttd_crwn_plots_temp %>% 
-  dplyr::count(siteID) %>% 
-  mapview::mapview(
-    cex = "n", legend = F
-    , layer.name = "NEON site"
+training_img_annttd_crwns %>% 
+  tidyr::pivot_longer(cols = c(precision,recall)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = value, y = plot_name, color = ws_fn_nm)) +
+    ggplot2::geom_point(size = 4) +
+    ggplot2::facet_grid(cols = dplyr::vars(name)) +
+    ggplot2::scale_color_manual(values = pal_ws) +
+    ggplot2::labs(
+      x = "", y = ""
+      , color = "variable\nwindow\nfunction"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      panel.grid.major.y = ggplot2::element_line(color="gray22")
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+    )
+```
+
+we'll quickly compare the variable window functions by averaging across sites and making a "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns
+
+```{r}
+agg_pr_temp <- training_img_annttd_crwns %>% 
+  dplyr::group_by(ws_fn_nm) %>% 
+  dplyr::summarise(dplyr::across(dplyr::where(is.numeric),mean))
+agg_pr_temp %>% 
+  ggplot(aes(x=precision,y=recall,color=ws_fn_nm)) +
+  geom_hline(yintercept = median(agg_pr_temp$recall),linetype="dashed") +
+  geom_vline(xintercept = median(agg_pr_temp$precision),linetype="dashed") +
+  geom_point(size = 6) +
+  ggplot2::scale_color_manual(values = pal_ws) +
+  theme_light() +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
   )
 ```
 
-let's review some figures comparing the image-annotated crowns versus the bounding box of our delineated crown polygons
-
-*in the RGB plots: "red" boxes are crowns from our point cloud-based method extracted and "black" are the image annotated crowns*
-
-```{r, message=FALSE, results=F, warning=FALSE,fig.show='asis'}
-training_img_annttd_crwns$plot_level %>% 
-  dplyr::ungroup() %>% 
-  dplyr::slice_sample(n=4) %>% 
-  dplyr::pull(plot_name) %>% 
-  purrr::map(\(x) NeonTreeEvaluation::image_crowns(
-    predictions = my_submission %>% 
-      sf::st_drop_geometry() %>% 
-      dplyr::filter(plot_name==x)
-    , show = T
-    , project_boxes = F
-  ))
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
 ```
-
-*in the RGB plots: "red" boxes are crowns from our point cloud-based method extracted and "black" are the image annotated crowns*
 
 ## Evaluation validation process
 
