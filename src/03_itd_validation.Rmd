@@ -224,12 +224,13 @@ clean_field_data<-function(field){
     filter(!individualID %in% to_remove$individualID)
 }
 # apply all the filters for field collected stems used in `NeonTreeEvaluation::evaluate_field_stems()`
-NeonTreeEvaluation::field %>% 
+field_plots_temp <- NeonTreeEvaluation::field %>% 
   clean_field_data() %>% 
-  sf::st_as_sf(.,coords=c("itcEasting","itcNorthing")) %>% 
   dplyr::filter(height>3) %>% 
-  dplyr::glimpse()
-xxxx
+  dplyr::mutate(plotID=as.character(plotID)) %>% 
+  dplyr::pull(plotID) %>% 
+  unique()
+
 ```
 
 
@@ -240,9 +241,26 @@ lidar_df <-
   lidar_df %>% 
   #filter based on plots in evaluation data
   dplyr::filter(plot_name %in% plotnames_temp) %>% 
-  # flag the data with image annotated crowns which we'll use to train our ws fn
+  # filter for field plots
+  # pull out site 
+  dplyr::mutate(
+    plot_temp = stringr::str_extract(
+      string = plot_name
+      , pattern = field_plots_temp %>%
+        unique() %>%
+        toupper() %>%
+        paste(collapse = "|")
+    )
+  ) %>% 
+  # flag the data with image annotated crowns or field stems which we'll use to train our ws fn
   # if this doesn't make sense yet, keep reading down
-  dplyr::mutate(has_image_annotation = plot_name %in% NeonTreeEvaluation::list_annotations())
+  dplyr::mutate(
+    has_image_annotation = plot_name %in% NeonTreeEvaluation::list_annotations()
+    , has_field_stems = !is.na(plot_temp)
+  ) %>%
+  # keep only those with field stems or image annotated crowns
+  dplyr::filter(has_image_annotation | has_field_stems) %>% 
+  dplyr::select(-c(plot_temp))
 ```
 
 We need to put the NEON site identifier in our data. We'll use the field-collected tree data from NEON sites made available which will also serve to filter our point cloud list for forested NEON sites only.
@@ -411,6 +429,7 @@ lidar_df <- lidar_df %>%
       , "HEAL_004_2019"
       , "SOAP_049_2018"
       , "TEAK_016_2019"
+      , "YELL_006_2018"
     )
   )
 ```
@@ -426,18 +445,23 @@ lidar_df %>%
     , training_plots = sum(ifelse(data_type=="training",1,0))
     , evaluation_plots = sum(ifelse(data_type=="evaluation",1,0))
     , evaluation_ann_plots = sum(ifelse(has_image_annotation & data_type=="evaluation",1,0))
+    , evaluation_fld_plots = sum(ifelse(has_field_stems & data_type=="evaluation",1,0))
   ) %>% 
   dplyr::arrange(desc(n)) %>% 
   dplyr::select(-n) %>% 
   kableExtra::kbl(
     caption = "NEON sites with conifers and lidar plots"
     , col.names = c(
-      "site","training plots","evaluation plots","evaluation plots<br>with ground truth<br>image ann. crowns"
+      "site","training plots","evaluation plots"
+      ,"evaluation plots<br>with ground truth<br>image ann. crowns"
+      ,"evaluation plots<br>with ground truth<br>field collected stems"
     )
     , escape = F
   ) %>% 
   kableExtra::kable_styling()
 ```
+
+note that the sum of the evaluation plots with image annotated crowns and with field collected stems does not necessarily equate to the number of evaluation plots since one plot can have both image annotated and field collected data.
 
 what is the spatial distribution of these conifer sites for which lidar data is available?
 
@@ -466,15 +490,18 @@ lidar_df %>%
 
 ### Augment training data
 
-While the map above shows that the training and evaluation data are in places that we expect to have conifers, the spatial coverage of training data is limited. This is especially true when one considers that even NEON sites that are close in proximity can have very different forest types. For example, the "NIWO" site north west of Denver, CO has both training and evaluation data and features vegetation described as "On the low-elevation east and south facing slopes, lodgepole pine (*Pinus contorta*) and aspen (*Populus tremuloides*) groves dominate the landscape" ([source](https://www.neonscience.org/field-sites/niwo)). While the RMNP site that is close in proximity and lacks training data has vegetation described as "vegetation in the lower elevation areas of RMNP are characteristic of the lower montane ecosystem and include an open canopy of ponderosa pine (*Pinus ponderosa*), juniper (*Juniperus sp.*), and Douglas fir (*Pseudotsuga menziesii*)" ([source](https://www.neonscience.org/field-sites/rmnp)). As such, we will augment the training data by borrowing two plots from the evaluation data for NEON sites that lack training data and have at least 5 image annotated crown validation data sets.
+While the map above shows that the training and evaluation data are in places that we expect to have conifers, the spatial coverage of training data is limited. This is especially true when one considers that even NEON sites that are close in proximity can have very different forest types. For example, the "NIWO" site north west of Denver, CO has both training and evaluation data and features vegetation described as "On the low-elevation east and south facing slopes, lodgepole pine (*Pinus contorta*) and aspen (*Populus tremuloides*) groves dominate the landscape" ([source](https://www.neonscience.org/field-sites/niwo)). While the RMNP site that is close in proximity and lacks training data has vegetation described as "vegetation in the lower elevation areas of RMNP are characteristic of the lower montane ecosystem and include an open canopy of ponderosa pine (*Pinus ponderosa*), juniper (*Juniperus sp.*), and Douglas fir (*Pseudotsuga menziesii*)" ([source](https://www.neonscience.org/field-sites/rmnp)). As such, we will augment the training for NEON sites that lack dedicated training data by:
+
+* if a site has at least 5 image annotated crown validation data sets borrowing two plots to validate against `NeonTreeEvaluation::evaluate_image_crowns()`. We are preferring the image annotated crowns for use in training over the field collected stems to align with the provided training data in the original manuscript
+* otherwise, if a site has at least 5 field collected stem validation data sets, borrow two plots to validate against `NeonTreeEvaluation::evaluate_field_stems()`
+* otherwise, there will be no training data for that NEON site and the "best" overall variable window function will be used
 
 ```{r}
 # set seed to replicate results
-set.seed(22)
-# randomly assign 2 plots as training if:
-# no training already
-# at least 10 evaluation sites
-lidar_df <- lidar_df %>% 
+set.seed(99)
+# randomly assign 2 plots as training:
+lidar_df <-
+  lidar_df %>% 
   dplyr::ungroup() %>% 
   # generate rand
   dplyr::mutate(rand = runif(n=dplyr::n())) %>% 
@@ -484,8 +511,13 @@ lidar_df <- lidar_df %>%
   dplyr::mutate(
     training_plots = sum(ifelse(data_type=="training",1,0))
     , evaluation_ann_plots = sum(ifelse(has_image_annotation & data_type=="evaluation",1,0))
+    , evaluation_fld_plots = sum(ifelse(has_field_stems & data_type=="evaluation",1,0))
     , is_new_training = dplyr::case_when(
       training_plots == 0 & evaluation_ann_plots>=5 & dplyr::row_number()<=2 ~ T
+      , training_plots == 0 & 
+        evaluation_ann_plots<5 & 
+        evaluation_fld_plots>=5 &
+        dplyr::row_number()<=2 ~ T
       , T ~ F
     )
   ) %>%
@@ -496,6 +528,8 @@ lidar_df <- lidar_df %>%
       as.factor()
   ) %>% 
   dplyr::select(-c(rand,tot,conifer,tidyselect::ends_with("_plots")))
+# save
+readr::write_csv(lidar_df, "../data/NeonTreeEvaluation_lidar_df.csv", append = F, progress = F)
 ```
 
 check our new table of training/evaluation data by NEON site after we augmented the training data 
@@ -625,9 +659,14 @@ we'll test with a single evaluation point cloud
 ```{r}
 lidar_df_row <- lidar_df %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::mutate(rn = ifelse(data_type=="evaluation",dplyr::row_number(),NA)) %>% 
+  dplyr::mutate(
+    rn = ifelse(
+      data_type=="evaluation" & has_image_annotation & has_field_stems
+      ,dplyr::row_number()
+      ,NA
+  )) %>% 
   dplyr::filter(!is.na(rn)) %>% 
-  dplyr::slice(11) %>% 
+  dplyr::slice(1) %>% 
   dplyr::pull(rn)
 # lidar_df$f_path[lidar_df_row] %>% lidR::readLAS() %>% lidR::st_crs()
 ```
@@ -1380,8 +1419,8 @@ submission_fn <- "../data/NeonTreeEvaluation_training_submission.gpkg"
 if(!file.exists(submission_fn)){
 # if(T){ ### !!!!!!! take out when it gets real
   # just get training
-  training_df_temp <- lidar_df %>% dplyr::filter(data_type=="training") %>% 
-    dplyr::filter(is_new_training) ### !!!!!!! take out when it gets real
+  training_df_temp <- lidar_df %>% dplyr::filter(data_type=="training")
+    # dplyr::filter(is_new_training) ### !!!!!!! take out when it gets real
   # get trees for each training plot and ws fn combination
   training_submission <- 
     1:nrow(training_df_temp) %>% 
@@ -1533,12 +1572,22 @@ training_eval_temp <- "../data/NeonTreeEvaluation_training_evaluate_image_crowns
 # if we don't already have the data, run it
 # if(!file.exists(training_eval_temp)){
 if(T){
+  # filter for only those with this type of validation data
+  submission_temp <- training_submission %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_image_annotation==T) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    )
+  # validate
   training_img_annttd_crwns <-
-    training_submission$ws_fn_nm %>% 
+    submission_temp$ws_fn_nm %>% 
     unique() %>% 
     purrr::map(\(x) 
       NeonTreeEvaluation::evaluate_image_crowns(
-        predictions = training_submission %>% 
+        predictions = submission_temp %>% 
           sf::st_drop_geometry() %>% 
           dplyr::filter(ws_fn_nm == x) %>% 
           dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
@@ -1555,6 +1604,7 @@ if(T){
 }else{
   training_img_annttd_crwns <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
 }
+training_img_annttd_crwns %>% dplyr::glimpse()
 ```
 
 ```{r}
