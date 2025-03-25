@@ -2152,68 +2152,85 @@ Note that not every NEON site has a precision value filled (and no F-score). The
 Ties across window functions will be broken by selecting the window function that resulted in the fewest trees extracted from the point cloud since, for the sites with recall only, the window function able to best detect trees by using fewer trees will be more precise
 
 ```{r}
-trees_site_fn_temp <- training_submission %>% 
+trees_site_fn_temp <-
+  training_submission %>% 
+  dplyr::mutate(area = sf::st_area(.)) %>% 
   sf::st_drop_geometry() %>% 
   dplyr::group_by(plot_name,ws_fn_nm) %>% 
-  dplyr::summarise(trees = dplyr::n()) %>%
+  dplyr::summarise(trees = dplyr::n(), area = sum(area, na.rm = T)) %>%
   dplyr::ungroup() %>% 
   dplyr::inner_join(
     lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID)
     , by = "plot_name"
   ) %>% 
   dplyr::group_by(siteID,ws_fn_nm) %>% 
-  dplyr::summarise(plots = dplyr::n(), trees = mean(trees,na.rm = T)) %>%
+  dplyr::summarise(
+    plots = dplyr::n()
+    , trees = mean(trees,na.rm = T)
+    , area = mean(area,na.rm = T)) %>%
   dplyr::ungroup()
+# trees_site_fn_temp %>% dplyr::glimpse()
 ```
 
-let's look at the trees detected by NEON site and variable window funtion
+let's look at the trees detected by NEON site and variable window function
 
 ```{r}
 trees_site_fn_temp %>% 
-  dplyr::mutate(
-    siteID = forcats::fct_rev(siteID)
-  ) %>% 
-  ggplot2::ggplot(ggplot2::aes(x = trees, y = siteID, color = ws_fn_nm)) +
+  tidyr::pivot_longer(cols = c(trees,area)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = ws_fn_nm)) +
     # ggplot2::geom_point(size = 4) +
     ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
+    ggplot2::facet_grid(cols = dplyr::vars(name), scales = "free_x") +
+    ggplot2::scale_x_log10() +
     ggplot2::scale_color_manual(values = pal_ws) +
-    ggplot2::scale_x_log10(labels=scales::comma) +
     ggplot2::labs(
-      x = "# trees", y = ""
+      x = "", y = ""
       , color = "variable\nwindow\nfunction"
-      , subtitle = "Training data: average trees detected"
+      , subtitle = "Training data: trees detected and area covered by tree crowns"
     ) +
     ggplot2::theme_light() +
     ggplot2::theme(
       panel.grid.major.y = ggplot2::element_line(color="gray22")
       , strip.text = ggplot2::element_text(color = "black", size = 10)
+      , axis.text.x = ggplot2::element_blank()
     ) +
     ggplot2::guides(
       color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
     )
 ```
 
-There are some variable window functions that resulted in many more trees extracted than others. If we only have recall to judge by, these functions will perform better than others which may be more suitable simply because there are more trees (more of the plot area is covered so it is more likely that trees will be "detected" with no penalty for including more trees). To put some guard rails on these instances, we'll exclude functions from consideration to be selected if recall is the only evaluation metric and the number of trees detected is more than two standard deviations from the mean number of trees detected in a plot at a site.
+There are some variable window functions that resulted in many more trees extracted than others. If we only have recall to judge by, these functions will perform better than others which may be more suitable simply because there are more trees (more of the plot area is covered so it is more likely that trees will be "detected" with no penalty for including more trees). To put some guard rails on these instances, we'll exclude functions from consideration to be selected if recall is the only evaluation metric and the number of trees detected is more than two standard deviations from the mean number of trees detected in a plot at a site. We'll apply the same constraints for the area covered by tree crowns as well to catch cases when there may be few trees detected but the individual crown area is very large so it covers more area even with fewer trees.
 
 ```{r}
-
+trees_site_fn_temp <- trees_site_fn_temp %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::mutate(
+    mean_trees = mean(trees,na.rm = T), sd_trees = sd(trees,na.rm = T)
+    , mean_area = mean(area,na.rm = T), sd_area = sd(area,na.rm = T)
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    exclude_these_fns = 
+      ( abs(trees-mean_trees)>(2*sd_trees) ) | 
+      ( abs(area-mean_area)>(2*sd_area) )
+  )
 ```
 
 pick the best window function
 
 ```{r}
-training_eval_by_site %>% 
+training_eval_by_site <- training_eval_by_site %>% 
   # attach trees
-  dplyr::left_join(trees_site_fn_temp %>% dplyr::select(-plots), by = dplyr::join_by(siteID,ws_fn_nm)) %>% 
-  dplyr::arrange(siteID,desc(f_score),desc(precision),desc(recall),trees) %>% 
-  View()
-  dplyr::mutate(
-    dplyr::across(
-      .cols = c(precision,recall,f_score)
-      , .fns = ~max(.x,na.rm = T)
-      , .names = "max_{.col}"
-    )
-  )
+  dplyr::left_join(
+    trees_site_fn_temp %>% 
+      dplyr::select(-plots)
+    , by = dplyr::join_by(siteID,ws_fn_nm)
+  ) %>% 
+  dplyr::arrange(siteID,desc(f_score),desc(precision),exclude_these_fns,desc(recall),area,trees) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::mutate(is_best_fn = dplyr::row_number()==1) %>% 
+  dplyr::ungroup()
+training_eval_by_site %>% View()
 ```
 
 
