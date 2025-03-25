@@ -446,9 +446,24 @@ lidar_df <- lidar_df %>%
       , "SOAP_049_2018"
       , "TEAK_016_2019"
       , "YELL_006_2018"
-      , "DEJU_021_2018" # this plot is not corrupt but there are no field trees to evaluate against
-      , "DEJU_021_2019" # this plot is not corrupt but there are no field trees to evaluate against
     )
+  ) %>% 
+  dplyr::mutate(
+    # these plots not corrupt but there are no field trees to evaluate against
+    has_field_stems = dplyr::case_when(
+      plot_name %in% c(
+        "DEJU_021_2018" 
+        , "DEJU_021_2019"
+        , "JERC_055_2018"
+        , "JERC_055_2019"
+        , "ABBY_064_2018"
+        , "ABBY_064_2019"
+      ) ~ F
+      , T ~ has_field_stems
+    )
+  ) %>% 
+  dplyr::filter(
+    data_type == "training" | has_field_stems | has_image_annotation 
   )
 ```
 
@@ -525,7 +540,7 @@ We will then use the results of the validation based on the training data to sel
 
 ```{r}
 # set seed to replicate results
-set.seed(55)
+set.seed(444)
 # randomly assign plots as training:
 lidar_df <-
   lidar_df %>% 
@@ -1567,6 +1582,7 @@ training_submission %>%
     ggplot2::labs(
       x = "# trees", y = ""
       , color = "variable\nwindow\nfunction"
+      , subtitle = "Training data: number of detected canopy trees"
     ) +
     ggplot2::theme_light() +
     ggplot2::theme(
@@ -1837,12 +1853,14 @@ plot precision and recall by plot
 training_img_annttd_crwns %>% 
   tidyr::pivot_longer(cols = c(precision,recall)) %>% 
   ggplot2::ggplot(ggplot2::aes(x = value, y = plot_name, color = ws_fn_nm)) +
-    ggplot2::geom_point(size = 4) +
+    # ggplot2::geom_point(size = 4) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
     ggplot2::facet_grid(cols = dplyr::vars(name)) +
     ggplot2::scale_color_manual(values = pal_ws) +
     ggplot2::labs(
       x = "", y = ""
       , color = "variable\nwindow\nfunction"
+      , subtitle = "Training data: validation against image annotated crowns ground truth"
     ) +
     ggplot2::theme_light() +
     ggplot2::theme(
@@ -1869,6 +1887,11 @@ agg_pr_temp %>%
   ggplot2::scale_color_manual(values = pal_ws) +
   ggplot2::scale_x_continuous(limits = c(0,0.5)) +
   ggplot2::scale_y_continuous(limits = c(0,0.5)) +
+  ggplot2::labs(
+    color = "variable\nwindow\nfunction"
+    , subtitle = "Training data: validation against image annotated crowns ground truth"
+    , caption = "*values are averaged across sites and plots"
+  ) +
   ggplot2::theme_light() +
   ggplot2::guides(
     color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
@@ -1926,7 +1949,7 @@ if(!file.exists(training_eval_temp)){
     purrr::map(function(x){
       ans <- safe_evaluate_field_stems(
         predictions = submission_temp %>% 
-          sf::st_drop_geometry() %>% 
+          # sf::st_drop_geometry() %>% ### polygons work here !
           dplyr::filter(ws_fn_nm == x) %>% 
           dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
         , show = F
@@ -1996,12 +2019,14 @@ training_fld_cllctd_stems %>%
   tidyr::pivot_longer(cols = c(n,recall)) %>% 
   dplyr::filter(name=="recall") %>% 
   ggplot2::ggplot(ggplot2::aes(x = value, y = plot_name, color = ws_fn_nm)) +
-    ggplot2::geom_point(size = 4) +
+    # ggplot2::geom_point(size = 4) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
     ggplot2::facet_grid(cols = dplyr::vars(name)) +
     ggplot2::scale_color_manual(values = pal_ws) +
     ggplot2::labs(
       x = "", y = ""
       , color = "variable\nwindow\nfunction"
+      , subtitle = "Training data: validation against field collected stems ground truth"
     ) +
     ggplot2::theme_light() +
     ggplot2::theme(
@@ -2013,23 +2038,6 @@ training_fld_cllctd_stems %>%
     )
 ```
 
-we'll quickly compare the variable window functions by averaging across sites and making a "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns
-
-```{r}
-agg_pr_temp <- training_img_annttd_crwns %>% 
-  dplyr::group_by(ws_fn_nm) %>% 
-  dplyr::summarise(dplyr::across(dplyr::where(is.numeric),mean))
-agg_pr_temp %>% 
-  ggplot(aes(x=precision,y=recall,color=ws_fn_nm)) +
-  geom_hline(yintercept = median(agg_pr_temp$recall),linetype="dashed") +
-  geom_vline(xintercept = median(agg_pr_temp$precision),linetype="dashed") +
-  geom_point(size = 6) +
-  ggplot2::scale_color_manual(values = pal_ws) +
-  theme_light() +
-  ggplot2::guides(
-    color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
-  )
-```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
