@@ -1,6 +1,6 @@
 # Validate Tree Detection and Crown Delineation
 
-In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package
+In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package
 
 First, load the standard libraries
 
@@ -107,7 +107,7 @@ Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=498644871198
 
 *Note: the current version of `NeonTreeEvaluation::download()` does not download the training data even if setting `training = T`. I dug around and found the archive of the training data at [https://zenodo.org/records/5914554](https://zenodo.org/records/5914554). I'll need to circle back with a GitHub pull request to fix the `NeonTreeEvaluation::download()` function so that it gets the training data which is hosted at the link mentioned previously and does not reside at where the function currently points to ([https://zenodo.org/records/4770593](https://zenodo.org/records/4770593)). I also manually copied the files in "NeonTreeEvaluation/extdata/NeonTreeEvaluation/training/RGB" to "NeonTreeEvaluation/extdata/NeonTreeEvaluation/evaluation/RGB" so that evaluation could be performed. See `list.dirs(system.file(package = "NeonTreeEvaluation"),recursive=T)`*
 
-```{r, warning=FALSE, message=F,results=F}
+```{r, warning=FALSE, message=F,results=F,eval=FALSE}
 NeonTreeEvaluation::download(training = T, force = F)
 ```
 
@@ -227,10 +227,26 @@ clean_field_data<-function(field){
 field_plots_temp <- NeonTreeEvaluation::field %>% 
   clean_field_data() %>% 
   dplyr::filter(height>3) %>% 
+  dplyr::group_by(plotID,individualID) %>%
+  dplyr::summarize(samples=length(unique(eventID))) %>%
+  dplyr::filter(samples>1) %>%
+  dplyr::ungroup() %>%
   dplyr::mutate(plotID=as.character(plotID)) %>% 
   dplyr::pull(plotID) %>% 
   unique()
-
+# `NeonTreeEvaluation::evaluate_field_stems()` also requires rgb and chm data
+chm_temp <- NeonTreeEvaluation::list_chm() %>% 
+  basename() %>% 
+  stringr::str_match("(\\w+)_\\d+") %>% 
+  .[,2] %>% 
+  unique()
+field_plots_temp <- field_plots_temp[field_plots_temp %in% chm_temp]
+rgb_temp <- NeonTreeEvaluation::list_rgb() %>% 
+  basename() %>% 
+  stringr::str_match("(\\w+)_\\d+") %>% 
+  .[,2] %>% 
+  unique()
+field_plots_temp <- field_plots_temp[field_plots_temp %in% rgb_temp]
 ```
 
 
@@ -430,6 +446,8 @@ lidar_df <- lidar_df %>%
       , "SOAP_049_2018"
       , "TEAK_016_2019"
       , "YELL_006_2018"
+      , "DEJU_021_2018" # this plot is not corrupt but there are no field trees to evaluate against
+      , "DEJU_021_2019" # this plot is not corrupt but there are no field trees to evaluate against
     )
   )
 ```
@@ -490,46 +508,70 @@ lidar_df %>%
 
 ### Augment training data
 
-While the map above shows that the training and evaluation data are in places that we expect to have conifers, the spatial coverage of training data is limited. This is especially true when one considers that even NEON sites that are close in proximity can have very different forest types. For example, the "NIWO" site north west of Denver, CO has both training and evaluation data and features vegetation described as "On the low-elevation east and south facing slopes, lodgepole pine (*Pinus contorta*) and aspen (*Populus tremuloides*) groves dominate the landscape" ([source](https://www.neonscience.org/field-sites/niwo)). While the RMNP site that is close in proximity and lacks training data has vegetation described as "vegetation in the lower elevation areas of RMNP are characteristic of the lower montane ecosystem and include an open canopy of ponderosa pine (*Pinus ponderosa*), juniper (*Juniperus sp.*), and Douglas fir (*Pseudotsuga menziesii*)" ([source](https://www.neonscience.org/field-sites/rmnp)). As such, we will augment the training for NEON sites that lack dedicated training data by:
+While the map above shows that the training and evaluation data are in places that we expect to have conifers, the spatial coverage of training data is limited. This is especially true when one considers that even NEON sites that are close in proximity can have very different forest types. For example, the "TEAK" site east of Fresno, CA has both training and evaluation data and features vegetation described as "dominant tree species include red and white ﬁr (*Abies magniﬁca* and *Abies concolor*), Jeﬀrey pine (*Pinus jeﬀreyi*), and lodgepole pine (*Pinus contorta*)" ([source](https://www.neonscience.org/field-sites/teak)). While the "SOAP" site that is close in proximity and lacks training data has vegetation described as "Ponderosa pine (*Pinus ponderosa*) and incense cedar (*Calocedrus decurrens*) dominate the overstory" ([source](https://www.neonscience.org/field-sites/soap)). 
 
-* if a site has at least 5 image annotated crown validation data sets borrowing two plots to validate against `NeonTreeEvaluation::evaluate_image_crowns()`. We are preferring the image annotated crowns for use in training over the field collected stems to align with the provided training data in the original manuscript
-* otherwise, if a site has at least 5 field collected stem validation data sets, borrow two plots to validate against `NeonTreeEvaluation::evaluate_field_stems()`
-* otherwise, there will be no training data for that NEON site and the "best" overall variable window function will be used
+We will augment the training data by NEON site to validate against the image annotated crown ground truth using `NeonTreeEvaluation::evaluate_image_crowns()` by:
+
+* if a site has image annotated crowns marked as training data, use those plots
+* otherwise, if a site has at least 5 image annotated crown validation data sets borrow two plots to validate against
+* otherwise, if a site has at least 4 image annotated crown validation data sets borrow one plot to validate against
+
+We will augment the training data by NEON site to validate against the field collected stems ground truth using `NeonTreeEvaluation::evaluate_field_stems()` by:
+
+* if a site has at least 5 field collected stem validation data sets, borrow two plots to validate against even if the site has image annotated crowns marked as out-of-box training data
+* otherwise, if a site has at least 4 field collected stem validation data sets, borrow one plot to validate against
+
+We will then use the results of the validation based on the training data to select the best variable window search function based on the precision and recall metrics by NEON site. If a NEON site does not have training data the best overall variable window function will be used.
 
 ```{r}
 # set seed to replicate results
-set.seed(99)
-# randomly assign 2 plots as training:
+set.seed(55)
+# randomly assign plots as training:
 lidar_df <-
   lidar_df %>% 
   dplyr::ungroup() %>% 
   # generate rand
   dplyr::mutate(rand = runif(n=dplyr::n())) %>% 
-  dplyr::arrange(siteID, rand) %>% 
   # count training/eval by site and flag new training
   dplyr::group_by(siteID) %>% 
   dplyr::mutate(
     training_plots = sum(ifelse(data_type=="training",1,0))
     , evaluation_ann_plots = sum(ifelse(has_image_annotation & data_type=="evaluation",1,0))
     , evaluation_fld_plots = sum(ifelse(has_field_stems & data_type=="evaluation",1,0))
-    , is_new_training = dplyr::case_when(
-      training_plots == 0 & evaluation_ann_plots>=5 & dplyr::row_number()<=2 ~ T
-      , training_plots == 0 & 
-        evaluation_ann_plots<5 & 
-        evaluation_fld_plots>=5 &
+  ) %>% 
+  # sample img annotated data
+  dplyr::arrange(siteID, has_image_annotation, rand) %>% 
+  dplyr::group_by(siteID,has_image_annotation) %>% 
+  dplyr::mutate(
+    is_new_image_annotation_training = dplyr::case_when(
+      training_plots == 0 & 
+        evaluation_ann_plots>=5 & 
+        has_image_annotation == T &
         dplyr::row_number()<=2 ~ T
+      , training_plots == 0 & 
+        evaluation_ann_plots>=4 & 
+        has_image_annotation == T &
+        dplyr::row_number()<=1 ~ T
       , T ~ F
     )
-  ) %>%
-  dplyr::ungroup() %>% 
-  # update training/eval flag
-  dplyr::mutate(
-    data_type = ifelse(is_new_training==T,"training",as.character(data_type)) %>% 
-      as.factor()
   ) %>% 
+  # sample fld stems data
+  dplyr::arrange(siteID, has_field_stems, rand) %>% 
+  dplyr::group_by(siteID,has_field_stems) %>% 
+  dplyr::mutate(
+    is_new_field_stems_training = dplyr::case_when(
+      evaluation_fld_plots>=5 & 
+        has_field_stems == T &
+        dplyr::row_number()<=2 ~ T
+      , evaluation_fld_plots>=4 & 
+        has_field_stems == T &
+        dplyr::row_number()<=1 ~ T
+      , T ~ F
+    )
+  ) %>% 
+  dplyr::ungroup() %>% 
   dplyr::select(-c(rand,tot,conifer,tidyselect::ends_with("_plots")))
-# save
-readr::write_csv(lidar_df, "../data/NeonTreeEvaluation_lidar_df.csv", append = F, progress = F)
+
 ```
 
 check our new table of training/evaluation data by NEON site after we augmented the training data 
@@ -541,23 +583,38 @@ lidar_df %>%
   dplyr::summarise(
     n = dplyr::n()
     , training_plots = sum(ifelse(data_type=="training",1,0))
-    , evaluation_plots = sum(ifelse(data_type=="evaluation",1,0))
+    # validation type
+    , ann_plots = sum(ifelse(has_image_annotation,1,0))
+    , fld_plots = sum(ifelse(has_field_stems,1,0))
+    # training/eval
+    , training_ann_plots = sum(ifelse(has_image_annotation & (is_new_image_annotation_training | data_type=="training"),1,0))
+    , training_fld_plots = sum(ifelse(has_field_stems & (is_new_field_stems_training | data_type=="training"),1,0))
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    # training/eval
+    eval_ann_plots = ann_plots-training_ann_plots
+    , eval_fld_plots = fld_plots-training_fld_plots
   ) %>% 
   dplyr::arrange(desc(n)) %>% 
-  dplyr::select(-n) %>% 
+  dplyr::select(-c(n,ann_plots,fld_plots)) %>% 
+  dplyr::relocate(
+    c(tidyselect::ends_with("ann_plots"),tidyselect::ends_with("fld_plots"))
+    ,.after = dplyr::last_col()
+  ) %>% 
   kableExtra::kbl(
     caption = "NEON sites with conifers and lidar plots using augmented training data"
     , col.names = c(
-      "site","training plots","evaluation plots"
+      "site","original<br>training plots"
+      ,"training plots","evaluation plots"
+      ,"training plots","evaluation plots"
     )
+    , escape = F
   ) %>% 
-  kableExtra::kable_styling()
-```
-
-what is the overall breakdown of training vs evaluation now after all the filtering and augmenting?
-
-```{r}
-lidar_df %>% sf::st_drop_geometry() %>% dplyr::count(data_type)
+  kableExtra::kable_styling() %>% 
+  kableExtra::add_header_above(
+    c(" "=2, "image annotated crowns" = 2, "field collected stems" = 2)
+  )
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
@@ -583,15 +640,8 @@ percentile_for_ht <- 0.05
 neon_field_heights <-
   NeonTreeEvaluation::field %>% 
   # filters found in `clean_field_data()`
-  dplyr::filter(
-    !is.na(itcEasting)
-    , !stringr::str_detect(eventID,"2014")
-    , growthForm %in% c("single bole tree","multi-bole tree","small tree","sapling")
-    , stemDiameter>15
-    , (height>3|is.na(height))
-  ) %>%
-  # getting only non-na
-  dplyr::filter(!is.na(height)) %>% 
+  clean_field_data() %>% 
+  dplyr::filter(!is.na(height) & height>3) %>% 
   # and finally, filter for our conifer sites only
   dplyr::inner_join(
     conifer_sites %>% 
@@ -650,8 +700,16 @@ let's attach this to our data frame of lidar data files
 ```{r}
 lidar_df <- lidar_df %>% 
   dplyr::left_join(neon_site_heights, by = "siteID") %>% 
-  dplyr::mutate(site_prcntl_ht = dplyr::coalesce(site_prcntl_ht,neon_min_ht))
+  dplyr::mutate(
+    site_prcntl_ht = dplyr::coalesce(site_prcntl_ht,neon_min_ht)
+    , plot_name_sans_yr = dplyr::case_when(
+      data_type == "training" ~ NA
+      , T ~ stringr::str_match(plot_name,"(\\w+)_\\d+")[,2]
+    )
+  )
 # dplyr::glimpse(lidar_df)
+# save
+readr::write_csv(lidar_df, "../data/NeonTreeEvaluation_lidar_df.csv", append = F, progress = F)
 ```
 
 ## Example validation process{#ex_valid}
@@ -1244,7 +1302,7 @@ Let's get a quick summary of the lidar data available for training. Note, we exp
 training_lidar_sum_temp <-
   lidar_df %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::filter(data_type=="training") %>% 
+  dplyr::filter(data_type=="training" | is_new_image_annotation_training | is_new_field_stems_training) %>% 
   dplyr::pull(f_path) %>% 
   purrr::map(function(x){
     ctg <- lidR::readLAScatalog(x)
@@ -1263,19 +1321,29 @@ training_lidar_sum_temp <-
   dplyr::bind_rows()
 # check it
 training_lidar_sum_temp %>% 
+  dplyr::inner_join(
+    lidar_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::select(plot_name,siteID) 
+    , by = "plot_name"
+  ) %>% 
   dplyr::mutate(dplyr::across(dplyr::where(is.numeric),~scales::comma(.x,accuracy=.1))) %>% 
-  dplyr::arrange(plot_name) %>% 
+  dplyr::relocate(siteID) %>% 
+  dplyr::arrange(siteID,plot_name) %>% 
   kableExtra::kbl(
     caption = "summary of training lidar data"
     , digits = 1
     , col.names = c(
-      "plot","# points","area m<sup>2</sup>", "points m<sup>-2</sup>"
+      "site","plot","# points","area m<sup>2</sup>", "points m<sup>-2</sup>"
     )
     , escape = F
   ) %>% 
   kableExtra::kable_styling() %>% 
-  kableExtra::scroll_box(height = "600px",fixed_thead = T)
+  kableExtra::scroll_box(height = "622px",fixed_thead = T) %>% 
+  kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
+
+note the out-of-box training plots are much larger -- that's why we didn't augment the training set for these sites -- and check out the spread in point density
 
 do the 2019 "OSBS" point clouds overlap?
 
@@ -1423,8 +1491,8 @@ submission_fn <- "../data/NeonTreeEvaluation_training_submission.gpkg"
 if(!file.exists(submission_fn)){
 # if(T){ ### !!!!!!! take out when it gets real
   # just get training
-  training_df_temp <- lidar_df %>% dplyr::filter(data_type=="training")
-    # dplyr::filter(is_new_training) ### !!!!!!! take out when it gets real
+  training_df_temp <- lidar_df %>% 
+    dplyr::filter(data_type == "training" | is_new_image_annotation_training | is_new_field_stems_training)
   # get trees for each training plot and ws fn combination
   training_submission <- 
     1:nrow(training_df_temp) %>% 
@@ -1457,7 +1525,9 @@ training_submission <-
   dplyr::inner_join(
     lidar_df %>% 
       sf::st_drop_geometry() %>% 
-      dplyr::filter(data_type=="training") %>% 
+      dplyr::filter(
+        data_type=="training" | is_new_image_annotation_training | is_new_field_stems_training
+      ) %>% 
       dplyr::select(plot_name,site_prcntl_ht)
     , by = "plot_name"
   ) %>% 
@@ -1491,7 +1561,7 @@ training_submission %>%
   sf::st_drop_geometry() %>% 
   dplyr::count(plot_name,ws_fn_nm) %>% 
   ggplot2::ggplot(ggplot2::aes(x = n, y = plot_name, color = ws_fn_nm)) +
-    ggplot2::geom_point(size = 6) +
+    ggplot2::geom_point(size = 5) +
     ggplot2::scale_color_manual(values = pal_ws) +
     ggplot2::scale_x_log10(labels=scales::comma) +
     ggplot2::labs(
@@ -1499,7 +1569,10 @@ training_submission %>%
       , color = "variable\nwindow\nfunction"
     ) +
     ggplot2::theme_light() +
-    ggplot2::theme(panel.grid.major.y = ggplot2::element_line(color="gray22")) +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_text(size=8)
+      , panel.grid.major.y = ggplot2::element_line(color="gray22")
+    ) +
     ggplot2::guides(
       color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
     )
@@ -1585,14 +1658,17 @@ if(!file.exists(training_eval_temp)){
   submission_temp <- training_submission %>% 
     ## !!!!!!!!!!!! do these separate b/c memory crash :/
     ## hate that this is manual but i'm.....tired
-    dplyr::filter(!plot_name %in% c("2018_NIWO_2_450000_4426000_image_crop","2018_TEAK_3_315000_4094000_image_crop")) %>% 
+    dplyr::filter(
+      !plot_name %in% c("2018_NIWO_2_450000_4426000_image_crop","2018_TEAK_3_315000_4094000_image_crop")
+    ) %>% 
     dplyr::inner_join(
       lidar_df %>% 
         sf::st_drop_geometry() %>% 
-        dplyr::filter(has_image_annotation==T) %>% 
+        dplyr::filter(has_image_annotation==T & (data_type == "training" | is_new_image_annotation_training)) %>% 
         dplyr::distinct(plot_name)
       , by = "plot_name"
     )
+  
   # safe it bc: error in `clue::solve_LSAP()`: long vectors (argument 1) are not supported
   # would need to dig through NeonTreeEvaluation, fix, and pull request...
   safe_evaluate_image_crowns <- purrr::safely(NeonTreeEvaluation::evaluate_image_crowns)
@@ -1729,7 +1805,10 @@ training_submission %>%
   dplyr::inner_join(
     lidar_df %>% 
       sf::st_drop_geometry() %>% 
-      dplyr::filter(has_image_annotation==T) %>% 
+      dplyr::filter(
+        has_image_annotation==T & 
+        (data_type=="training" | is_new_image_annotation_training)
+      ) %>% 
       dplyr::distinct(plot_name)
     , by = "plot_name"
   ) %>% 
@@ -1757,6 +1836,165 @@ plot precision and recall by plot
 ```{r}
 training_img_annttd_crwns %>% 
   tidyr::pivot_longer(cols = c(precision,recall)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = value, y = plot_name, color = ws_fn_nm)) +
+    ggplot2::geom_point(size = 4) +
+    ggplot2::facet_grid(cols = dplyr::vars(name)) +
+    ggplot2::scale_color_manual(values = pal_ws) +
+    ggplot2::labs(
+      x = "", y = ""
+      , color = "variable\nwindow\nfunction"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_text(size=8)
+      , panel.grid.major.y = ggplot2::element_line(color="gray22")
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+    )
+```
+
+we'll quickly compare the variable window functions by averaging across sites and making a "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns
+
+```{r}
+agg_pr_temp <- training_img_annttd_crwns %>% 
+  dplyr::group_by(ws_fn_nm) %>% 
+  dplyr::summarise(dplyr::across(dplyr::where(is.numeric),mean))
+agg_pr_temp %>% 
+  ggplot2::ggplot(ggplot2::aes(x=precision,y=recall,color=ws_fn_nm)) +
+  ggplot2::geom_hline(yintercept = median(agg_pr_temp$recall),linetype="dashed") +
+  ggplot2::geom_vline(xintercept = median(agg_pr_temp$precision),linetype="dashed") +
+  ggplot2::geom_point(size = 6) +
+  ggplot2::scale_color_manual(values = pal_ws) +
+  ggplot2::scale_x_continuous(limits = c(0,0.5)) +
+  ggplot2::scale_y_continuous(limits = c(0,0.5)) +
+  ggplot2::theme_light() +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+  )
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+#### Scores for an field-collected stems
+
+```{r, include=FALSE, eval=FALSE}
+xxx <- NeonTreeEvaluation::evaluate_field_stems(
+  training_submission %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_field_stems==T & is_new_field_stems_training) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    ) %>% 
+    dplyr::filter(plot_name=="ABBY_073_2018" & ws_fn_nm == "lin_fn") %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+  , show = T
+  , summarize = T
+)
+xxx
+```
+
+```{r, results=F, message=FALSE}
+# where should we save the file?
+training_eval_temp <- "../data/NeonTreeEvaluation_training_evaluate_field_stems.csv"
+# if we don't already have the data, run it
+if(!file.exists(training_eval_temp)){
+# if(T){
+  # filter for only those with this type of validation data
+  submission_temp <- training_submission %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_field_stems==T & (data_type == "training" | is_new_field_stems_training)) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    )
+  # safe it bc: error in `clue::solve_LSAP()`: long vectors (argument 1) are not supported
+  # would need to dig through NeonTreeEvaluation, fix, and pull request...
+  safe_evaluate_field_stems <- purrr::safely(NeonTreeEvaluation::evaluate_field_stems)
+  # validate
+  training_fld_cllctd_stems <-
+    submission_temp$ws_fn_nm %>% 
+    unique() %>% 
+    purrr::map(function(x){
+      ans <- safe_evaluate_field_stems(
+        predictions = submission_temp %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::filter(ws_fn_nm == x) %>% 
+          dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+        , show = F
+        , summarize = T
+      )
+      if(!is.null(ans$error)){
+        return(NULL)
+      }else{
+        return(
+          ans$result %>% 
+            purrr::pluck("plot_level") %>% 
+            dplyr::ungroup() %>% 
+            dplyr::mutate(ws_fn_nm = x)
+        ) 
+      }
+    }) %>% 
+    dplyr::bind_rows()
+  # save
+  readr::write_csv(training_fld_cllctd_stems, file = training_eval_temp)
+}else{
+  training_fld_cllctd_stems <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
+}
+# training_fld_cllctd_stems %>% dplyr::glimpse()
+```
+
+our return data should include ~precision~ and recall values for each plot and variable window function that resulted in trees extracted (some window functions might not have extracted any trees) with image annotated crown evaluation data...unless the `NeonTreeEvaluation::evaluate_image_crowns()` resulted in an error
+
+count of the variable window functions which resulted in trees extracted and were successfully evaluated using image annotated crown ground truth data by plot
+
+```{r}
+training_submission %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::inner_join(
+    lidar_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(
+        has_field_stems==T & 
+        (data_type=="training" | is_new_field_stems_training)
+      ) %>% 
+      dplyr::distinct(plot_name,plot_name_sans_yr)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::count(plot_name,plot_name_sans_yr,ws_fn_nm) %>% 
+  dplyr::left_join(
+    training_fld_cllctd_stems %>% 
+      dplyr::select(plot_name,ws_fn_nm,recall)
+    , by = dplyr::join_by(plot_name_sans_yr==plot_name,ws_fn_nm)
+  ) %>% 
+  dplyr::group_by(plot_name) %>% 
+  dplyr::summarize(ws_trees = dplyr::n(), ws_eval = sum(ifelse(is.na(recall),0,1))) %>% 
+  dplyr::arrange(plot_name) %>% 
+  kableExtra::kbl(
+    caption = "Count of variable window functions tested and successfully evaluated using field collected stems"
+    , digits = 0
+    , col.names = c(
+      "plot","window functions<br>with trees","window functions<br>successfully evaluated"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+plot recall by plot
+
+```{r}
+training_fld_cllctd_stems %>% 
+  tidyr::pivot_longer(cols = c(n,recall)) %>% 
+  dplyr::filter(name=="recall") %>% 
   ggplot2::ggplot(ggplot2::aes(x = value, y = plot_name, color = ws_fn_nm)) +
     ggplot2::geom_point(size = 4) +
     ggplot2::facet_grid(cols = dplyr::vars(name)) +
@@ -1796,78 +2034,6 @@ agg_pr_temp %>%
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 gc()
-```
-
-#### Scores for an field-collected stems
-
-```{r, include=FALSE, eval=FALSE}
-xxx <- NeonTreeEvaluation::evaluate_field_stems(
-  training_submission %>% 
-    dplyr::inner_join(
-      lidar_df %>% 
-        sf::st_drop_geometry() %>% 
-        dplyr::filter(has_image_annotation==F & has_field_stems==T) %>% 
-        dplyr::distinct(plot_name)
-      , by = "plot_name"
-    ) %>% 
-    dplyr::filter(plot_name=="ABBY_065_2019" & ws_fn_nm == "lin_fn") %>% 
-    sf::st_drop_geometry() %>% 
-    dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
-  , show = F
-  , summarize = T
-)
-```
-
-
-```{r, results=F, message=FALSE}
-# where should we save the file?
-training_eval_temp <- "../data/NeonTreeEvaluation_training_evaluate_field_stems.csv"
-# if we don't already have the data, run it
-if(!file.exists(training_eval_temp)){
-# if(T){
-  # filter for only those with this type of validation data
-  submission_temp <- training_submission %>% 
-    dplyr::inner_join(
-      lidar_df %>% 
-        sf::st_drop_geometry() %>% 
-        dplyr::filter(has_image_annotation==F & has_field_stems==T) %>% 
-        dplyr::distinct(plot_name)
-      , by = "plot_name"
-    )
-  # safe it bc: error in `clue::solve_LSAP()`: long vectors (argument 1) are not supported
-  # would need to dig through NeonTreeEvaluation, fix, and pull request...
-  safe_evaluate_field_stems <- purrr::safely(NeonTreeEvaluation::evaluate_field_stems)
-  # validate
-  training_fld_cllctd_stems <-
-    submission_temp$ws_fn_nm %>% 
-    unique() %>% 
-    purrr::map(function(x){
-      ans <- safe_evaluate_field_stems(
-        predictions = submission_temp %>% 
-          sf::st_drop_geometry() %>% 
-          dplyr::filter(ws_fn_nm == x) %>% 
-          dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
-        , show = F
-        , summarize = T
-      )
-      if(!is.null(ans$error)){
-        return(NULL)
-      }else{
-        return(
-          ans$result %>% 
-            purrr::pluck("plot_level") %>% 
-            dplyr::ungroup() %>% 
-            dplyr::mutate(ws_fn_nm = x)
-        ) 
-      }
-    }) %>% 
-    dplyr::bind_rows()
-  # save
-  readr::write_csv(training_fld_cllctd_stems, file = training_eval_temp)
-}else{
-  training_fld_cllctd_stems <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
-}
-# training_fld_cllctd_stems %>% dplyr::glimpse()
 ```
 
 
