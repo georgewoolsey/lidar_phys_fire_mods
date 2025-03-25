@@ -521,7 +521,7 @@ lidar_df %>%
   )
 ```
 
-### Augment training data
+### Augment training data{#trn_dta}
 
 While the map above shows that the training and evaluation data are in places that we expect to have conifers, the spatial coverage of training data is limited. This is especially true when one considers that even NEON sites that are close in proximity can have very different forest types. For example, the "TEAK" site east of Fresno, CA has both training and evaluation data and features vegetation described as "dominant tree species include red and white ﬁr (*Abies magniﬁca* and *Abies concolor*), Jeﬀrey pine (*Pinus jeﬀreyi*), and lodgepole pine (*Pinus contorta*)" ([source](https://www.neonscience.org/field-sites/teak)). While the "SOAP" site that is close in proximity and lacks training data has vegetation described as "Ponderosa pine (*Pinus ponderosa*) and incense cedar (*Calocedrus decurrens*) dominate the overstory" ([source](https://www.neonscience.org/field-sites/soap)). 
 
@@ -1599,6 +1599,14 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
+### Training: validation against ground truth
+
+We'll compare our aerial point cloud-based tree detection and crown delineation results to two types of evaluation data (i.e. “ground truth” data) presented by ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)): field-collected stems and image-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective.
+
+Precision quantifies the proportion of correctly identified tree crowns among all detected crowns (how many of the trees it found were real trees). Recall measures the proportion of correctly identified crowns relative to the total image-annotated tree crowns (how many of the actual trees it managed to find).
+
+`NeonTreeEvaluation::evaluate_image_crowns()` is used to evaluate our data against the image-annotated crowns ground truth. This function returns precision and recall per image (i.e. "plot"). `NeonTreeEvaluation::evaluate_field_stems()` is used to evaluate our data against the field collected stems ground truth. This function returns recall -- the proportion of field stems that fall within a single predicted crown -- per image (i.e. "plot"). We will apply both evaluation methods over each variable window function tested for each plot marked as training data.
+
 #### Scores for an image-annotated crowns
 
 Get the benchmark score compared to image-annotated "ground truth" data.
@@ -2038,10 +2046,174 @@ training_fld_cllctd_stems %>%
     )
 ```
 
-
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 gc()
+```
+
+### Best variable window function
+
+We are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure". We'll get the precision and recall for each plot and variable window function combination and then select the window function that results in the best tree detection by NEON site. We'll also average across sites to select the best variable window function overall which we'll use for NEON sites that did not have training data.
+
+We will determine the "best" variable window function by calculating the F-score which incorporates true positive, commission, and omission rates to determine how well the aerial point cloud-detected trees match the ground truth trees. As a measure of predictive performance, the highest possible value of an F-score is 1.0, indicating perfect precision and recall, and the lowest possible value is 0, if either precision or recall are zero.
+
+$$
+\textrm{F-score} = 2 \times \frac{\bigl(precision \times recall \bigr)}{\bigl(precision + recall \bigr)}
+$$
+
+let's combine our evaluation results, collapse across plot to calculate an average precision and recall for each NEON site and variable window function combination, calculate F-score, choose the highest F-score acheived by a variable window function for each NEON site and overall by averaging over each site.
+
+```{r}
+# combine eval results
+training_eval_combined_temp <- training_img_annttd_crwns %>% 
+  dplyr::inner_join(
+    lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::select(siteID,plot_name,ws_fn_nm,recall,precision) %>% 
+  dplyr::mutate(eval_type = "img_annttd_crwns") %>% 
+  dplyr::bind_rows(
+    training_fld_cllctd_stems %>% 
+      dplyr::select(siteID,plot_name,ws_fn_nm,recall) %>% 
+      dplyr::mutate(eval_type = "fld_cllctd_stems")
+  )
+# overall eval results
+training_eval_overall <-
+  training_eval_combined_temp %>% 
+  dplyr::group_by(ws_fn_nm) %>% 
+  dplyr::summarise(
+    precision = mean(precision, na.rm = T)
+    , recall = mean(recall, na.rm = T)
+    , n_fld_cllctd_stems = sum(ifelse(eval_type == "fld_cllctd_stems",1,0))
+    , n_img_annttd_crwns = sum(ifelse(eval_type == "img_annttd_crwns",1,0))
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    f_score = dplyr::case_when(
+      is.na(precision) | is.na(recall) ~ as.numeric(NA)
+      , (precision+recall) == 0 ~ 0
+      , T ~ 2 * ( (precision*recall)/(precision+recall) )
+    )
+  )
+# site eval results
+training_eval_by_site <-
+  training_eval_combined_temp %>% 
+  dplyr::group_by(siteID,ws_fn_nm) %>% 
+  dplyr::summarise(
+    precision = mean(precision, na.rm = T)
+    , recall = mean(recall, na.rm = T)
+    , n_fld_cllctd_stems = sum(ifelse(eval_type == "fld_cllctd_stems",1,0))
+    , n_img_annttd_crwns = sum(ifelse(eval_type == "img_annttd_crwns",1,0))
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    f_score = dplyr::case_when(
+      is.na(precision) | is.na(recall) ~ as.numeric(NA)
+      , (precision+recall) == 0 ~ 0
+      , T ~ 2 * ( (precision*recall)/(precision+recall) )
+    )
+  )
+```
+
+#### Best variable window function by NEON site
+
+we collapsed across plot to calculate an average precision and recall for each NEON site and variable window function combination
+
+```{r}
+training_eval_by_site %>% 
+  tidyr::pivot_longer(cols = c(precision,recall,f_score)) %>% 
+  dplyr::mutate(
+    name = ifelse(name=="f_score","F-score",name) %>% forcats::fct_rev()
+    , siteID = forcats::fct_rev(siteID)
+  ) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = ws_fn_nm)) +
+    # ggplot2::geom_point(size = 4) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
+    ggplot2::facet_grid(cols = dplyr::vars(name)) +
+    ggplot2::scale_color_manual(values = pal_ws) +
+    ggplot2::labs(
+      x = "", y = ""
+      , color = "variable\nwindow\nfunction"
+      , subtitle = "Training data: overall validation against ground truth by NEON site"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(size=7)
+      , panel.grid.major.y = ggplot2::element_line(color="gray22")
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+    )
+```
+
+Note that not every NEON site has a precision value filled (and no F-score). These NEON sites [did not have enough data](#trn_dta) to use for training data to be evaluated against the image annotated crown ground truth data. For these sites, we'll select the variable window function that resulted in the best recall as determined by comparing the training data to the field collected stems ground truth data.
+
+Ties across window functions will be broken by selecting the window function that resulted in the fewest trees extracted from the point cloud since, for the sites with recall only, the window function able to best detect trees by using fewer trees will be more precise
+
+```{r}
+trees_site_fn_temp <- training_submission %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::group_by(plot_name,ws_fn_nm) %>% 
+  dplyr::summarise(trees = dplyr::n()) %>%
+  dplyr::ungroup() %>% 
+  dplyr::inner_join(
+    lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::group_by(siteID,ws_fn_nm) %>% 
+  dplyr::summarise(plots = dplyr::n(), trees = mean(trees,na.rm = T)) %>%
+  dplyr::ungroup()
+```
+
+let's look at the trees detected by NEON site and variable window funtion
+
+```{r}
+trees_site_fn_temp %>% 
+  dplyr::mutate(
+    siteID = forcats::fct_rev(siteID)
+  ) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = trees, y = siteID, color = ws_fn_nm)) +
+    # ggplot2::geom_point(size = 4) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
+    ggplot2::scale_color_manual(values = pal_ws) +
+    ggplot2::scale_x_log10(labels=scales::comma) +
+    ggplot2::labs(
+      x = "# trees", y = ""
+      , color = "variable\nwindow\nfunction"
+      , subtitle = "Training data: average trees detected"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      panel.grid.major.y = ggplot2::element_line(color="gray22")
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+    )
+```
+
+There are some variable window functions that resulted in many more trees extracted than others. If we only have recall to judge by, these functions will perform better than others which may be more suitable simply because there are more trees (more of the plot area is covered so it is more likely that trees will be "detected" with no penalty for including more trees). To put some guard rails on these instances, we'll exclude functions from consideration to be selected if recall is the only evaluation metric and the number of trees detected is more than two standard deviations from the mean number of trees detected in a plot at a site.
+
+```{r}
+
+```
+
+pick the best window function
+
+```{r}
+training_eval_by_site %>% 
+  # attach trees
+  dplyr::left_join(trees_site_fn_temp %>% dplyr::select(-plots), by = dplyr::join_by(siteID,ws_fn_nm)) %>% 
+  dplyr::arrange(siteID,desc(f_score),desc(precision),desc(recall),trees) %>% 
+  View()
+  dplyr::mutate(
+    dplyr::across(
+      .cols = c(precision,recall,f_score)
+      , .fns = ~max(.x,na.rm = T)
+      , .names = "max_{.col}"
+    )
+  )
 ```
 
 
