@@ -1,6 +1,8 @@
 # Validate Tree Detection and Crown Delineation
 
-In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package
+In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package.
+
+[Puliti et al. (2023)](https://doi.org/10.48550/arXiv.2309.01279) also provide the benchmarking dataset "FOR-instance" for dense airborne laser scanning data. The dataset comprises five curated UAV-based laser scanning data collections from diverse global locations, representing various forest types. The data was collected over five sites in Norway, Czech Republic, Austria, Australia, and New Zealand and covers mature forests for the following forest types: boreal (42% of the number of trees) and temperate coniferous (5%), temperate mixed deciduous (29%), coniferous plantation (13%), and dry sclerophyll forests (11%). We might also consider this data for validation of our methods.
 
 First, load the standard libraries
 
@@ -528,13 +530,13 @@ While the map above shows that the training and evaluation data are in places th
 We will augment the training data by NEON site to validate against the image annotated crown ground truth using `NeonTreeEvaluation::evaluate_image_crowns()` by:
 
 * if a site has image annotated crowns marked as training data, use those plots
-* otherwise, if a site has at least 5 image annotated crown validation data sets borrow two plots to validate against
-* otherwise, if a site has at least 4 image annotated crown validation data sets borrow one plot to validate against
+* otherwise, if a site has at least 5 image annotated crown evaluation data sets borrow two plots to validate against
+* otherwise, if a site has at least 4 image annotated crown evaluation data sets borrow one plot to validate against
 
 We will augment the training data by NEON site to validate against the field collected stems ground truth using `NeonTreeEvaluation::evaluate_field_stems()` by:
 
 * if a site has at least 5 field collected stem validation data sets, borrow two plots to validate against even if the site has image annotated crowns marked as out-of-box training data
-* otherwise, if a site has at least 4 field collected stem validation data sets, borrow one plot to validate against
+* otherwise, if a site has at least 4 field collected stem evaluation data sets, borrow one plot to validate against
 
 We will then use the results of the validation based on the training data to select the best variable window search function based on the precision and recall metrics by NEON site. If a NEON site does not have training data the best overall variable window function will be used.
 
@@ -639,7 +641,7 @@ gc()
 
 ## Height threshold for "canopy" trees{#ht_filter}
 
-We'll process the point cloud and get a tree list using our `cloud2trees::cloud2trees()` method with all default settings except for the ITD window function (see section below). However, an important consideration in the evaluation of our method is that the ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark was developed specifically for "canopy" trees and the field-collected stems evaluation data only includes >10 cm DBH trees:
+We'll process the point cloud and get a tree list using our `cloud2trees::cloud2trees()` method with all default settings except for the ITD window function (see section below). However, an important consideration in the evaluation of our method is that the [Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6) benchmark was developed specifically for "canopy" trees and the field-collected stems evaluation data only includes >10 cm DBH trees:
 
 >NEON field crews sample all trees within a plot that are greater than 10cm DBH, regardless of whether the tree crown can be seen in the remote sensing image data. While understory tree detection is an important area of future work, the scope of this benchmark is focused on crowns in the canopy that are visible from above. (p. 10)
 
@@ -752,11 +754,28 @@ lidar_df_row <- lidar_df %>%
 
 #### View the point cloud
 
-this step isn't necessary for validation, but let's see what this point cloud data looks like
+This step isn't necessary for validation, but let's see what this point cloud data looks like. We can plot the point cloud with and color by the point height
 
-We can plot the point cloud with and color by the point height
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+# # ## if want to get current rgl parameters
+# par3d()$zoom
+# par3d()$FOV
+# par3d()$userMatrix %>% c()
+# par3d()$windowRect
+## set up for printing rgl graphics
+r3dDefaults <- rgl::r3dDefaults
+m  <- structure(c(
+0.978620589,0.029807273,-0.203502536,0.000000000,-0.205546334,0.106896326,-0.972791851,0.000000000,-0.007242568
+,0.993823111,0.110737726,0.000000000,0.000000000,0.000000000,0.000000000,1.000000000
+), .Dim = c(4L, 4L))
+r3dDefaults$FOV <- 30
+r3dDefaults$userMatrix <- m
+r3dDefaults$zoom <- 0.67
+r3dDefaults$windowRect <- c(0,23,1536,864)
+rgl::setupKnitr(autoprint = TRUE)
+```
 
-```{r, rgl = TRUE}
+```{r, rgl = TRUE, results='asis',fig.show='asis'}
 lidar_df$f_path[lidar_df_row] %>% 
   lidR::readLAS() %>% 
   lidR::plot(
@@ -767,7 +786,7 @@ lidar_df$f_path[lidar_df_row] %>%
 
 there are trees in there for sure (and conifer trees by the looks of it)
 
-let's look at the RGB imagery and image annotated crowns (notice that the `NeonTreeEvaluation` commands rely on the deprecated `raster` package :\)
+let's look at the RGB imagery and image annotated crowns (notice that the `NeonTreeEvaluation` commands rely on the deprecated `raster` package :/ )
 
 ```{r}
 # read rgb
@@ -930,7 +949,7 @@ yes, except for the "score" column which I'm pretty sure is an artifact from aft
 
 We compared our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. (2021): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.
 
-#### Scores for an image-annotated crowns
+#### Scores for image-annotated crowns
 
 The main data source are image-annotated crowns, in which a single observer annotated visible trees in 200 40m x 40m images from across the United States. Get the benchmark score image-annotated "ground truth" data.
 
@@ -974,7 +993,7 @@ rslt_img_annttd_crwns$plot_level
 
 count_error is the number of predicted trees minus the number of "ground truth" trees but in graphical form so we'll skip it
 
-#### Scores for an field-annotated crowns
+#### Scores for field-annotated crowns
 
 The second data source is a small number of field-annotated crowns from two geographic sites. These crowns were drawn on a tablet while physically standing in the field, thereby reducing the uncertainty in crown segmentation.
 
@@ -1001,7 +1020,7 @@ rslt_fld_crwns$error
 
 nope!
 
-#### Scores for an field-collected stems
+#### Scores for field-collected stems
 
 The third data source is the NEON Woody Vegetation Structure Dataset. Each tree stem is represented by a single point. This data has been filtered to represent overstory trees visible in the remote sensing imagery.
 
@@ -1349,7 +1368,7 @@ training_lidar_sum_temp %>%
     caption = "summary of training lidar data"
     , digits = 1
     , col.names = c(
-      "site","plot","# points","area m<sup>2</sup>", "points m<sup>-2</sup>"
+      "site","plot","# points","area m<sup>2</sup>", "points<br>per m<sup>2</sup>"
     )
     , escape = F
   ) %>% 
@@ -1607,7 +1626,7 @@ Precision quantifies the proportion of correctly identified tree crowns among al
 
 `NeonTreeEvaluation::evaluate_image_crowns()` is used to evaluate our data against the image-annotated crowns ground truth. This function returns precision and recall per image (i.e. "plot"). `NeonTreeEvaluation::evaluate_field_stems()` is used to evaluate our data against the field collected stems ground truth. This function returns recall -- the proportion of field stems that fall within a single predicted crown -- per image (i.e. "plot"). We will apply both evaluation methods over each variable window function tested for each plot marked as training data.
 
-#### Scores for an image-annotated crowns
+#### Scores for image-annotated crowns
 
 Get the benchmark score compared to image-annotated "ground truth" data.
 
@@ -1911,7 +1930,7 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
-#### Scores for an field-collected stems
+#### Scores for field-collected stems
 
 ```{r, include=FALSE, eval=FALSE}
 xxx <- NeonTreeEvaluation::evaluate_field_stems(
@@ -2098,6 +2117,8 @@ training_eval_overall <-
   ) %>% 
   dplyr::arrange(desc(f_score),desc(precision),desc(recall),desc(n_fld_cllctd_stems),desc(n_img_annttd_crwns)) %>% 
   dplyr::mutate(is_best_fn = dplyr::row_number()==1)
+# save it
+readr::write_csv(training_eval_overall, "../data/NeonTreeEvaluation_training_eval_overall.csv", append = F, progress = F)
 # site eval results
 training_eval_by_site <-
   training_eval_combined_temp %>% 
@@ -2117,6 +2138,7 @@ training_eval_by_site <-
       , T ~ 2 * ( (precision*recall)/(precision+recall) )
     )
   )
+# save it after cleaning
 ```
 
 #### Best variable window function by NEON site
@@ -2181,6 +2203,9 @@ let's look at the trees detected by NEON site and variable window function
 ```{r}
 trees_site_fn_temp %>% 
   tidyr::pivot_longer(cols = c(trees,area)) %>% 
+  dplyr::mutate(
+    siteID = forcats::fct_rev(siteID)
+  ) %>% 
   ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = ws_fn_nm)) +
     # ggplot2::geom_point(size = 4) +
     ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
@@ -2203,7 +2228,7 @@ trees_site_fn_temp %>%
     )
 ```
 
-There are some variable window functions that resulted in many more trees extracted than others. If we only have recall to judge by, these functions will perform better than others which may be more suitable simply because there are more trees (more of the plot area is covered so it is more likely that trees will be "detected" with no penalty for including more trees). To put some guard rails on these instances, we'll exclude functions from consideration to be selected if recall is the only evaluation metric and the number of trees detected is more than two standard deviations from the mean number of trees detected in a plot at a site. We'll apply the same constraints for the area covered by tree crowns as well to catch cases when there may be few trees detected but the individual crown area is very large so it covers more area even with fewer trees.
+There are some variable window functions that resulted in many more trees extracted than others. If we only have recall to judge by, these functions will perform better than others which may actually be more suitable simply because there are more trees (more of the plot area is covered so it is more likely that trees will be "detected" with no penalty for including more trees). To put some checks in-place to detect these instances, we'll exclude functions from consideration to be selected if recall is the only evaluation metric and the number of trees detected is more than two standard deviations from the mean number of trees detected in a plot at a site. We'll apply the same constraints for the area covered by tree crowns as well to catch cases when there may be few trees detected but the individual crown area is very large so it covers more area even with fewer trees.
 
 ```{r}
 trees_site_fn_temp <- trees_site_fn_temp %>% 
@@ -2322,7 +2347,7 @@ training_eval_overall %>%
 
 keep in mind that these are average values across plots and sites so the actual metric values matter little...it's the relative value that we care about
 
-we can view this "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns
+we can view this "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns and field collected stems ground truth data
 
 ```{r}
 training_eval_overall %>% 
@@ -2376,6 +2401,7 @@ remove(
   , training_img_annttd_crwns
   , submission_fn
   , neontree_plot_fn, clean_field_data
+  , m, r3dDefaults
 )
 gc()
 ```
@@ -2418,9 +2444,9 @@ Now we'll extract trees from the evaluation lidar data using the best window fun
 
 ```{r, results=FALSE, warning=FALSE, message=FALSE}
 # where should we save the file?
-submission_fn <- "../data/NeonTreeEvaluation_evaluation_submission.gpkg"
+submission_fn_temp <- "../data/NeonTreeEvaluation_evaluation_submission.gpkg"
 # if we don't already have the data, run it
-if(!file.exists(submission_fn)){
+if(!file.exists(submission_fn_temp)){
 # if(T){ ### !!!!!!! take out when it gets real
   # just get evaluation
   evaluation_df_temp <- lidar_df %>% 
@@ -2429,28 +2455,35 @@ if(!file.exists(submission_fn)){
         !is_new_image_annotation_training &
         !is_new_field_stems_training
     )
+  
   # get trees for each evaluation plot and ws fn combination
   evaluation_submission <- 
-    1:nrow(evaluation_df_temp) %>% 
-    purrr::map(\(x) 
-      ws_fn_eval(
-        lidar_df = evaluation_df_temp 
-        , lidar_df_row = x
-        , ws_fn_list = my_ws_functions
+    1:nrow(evaluation_df_temp) %>%
+    purrr::map(function(x){ 
+      # get ws fn
+      my_fn_nm <- evaluation_df_temp %>% dplyr::slice(x) %>% dplyr::pull(ws_fn_nm)
+      # run it
+      ans <- cloud2trees_for_eval(
+        lidar_df_row = x
+        , lidar_df = evaluation_df_temp
+        , ws = my_ws_functions[[my_fn_nm]]
       )
-    ) %>% 
+      ### some of these ws functions may not extract any trees
+      ### account for this
+      if(is.null(ans) || !inherits(ans,"data.frame")){
+        return(NULL)
+      }else{
+        return(
+          ans # %>% dplyr::mutate(ws_fn_nm = my_fn_nm) # uncomment for testing
+        )
+      }
+    }) %>% 
     dplyr::bind_rows()
   # save it 
-  sf::st_write(evaluation_submission, submission_fn, append = F)
+  sf::st_write(evaluation_submission, submission_fn_temp, append = F)
 }else{
-  evaluation_submission <- sf::st_read(submission_fn, quiet = T)
+  evaluation_submission <- sf::st_read(submission_fn_temp, quiet = T)
 }
-```
-
-what did we get?
-
-```{r}
-evaluation_submission %>% dplyr::glimpse()
 ```
 
 now we need to filter our tree list based on the [height threshold for "canopy" trees](#ht_filter)
@@ -2461,12 +2494,247 @@ evaluation_submission <-
   dplyr::inner_join(
     lidar_df %>% 
       sf::st_drop_geometry() %>% 
-      dplyr::filter(
-        data_type=="evaluation" | is_new_image_annotation_training | is_new_field_stems_training
-      ) %>% 
       dplyr::select(plot_name,site_prcntl_ht)
     , by = "plot_name"
   ) %>% 
   dplyr::filter(tree_height_m>=site_prcntl_ht) %>% 
   dplyr::select(-c(tree_height_m,site_prcntl_ht))
 ```
+
+what did we get?
+
+```{r}
+evaluation_submission %>% dplyr::glimpse()
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+### Evaluation: validation against ground truth
+
+We'll compare our aerial point cloud-based tree detection and crown delineation results to two types of evaluation data (i.e. “ground truth” data) presented by ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)): field-collected stems and image-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective.
+
+#### Scores for image-annotated crowns
+
+```{r, results=F, message=FALSE}
+# where should we save the file?
+evaluation_eval_temp <- "../data/NeonTreeEvaluation_evaluation_evaluate_image_crowns.csv"
+# if we don't already have the data, run it
+if(!file.exists(evaluation_eval_temp)){
+# if(T){
+  # filter for only those with this type of validation data
+  submission_temp <- evaluation_submission %>% 
+    dplyr::inner_join(
+      lidar_df %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::filter(has_image_annotation) %>% 
+        dplyr::distinct(plot_name)
+      , by = "plot_name"
+    )
+  
+  # safe it bc: error in `clue::solve_LSAP()`: long vectors (argument 1) are not supported
+  # would need to dig through NeonTreeEvaluation, fix, and pull request...
+  safe_evaluate_image_crowns <- purrr::safely(NeonTreeEvaluation::evaluate_image_crowns)
+  # validate
+  evaluation_img_annttd_crwns <- safe_evaluate_image_crowns(
+    predictions = submission_temp %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
+    , show = F
+    , summarize = T
+  )
+  
+  if(!is.null(evaluation_img_annttd_crwns$error)){
+    stop(evaluation_img_annttd_crwns$error)
+  }else{
+    evaluation_img_annttd_crwns <- 
+      evaluation_img_annttd_crwns$result %>% 
+        purrr::pluck("plot_level") %>% 
+        dplyr::ungroup()
+  }
+  # calculate f-score
+  evaluation_img_annttd_crwns <- evaluation_img_annttd_crwns %>% 
+    dplyr::mutate(
+      dplyr::across(.cols = c(precision,recall), ~ifelse(is.nan(.x),as.numeric(NA),.x))
+      , f_score = dplyr::case_when(
+        is.na(precision) | is.na(recall) ~ as.numeric(NA)
+        , (precision+recall) == 0 ~ 0
+        , T ~ 2 * ( (precision*recall)/(precision+recall) )
+      )
+    )
+  # save
+  readr::write_csv(evaluation_img_annttd_crwns, file = evaluation_eval_temp)
+}else{
+  evaluation_img_annttd_crwns <- readr::read_csv(evaluation_eval_temp, progress = F, show_col_types = F)
+}
+# evaluation_img_annttd_crwns %>% dplyr::glimpse()
+```
+
+our return data should include precision and recall values for each plot that had trees extracted (some evaluation plots might not have extracted any trees) with image annotated crown evaluation data...unless the `NeonTreeEvaluation::evaluate_image_crowns()` resulted in an error
+
+count of the plots which resulted in trees extracted and were successfully evaluated using image annotated crown ground truth data
+
+```{r}
+evaluation_submission %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::inner_join(
+    lidar_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(has_image_annotation) %>% 
+      dplyr::distinct(plot_name,siteID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::count(siteID,plot_name) %>% 
+  dplyr::left_join(
+    evaluation_img_annttd_crwns
+    , by = "plot_name"
+  ) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarize(plots = dplyr::n(), plots_eval = sum(ifelse(is.na(f_score),0,1))) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(pct = scales::percent(plots_eval/plots,accuracy = 1)) %>% 
+  dplyr::arrange(siteID) %>% 
+  kableExtra::kbl(
+    caption = "Count of plots with trees detected that were successfully evaluated using image annotated crowns"
+    , digits = 0
+    , col.names = c(
+      "plot","# plots<br>with trees","# plots<br>successfully evaluated"
+      ,"% plots<br>successfully evaluated"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+plot precision, recall, and F-score by NEON site
+
+```{r}
+evaluation_img_annttd_crwns %>% 
+  tidyr::pivot_longer(cols = c(precision,recall,f_score)) %>% 
+  dplyr::inner_join(lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID)) %>% 
+  dplyr::mutate(
+    name = ifelse(name=="f_score","F-score",name) %>% forcats::fct_rev()
+    , siteID = forcats::fct_rev(siteID)
+  ) %>% 
+  dplyr::group_by(siteID,name) %>% 
+  dplyr::mutate(med_value = median(value,na.rm=T)) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = name)) +
+    # ggplot2::geom_point(size = 4) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
+    ggplot2::geom_point(mapping=ggplot2::aes(x = med_value), size = 4, shape = 4, color = "black") +
+    ggplot2::facet_grid(cols = dplyr::vars(name)) +
+    ggplot2::scale_color_viridis_d(begin=0.3,end=0.7) +
+    ggplot2::labs(
+      x = "", y = "", color = ""
+      , subtitle = "Evaluation data: validation against image annotated crowns ground truth"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_text(size=8)
+      , panel.grid.major.y = ggplot2::element_line(color="gray22")
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    )
+```
+
+we'll quickly compare the variable window functions by averaging across sites and making a "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns
+
+```{r}
+agg_pr_temp <- training_img_annttd_crwns %>% 
+  dplyr::group_by(ws_fn_nm) %>% 
+  dplyr::summarise(dplyr::across(dplyr::where(is.numeric),mean))
+agg_pr_temp %>% 
+  ggplot2::ggplot(ggplot2::aes(x=precision,y=recall,color=ws_fn_nm)) +
+  ggplot2::geom_hline(yintercept = median(agg_pr_temp$recall),linetype="dashed") +
+  ggplot2::geom_vline(xintercept = median(agg_pr_temp$precision),linetype="dashed") +
+  ggplot2::geom_point(size = 6) +
+  ggplot2::scale_color_manual(values = pal_ws) +
+  ggplot2::scale_x_continuous(limits = c(0,0.5)) +
+  ggplot2::scale_y_continuous(limits = c(0,0.5)) +
+  ggplot2::labs(
+    color = "variable\nwindow\nfunction"
+    , subtitle = "Training data: validation against image annotated crowns ground truth"
+    , caption = "*values are averaged across sites and plots"
+  ) +
+  ggplot2::theme_light() +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+  )
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+
+Get the benchmark score compared to image-annotated "ground truth" data.
+
+how many plots did we evaluate that met all criteria:
+
+* had point cloud data in the benchmark
+* was from a NEON site with primarily conifer trees
+* had image-annotated crowns for evaluation
+
+```{r}
+# how many plots did we evaluate that met all criteria?
+rslt_img_annttd_crwns$plot_level %>% 
+  dplyr::ungroup() %>% 
+  dplyr::distinct(plot_name) %>% 
+  nrow()
+```
+
+how many plots were evaluated using `cloud2trees::cloud2trees()` by NEON site?
+
+```{r}
+img_annttd_crwn_plots_temp <- lidar_df %>% 
+  dplyr::inner_join(
+    rslt_img_annttd_crwns$plot_level %>% 
+      dplyr::ungroup() %>% 
+      dplyr::distinct(plot_name)
+    , by = "plot_name"
+  )
+# plots evaluated by neon site
+img_annttd_crwn_plots_temp %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::count(siteID) %>% 
+  dplyr::arrange(desc(n)) %>% 
+  kableExtra::kbl(
+    caption = "Number of 40m x 40m plots with image-annotated crowns evaluated using cloud2trees by NEON site"
+    , digits = 3
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+where are these NEON sites evaluated using `cloud2trees::cloud2trees()`?
+
+```{r}
+img_annttd_crwn_plots_temp %>% 
+  dplyr::count(siteID) %>% 
+  mapview::mapview(
+    cex = "n", legend = F
+    , layer.name = "NEON site"
+  )
+```
+
+let's review some figures comparing the image-annotated crowns versus the bounding box of our delineated crown polygons
+
+*in the RGB plots: "red" boxes are crowns from our point cloud-based method extracted and "black" are the image annotated crowns*
+
+```{r, message=FALSE, results=F, warning=FALSE,fig.show='asis'}
+rslt_img_annttd_crwns$plot_level %>% 
+  dplyr::ungroup() %>% 
+  dplyr::slice_sample(n=4) %>% 
+  dplyr::pull(plot_name) %>% 
+  purrr::map(\(x) NeonTreeEvaluation::image_crowns(
+    predictions = my_submission %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(plot_name==x)
+    , show = T
+    , project_boxes = F
+  ))
+```
+
+*in the RGB plots: "red" boxes are crowns from our point cloud-based method extracted and "black" are the image annotated crowns*
+
