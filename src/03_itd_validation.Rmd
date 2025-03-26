@@ -2296,7 +2296,7 @@ kableExtra::kbl(
   kableExtra::kable_styling()
 ```
 
-#### Best variable window function by NEON site
+#### Best variable window function overall
 
 to select the best overall variable window function to apply to NEON sites that lacked training data, we collapsed across all training sites and plots to calculate an average precision and recall at the variable window function level
 
