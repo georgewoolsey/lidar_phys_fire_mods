@@ -19,7 +19,8 @@ tab:unnamed-chunk-242
 tab:unnamed-chunk-243
 tab:unnamed-chunk-247
 tab:unnamed-chunk-253
-tab:unnamed-chunk-260
+tab:unnamed-chunk-258
+tab:unnamed-chunk-263
 introduction
 objective
 data_desc
@@ -97,6 +98,7 @@ evaluation-validation-process
 extract-trees-for-evaluation-data
 evaluation-validation-against-ground-truth
 scores-for-image-annotated-crowns-2
+prep-for-field-collected-stems-evaluation
 scores-for-field-collected-stems-2
 appendix
 data_ex
