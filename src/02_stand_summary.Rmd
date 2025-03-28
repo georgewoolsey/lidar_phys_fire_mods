@@ -1407,6 +1407,104 @@ gc()
 
 ## Write Data
 
+if we want to extend the buffer on our stand polygons to include trees outside of the unit for exporting data, then we will need to read in the tree list again since we filtered it above for only trees within unit boundaries to quantify the stand structure properly
+
+```{r, eval=FALSE, include=TRUE}
+use_bbox_temp <- F # use a bbox of the stand polygon or not?
+buffer_temp <- 0 # buffer either the polygon or the bbox by this much
+
+# quick function to ingest a sf data.frame with geometry features for each row
+# and return a bbox for each row-level geometry
+sf_bbox_by_row <- function(df) {
+  if(!inherits(df,"sf")){stop("must be sf class object")}
+  df %>% 
+    sf::st_set_geometry("geometry") %>% 
+    dplyr::rowwise() %>% 
+    dplyr::mutate(
+      xmin_temp = sf::st_bbox(geometry)[1]
+      , ymin_temp = sf::st_bbox(geometry)[2]
+      , xmax_temp = sf::st_bbox(geometry)[3]
+      , ymax_temp = sf::st_bbox(geometry)[4]
+    ) %>% 
+    dplyr::mutate(
+      geometry = sf::st_sfc(
+          sf::st_point(c(xmin_temp,ymin_temp)) # lower_left_pt
+          , sf::st_point(c(xmax_temp,ymax_temp)) # upper_right_pt
+        ) %>% 
+        sf::st_bbox() %>% 
+        sf::st_as_sfc()
+    ) %>%
+    dplyr::ungroup() %>%
+    sf::st_set_geometry("geometry") %>%
+    sf::st_set_crs(sf::st_crs(df)) %>% 
+    dplyr::select(-c(xmin_temp,ymin_temp,xmax_temp,ymax_temp))
+}
+
+#checks and run
+if(buffer_temp>0 || use_bbox_temp == T){
+  # get the data from already run
+  treetops_sf <-
+    list.files(
+      "../data/point_cloud_processing_delivery"
+      , pattern = "final_detected_tree_tops.*\\.gpkg$"
+      , full.names = T
+    ) %>% 
+    normalizePath() %>% 
+    purrr::map(\(x)
+      sf::st_read(
+        dsn = x
+        , quiet = T
+      )
+    ) %>% 
+    dplyr::bind_rows()
+  # bbox or not?
+    if(use_bbox_temp){
+      stand_sf_temp <- stand_sf %>% 
+        sf_bbox_by_row()
+    }else{stand_sf_temp <- stand_sf}
+    # stand_sf %>%
+    # dplyr::select(unit_id,unit_name,tidyselect::starts_with("stand_area_")) %>%
+    # sf_bbox_by_row() %>%
+    # sf::st_buffer(buffer_temp) %>%
+    # ggplot() + geom_sf(alpha=0.7) + geom_sf(data=stand_sf,color="red",fill=NA,lwd=2)
+  # trees clip
+  if(buffer_temp>0){
+    treetops_sf <- treetops_sf %>% 
+      sf::st_intersection(
+        stand_sf_temp %>% 
+          dplyr::select(unit_id,unit_name,tidyselect::starts_with("stand_area_")) %>% 
+          sf::st_buffer(buffer_temp)
+      ) 
+  }else{
+    treetops_sf <- treetops_sf %>% 
+      sf::st_intersection(
+        stand_sf_temp %>% 
+          dplyr::select(unit_id,unit_name,tidyselect::starts_with("stand_area_"))
+      ) 
+  }
+  # treetops_sf %>% nrow()
+  # treetops_sf %>% sf::st_drop_geometry() %>% dplyr::distinct(treeID) %>% nrow()
+  # treetops_sf %>% sf::st_drop_geometry() %>% dplyr::distinct(treeID, unit_id) %>% nrow()
+  
+  ## fill in missing cruz 
+  treetops_sf <- 
+    treetops_sf %>% 
+    dplyr::mutate(
+      is_missing_cruz = is.na(cruz_crown_biomass_kg)
+      , cruz_tree_kg_per_m3 = dplyr::coalesce(cruz_tree_kg_per_m3, landfire_tree_kg_per_m3)
+      , cruz_stand_kg_per_m3 = dplyr::coalesce(cruz_stand_kg_per_m3, landfire_stand_kg_per_m3)
+      , cruz_crown_biomass_kg = dplyr::coalesce(cruz_crown_biomass_kg, landfire_crown_biomass_kg)
+    )
+  
+}
+
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
 load in the tree crown polygon data from `cloud2trees::cloud2trees()` and filter based on the tree list
 
 ```{r, eval = F}
@@ -1441,6 +1539,7 @@ crowns_sf <-
         , cruz_crown_biomass_kg
       )
     , by = "treeID"
+    , relationship = "one-to-many" # allows for one tree to be in multiple units (e.g. if we buffered units)
   )
 # the records are the same
 identical(nrow(treetops_sf), nrow(crowns_sf))

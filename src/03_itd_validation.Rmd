@@ -2,7 +2,7 @@
 
 In this section we'll use the benchmark data made available in the [`NeonTreeEvaluation`](https://github.com/weecology/NeonTreeEvaluation_package) data set ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) to evaluate our process for lidar-based tree detection. We'll implement our tree detection process via the [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package.
 
-[Puliti et al. (2023)](https://doi.org/10.48550/arXiv.2309.01279) also provide the benchmarking dataset "FOR-instance" for dense airborne laser scanning data. The dataset comprises five curated UAV-based laser scanning data collections from diverse global locations, representing various forest types. The data was collected over five sites in Norway, Czech Republic, Austria, Australia, and New Zealand and covers mature forests for the following forest types: boreal (42% of the number of trees) and temperate coniferous (5%), temperate mixed deciduous (29%), coniferous plantation (13%), and dry sclerophyll forests (11%). We might also consider this data for validation of our methods.
+Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) also provide the benchmarking dataset "FOR-instance" for dense airborne laser scanning data. The dataset comprises five curated UAV-based laser scanning data collections from diverse global locations, representing various forest types. The data was collected over five sites in Norway, Czech Republic, Austria, Australia, and New Zealand and covers mature forests for the following forest types: boreal (42% of the number of trees) and temperate coniferous (5%), temperate mixed deciduous (29%), coniferous plantation (13%), and dry sclerophyll forests (11%). We might also consider this data for validation of our methods.
 
 First, load the standard libraries
 
@@ -50,7 +50,7 @@ remove(list = ls())
 gc()
 ```
 
-## `NeonTreeEvaluation` overview
+## `NeonTreeEvaluation` benchmark overview
 
 Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) developed: 
 
@@ -99,7 +99,7 @@ CRS:            NA
 
 So we are going to: run `cloud2trees::cloud2trees()` on all of the lidar data for which there is evaluation (i.e. ground truth) data, combine into a single tree list with a row unique by a detected tree and the `plot_name` column (e.g. "SJER_021_2018"), as an unprojected `sf` data with polygons in image coordinates. We may need to run `cloud2trees::simplify_multipolygon_crowns()` prior to submission.
 
-## lidar data in `NeonTreeEvaluation`
+## lidar data in `NeonTreeEvaluation`{#neon_lidar}
 
 we first have to download evaluation data from the Zenodo archive (1GB), use the `NeonTreeEvaluation::download()` function to place the data in the correct package location. Download the much larger training data, set `training=TRUE`. We are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure".
 
@@ -641,7 +641,7 @@ gc()
 
 ## Height threshold for "canopy" trees{#ht_filter}
 
-We'll process the point cloud and get a tree list using our `cloud2trees::cloud2trees()` method with all default settings except for the ITD window function (see section below). However, an important consideration in the evaluation of our method is that the [Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6) benchmark was developed specifically for "canopy" trees and the field-collected stems evaluation data only includes >10 cm DBH trees:
+We'll process the point cloud and get a tree list using our `cloud2trees::cloud2trees()` method with all default settings except for the ITD window function (see section below). However, an important consideration in the evaluation of our method is that the Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark was developed specifically for "canopy" trees and the field-collected stems evaluation data only includes >10 cm DBH trees:
 
 >NEON field crews sample all trees within a plot that are greater than 10cm DBH, regardless of whether the tree crown can be seen in the remote sensing image data. While understory tree detection is an important area of future work, the scope of this benchmark is focused on crowns in the canopy that are visible from above. (p. 10)
 
@@ -954,7 +954,7 @@ yes, except for the "score" column which I'm pretty sure is an artifact from aft
 
 ### Test evaluation
 
-We compared our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. (2021): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.
+We compared our tree detection and crown delineation results to the three types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)): field-collected stems, image-annotated crowns, and field-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective, and field-annotated crowns combine the benefits of both but are highly resource-intensive.
 
 #### Scores for image-annotated crowns
 
@@ -1627,7 +1627,7 @@ gc()
 
 ### Training: validation against ground truth
 
-We'll compare our aerial point cloud-based tree detection and crown delineation results to two types of evaluation data (i.e. “ground truth” data) presented by ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)): field-collected stems and image-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective.
+We'll compare our aerial point cloud-based tree detection and crown delineation results to two types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)): field-collected stems and image-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective.
 
 Precision quantifies the proportion of correctly identified tree crowns among all detected crowns (how many of the trees it found were real trees). Recall measures the proportion of correctly identified crowns relative to the total image-annotated tree crowns (how many of the actual trees it managed to find).
 
@@ -2521,7 +2521,7 @@ gc()
 
 ### Evaluation: validation against ground truth
 
-We'll compare our aerial point cloud-based tree detection and crown delineation results to two types of evaluation data (i.e. “ground truth” data) presented by ([Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)): field-collected stems and image-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective.
+We'll compare our aerial point cloud-based tree detection and crown delineation results to two types of evaluation data (i.e. “ground truth” data) presented by Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)): field-collected stems and image-annotated crowns. Field-collected stems offer precise tree locations but might not align with the position of the tree crown as viewed from above (e.g. due to tree lean), image-annotated crowns outline crown boundaries but are subjective.
 
 #### Scores for image-annotated crowns
 
@@ -2859,13 +2859,13 @@ gc()
 
 ## Summary of validation against ground truth{#valid_sum}
 
-Let's take a deep dive into the evaluation of our aerial point cloud-based tree detection methodology based on comparison to the [Weinstein et al. 2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6) benchmark data
+Let's take a deep dive into the evaluation of our aerial point cloud-based tree detection methodology based on comparison to the Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark data
 
 ### Overall
 
 let's look at the distribution of scores by pooling all plots across NEON sites
 
-### Image-annotated crowns
+#### Image-annotated crowns
 
 distribution of plot-level scores
 
@@ -2964,7 +2964,23 @@ evaluation_img_annttd_crwns %>%
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
-### Field-collected stems
+##### Comparison to other methods
+
+There are overall scores from other methods in the benchmark
+
+| Author                | Precision | Recall | Cite/Code                              |
+|-----------------------|-----------|--------|------------------------------------------|
+| Weinstein et al. 2020 | 0.66 | 0.79 | https://deepforest.readthedocs.io/|
+| Silva et al. 2016     | 0.34| 0.47 |[`lidR::silva2016()`](https://rdrr.io/cran/lidR/man/its_silva2016.html)|
+| `cloud2trees` (present study)     | `r scales::comma(mean(evaluation_img_annttd_crwns$precision),accuracy = 0.01)`| `r scales::comma(mean(evaluation_img_annttd_crwns$recall),accuracy = 0.01)` |[cloud2trees package](https://github.com/georgewoolsey/cloud2trees)|
+
+Our scores are in-line with the scores obtained by [`lidR::silva2016()`](https://rdrr.io/cran/lidR/man/its_silva2016.html) but it is unclear which plots and NEON sites were evaluated with this methodology
+
+Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) describe the DeepForest model:
+
+>DeepForest is a RGB deep learning model that predicts canopy crown bounding boxes. The prebuilt model in DeepForest was trained with the training data described above, but did not use or overlap spatially with any evaluation data in this benchmark. Following the best practices for computational biology benchmarking described in, we emphasize that the DeepForest algorithm was designed in conjunction with these evaluation data and it is therefore not surprising that it performs well, with image-annotated boxes and field-annotated crown polygons both at approximately 70% accuracy. (p. 14)
+
+#### Field-collected stems
 
 distribution of plot-level scores
 
@@ -3045,13 +3061,25 @@ evaluation_fld_cllctd_stems %>%
   ) %>% 
   kableExtra::kable_styling(font_size = 13) %>% 
   kableExtra::collapse_rows(columns = 1, valign = "top")
+
 ```
+
+##### Comparison to other methods
+
+There are overall scores from other methods in the benchmark
+
+| Author                |Recall | Cite/Code                              |
+|-----------------------|--------|------------------------------------------|
+| Weinstein et al. 2020 | 0.74 | https://deepforest.readthedocs.io/|
+| `cloud2trees` (present study) | `r scales::comma(mean(evaluation_fld_cllctd_stems$recall),accuracy = 0.01)` | [cloud2trees package](https://github.com/georgewoolsey/cloud2trees)|
+
+Our scores are in-line with the scores obtained by the DeepForest model which is promising given that "the DeepForest algorithm was designed in conjunction with these evaluation data" presented by Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6), p. 14)
 
 ### NEON site
 
 let's look at the distribution of scores at the NEON site level
 
-### Image-annotated crowns
+#### Image-annotated crowns
 
 distribution of plot-level scores
 
@@ -3174,7 +3202,7 @@ lidar_df %>%
   )
 ```
 
-### Field-collected stems
+#### Field-collected stems
 
 distribution of plot-level scores
 
@@ -3288,4 +3316,112 @@ lidar_df %>%
   )
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(
+  evaluation_fld_cllctd_stems, evaluation_img_annttd_crwns
+  , evaluation_submission, lidar_df
+  , safe_evaluate_field_crowns, safe_evaluate_field_stems
+  , percentile_for_ht, neon_min_ht
+)
+gc()
+```
+
+## FOR-instance
+
+Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) also provide the benchmarking dataset "FOR-instance" for dense airborne laser scanning data. The dataset comprises five curated UAV-based laser scanning data collections from diverse global locations, representing various forest types. The data was collected over five sites in Norway, Czech Republic, Austria, Australia, and New Zealand and covers mature forests for the following forest types: boreal (42% of the number of trees) and temperate coniferous (5%), temperate mixed deciduous (29%), coniferous plantation (13%), and dry sclerophyll forests (11%). We might also consider this data for validation of our methods.
+
+This benchmark data is described (p. 10): 
+
+>The annotated collections were then split into development (i.e. dev) and test sub-sets in order to create two separate sets of data for the following scopes:
+
+> **Dev data**: these data can be used for developing new methods. The dev data can be further split into training and validation by the user to create a validation dataset for hyperparameter tuning, overfitting detection, and model selection.
+
+> **Test data**: these data aim to be used for the final evaluation of a method (i.e., either preexisting or developed using the training data). These datasets should strictly not be used in any step of model training, and to avoid any information leak, the user should limit the number of
+times the test data is used.
+
+70% of the annotated area was selected for development (i.e. "training") and 30% for testing (i.e. "evaluation"). We downloaded this data from the online archive at [https://zenodo.org/records/8287792](https://zenodo.org/records/8287792) 
+
+## lidar data in **FOR-instance**
+
+FOR-instance includes the following five forest types described by Puliti et al. [(2023, p. 5)](https://doi.org/10.48550/arXiv.2309.01279):
+
+1) Coniferous dominated boreal forest (42% of the annotated trees): these are found in Norway in the **NIBIO** collection and are composed of mature forests dominated by Norway spruce (*Picea abies*) and with few Scots pine (*Pinus Sylvestris*) and deciduous species (mainly *Betula* sp.). In specific, the **NIBIO** collection is mainly dominated by Norway spruce. Further details on the **NIBIO** forest structures can be found in the study by Puliti et al. (2022).
+2) Coniferous dominated temperate forest (5% of the trees): these forests correspond to three plots in the **CULS** collection and consist of a productive even-aged Scots pine forest stand found in sandy areas of the Czech north of Prague, that are generally more productive than the mire forest in boreal conditions. Further details regarding forest characteristics can be found in Kuzelka et al. (2020).
+3) Deciduous alluvial forests (29% of the annotated trees): this forest type is found in the **TU_WIEN** collection and consists of a Natura 2000 site characterized by complex vegetation structures (woody debris, lying and standing deadwood, dense understory) a large diversity of tree species and considerable variation in canopy layering and tree size (DBH up to 1.3 m). Further details on the specific forest characteristics can be found in Wieser et al. (2017).
+4) Native dry sclerophyll eucalypt forest (11% of the annotated trees): This forest type is found in the **RMIT** collection with a dominant canopy species of White Peppermint (*Eucalyptus pulchella*). Trees of this species are found within the plot at a range of ages and heights (from 5 m to 17 m). The study site was subject to planned burning 3 years before the drone laser scanning acquisition. The understory at time of capture consisted of low shrubs (up to 2 m in height) and native grasses.
+5) Coniferous non-native temperate (13% of the annotated trees): This type is found in the **SCION** collection and consists of pure radiata pine (*Pinus radiata*) of 18-20 years of age and is representative of a typical productive plantation forest (approx. 930 trees per hectare) in New Zealand. The forest was planted on a 2 m × 5 m grid and remained unthinned, and no silvicultural interventions except for regular mowing of the blackberry understory between the rows. The vertical forest structure is single-layered, and due to the branchiness of radiata pine, the canopy is composed of a dense layer of intertwined and overlapping crowns.
+
+we will want to limit our evaluation to only sites with conifer trees -- **NIBIO**, **CULS**, and **SCION** -- since `cloud2trees` implements methods developed specifically to quantify conifer forest structure that may not be appropriate for other forest types
+
+let's load the FOR-instance point cloud data tracking file. If you have been with us from the beginning, this is the `lidar_df` file that we [generated above](#neon_lidar) for the Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark
+
+```{r}
+fi_lidar_df <- readr::read_csv("../data/FORinstance_dataset/data_split_metadata.csv", show_col_types = F, progress = F)
+# nice! we'll structure this in the same way as the `lidar_df` we have been working with above
+fi_lidar_df <-
+  fi_lidar_df %>% 
+  dplyr::mutate(
+    f_path = file.path( normalizePath("../data/FORinstance_dataset"), path )
+    , siteID = folder
+    , plot_name = paste0(
+      siteID
+      , "_"
+      , f_path %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")
+    )
+    , data_type = dplyr::case_when(
+      split == "dev" ~ "training"
+      , split == "test" ~ "evaluation"
+    ) %>% as.factor()
+  ) %>% 
+  # filter for the conifer sites
+  dplyr::filter(siteID %in% c("NIBIO","CULS","SCION") )
+# what is this?
+fi_lidar_df %>% dplyr::glimpse()
+```
+
+looks good. let's load in an example file and look at what it has
+
+```{r}
+las_temp <- fi_lidar_df %>% 
+  dplyr::filter(data_type=="training") %>% 
+  dplyr::slice(1) %>% 
+  dplyr::pull(f_path) %>% 
+  lidR::readLAS()
+# what?
+las_temp
+```
+
+that is a dense point cloud compared to the ALS data we used in the Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=4986448711981898434&hl=en&as_sdt=0,6)) benchmark
+
+Let's see if the point cloud data has attributes attached. Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) note that:
+
+>The tree unique identifier was stored as an additional treeID column in the .las files. The annotation was performed for all trees where the stem was visible in the point cloud. Hence, small trees in the understory were assigned to a low vegetation class (see step 2 semantic annotation). Trees outside the plot boundaries were not annotated but retained and assigned to the out-points class (see step 2 semantic annotation). In addition to any other point that did not represent a tree (e.g. ground), these points were assigned a treeID = 0. (p. 8)
+
+```{r}
+las_temp %>% 
+  purrr::pluck("data") %>% 
+  dplyr::glimpse()
+```
+
+look at that `treeID` attribute, super slick. let's look at a small segment of the point cloud and color the points by `treeID`
+
+```{r}
+lidR::clip_roi(
+    las_temp
+    , las_temp %>% 
+      lidR::st_bbox() %>% 
+      sf::st_as_sfc() %>% 
+      sf::st_centroid() %>% 
+      sf::st_buffer(sqrt(1000/4), endCapStyle = "SQUARE")
+  ) %>% 
+  lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+  lidR::plot(color = "treeID", bg = "white", legend = F, pal = viridis::turbo(n=111))
+```
+
+those sure look like trees \\ (^_^) /
+
+```{r}
+
+```
 
