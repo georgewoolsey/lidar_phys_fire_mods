@@ -412,13 +412,13 @@ lidar_df %>%
   dplyr::group_by(siteID) %>% 
   dplyr::summarise(pct_conifer = dplyr::first(pct_conifer)) %>% 
   dplyr::mutate(
-    is_conifer_site = pct_conifer>min_conifer_pct
+    is_conifer_site = ifelse(pct_conifer>min_conifer_pct,"conifer site","non-conifer site")
     , pct_conifer = scales::percent(pct_conifer,accuracy=0.1)
   ) %>% 
   mapview::mapview(
     zcol = "is_conifer_site", legend = T
     , layer.name = "conifer site?"
-    , col.regions = viridis::viridis(n=2,begin = 0.3,end = 0.7)
+    , col.regions = viridis::viridis(n=2,begin = 0.1,end = 0.9)
   )
 ```
 
@@ -2607,7 +2607,7 @@ evaluation_submission %>%
     caption = "Count of plots with trees detected that were successfully evaluated using image annotated crowns"
     , digits = 0
     , col.names = c(
-      "plot","# plots<br>with trees","# plots<br>successfully evaluated"
+      "site","# plots<br>with trees","# plots<br>successfully evaluated"
       ,"% plots<br>successfully evaluated"
     )
     , escape = F
@@ -2800,7 +2800,7 @@ evaluation_submission %>%
     caption = "Count of plots with trees detected that were successfully evaluated using field collected stems"
     , digits = 0
     , col.names = c(
-      "plot","# plots<br>with trees","# plots<br>successfully evaluated"
+      "site","# plots<br>with trees","# plots<br>successfully evaluated"
       ,"% plots<br>successfully evaluated"
     )
     , escape = F
@@ -2826,38 +2826,36 @@ evaluation_submission %>%
   dplyr::filter(is.na(recall))
 ```
 
-plot recall by NEON site
+we'll dig into these metrics in the [next section](#valid_sum); for now, let's review some figures comparing the field collected stem point locations versus our delineated crown polygons
 
-```{r}
+*in the RGB plots: "red" outlines are crowns from our point cloud-based method extracted while "blue" points are the field collected stems not detected and "yellow" points are the field collected stems properly identified*
+
+```{r, message=FALSE, results=F, warning=FALSE,fig.show='asis'}
+set.seed(88)
 evaluation_fld_cllctd_stems %>% 
-  tidyr::pivot_longer(cols = c(recall,n)) %>% 
-  dplyr::filter(name=="recall") %>% 
-  dplyr::mutate(
-    siteID = forcats::fct_rev(siteID)
-  ) %>% 
-  ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = name)) +
-    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
-    ggplot2::geom_boxplot(
-      width=0.3,staplewidth=0.4,lwd=0.7
-      ,fill=NA,color = "gray9"
-      , outliers = F
-    ) +
-    ggplot2::facet_grid(cols = dplyr::vars(name)) +
-    ggplot2::scale_color_manual(values=viridis::viridis(n=3,begin=0.3,end=0.7)[1]) +
-    ggplot2::labs(
-      x = "", y = "", color = ""
-      , subtitle = "Evaluation data: validation against field collected ground truth by NEON site"
-    ) +
-    ggplot2::theme_light() +
-    ggplot2::theme(
-      legend.position = "none"
-      , axis.text.x = ggplot2::element_text(size=7)
-      , panel.grid.major.y = ggplot2::element_line(color="gray22")
-      , strip.text = ggplot2::element_text(color = "black", size = 10)
-    )
+  dplyr::ungroup() %>% 
+  dplyr::slice_sample(n=3) %>% 
+  dplyr::pull(plot_name) %>% 
+  purrr::map(\(x) NeonTreeEvaluation::evaluate_field_stems(
+    predictions = evaluation_submission %>% 
+      dplyr::inner_join(
+        lidar_df %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::filter(has_field_stems) %>% 
+          dplyr::distinct(plot_name)
+        , by = "plot_name"
+      ) %>% 
+      dplyr::filter(plot_name==x)
+    , show = T
+  ))
 ```
 
-the recall values for our lidar-based tree list are much better using the field collected stems for validation than using the image annotated crowns...this might this suggest that our "canopy" filter is aligned for field stems (which we based the filter on) but not for crowns visible from aerial photography
+*in the RGB plots: "red" outlines are crowns from our point cloud-based method extracted while "blue" points are the field collected stems not detected and "yellow" points are the field collected stems properly identified*
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
 
 ## Summary of validation against ground truth{#valid_sum}
 
@@ -3051,7 +3049,7 @@ evaluation_fld_cllctd_stems %>%
 
 ### NEON site
 
-let's look at the distribution of scores by pooling all plots at the NEON site level
+let's look at the distribution of scores at the NEON site level
 
 ### Image-annotated crowns
 
@@ -3145,9 +3143,9 @@ evaluation_img_annttd_crwns %>%
   dplyr::select(-c(n,min,max)) %>% 
   dplyr::arrange(unit_lab,metric) %>% 
   kableExtra::kbl(
-    caption = "Overall validation against image annotated crowns ground truth"
+    caption = "NEON site-level validation against image annotated crowns ground truth"
     , col.names = c(
-      "Site", "Metric"
+      "site", "Metric"
       , "Mean", "Median"
       , "Std Dev", "Range"
     )
@@ -3176,39 +3174,44 @@ lidar_df %>%
   )
 ```
 
-
 ### Field-collected stems
 
 distribution of plot-level scores
 
 ```{r}
 evaluation_fld_cllctd_stems %>% 
+  dplyr::select(-siteID) %>% 
+  dplyr::inner_join(
+    lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID),by="plot_name"
+  ) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::mutate(siteID = paste0(siteID, "\n(plots=", scales::comma(dplyr::n(),accuracy=1),")")) %>% 
+  dplyr::ungroup() %>% 
   tidyr::pivot_longer(cols = c(recall,n)) %>% 
   dplyr::filter(name!="n") %>% 
   dplyr::mutate(
     name = ifelse(name=="n","# actual trees",name) %>% forcats::fct_rev()
+    , siteID = forcats::fct_rev(siteID)
   ) %>% 
-  dplyr::group_by(name) %>% 
-  dplyr::mutate(med_val = median(value,na.rm=T)) %>% 
-  dplyr::ungroup() %>% 
-  ggplot2::ggplot(ggplot2::aes(x = value, color = name, fill = name)) +
-    ggplot2::geom_density(alpha = 0.7, lwd = 1.2) +
-    ggplot2::geom_vline(aes(xintercept = med_val), linetype = "dashed") +
-    ggplot2::geom_rug() +
-    ggplot2::facet_wrap(facets = vars(name), scales = "free") +
-    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
+  ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = name)) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
+    ggplot2::geom_boxplot(
+      width=0.3,staplewidth=0.4,lwd=0.7
+      ,fill=NA,color = "gray9"
+      , outliers = F
+    ) +
+    ggplot2::facet_grid(cols = dplyr::vars(name)) +
     ggplot2::scale_color_manual(values=c(viridis::viridis(n=3,begin=0.3,end=0.7)[1],"gray")) +
-    ggplot2::scale_fill_manual(values=c(viridis::viridis(n=3,begin=0.3,end=0.7)[1],"gray")) +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
     ggplot2::labs(
-      x = "", y = ""
-      , subtitle = "Overall validation against field-collected stems ground truth"
+      x = "", y = "", color = ""
+      , subtitle = "NEON site-level validation against field-collected stems ground truth"
     ) +
     ggplot2::theme_light() +
     ggplot2::theme(
       legend.position = "none"
       , axis.text.x = ggplot2::element_text(size=7)
-      , axis.text.y = ggplot2::element_blank()
-      , axis.ticks.y = ggplot2::element_blank()
+      , panel.grid.major.y = ggplot2::element_line(color="gray22")
       , strip.text = ggplot2::element_text(color = "black", size = 10)
     )
 ```
@@ -3217,7 +3220,11 @@ summary statistics
 
 ```{r}
 evaluation_fld_cllctd_stems %>% 
-  dplyr::ungroup() %>% 
+  dplyr::select(-siteID) %>% 
+  dplyr::inner_join(
+    lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID),by="plot_name"
+  ) %>% 
+  dplyr::group_by(siteID) %>% 
   dplyr::summarise(
     dplyr::across(
       c(recall)
@@ -3225,7 +3232,7 @@ evaluation_fld_cllctd_stems %>%
     )
     , n = dplyr::n()
   ) %>% 
-  tidyr::pivot_longer(cols = -c(n)) %>% 
+  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
   dplyr::mutate(
     agg = stringr::word(name,-1,sep = "_")
     , metric = stringr::str_remove_all(name, paste0("_",agg))
@@ -3237,19 +3244,20 @@ evaluation_fld_cllctd_stems %>%
   tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
   dplyr::mutate(
     unit_lab = paste0(
-      "Overall<br>("
+      siteID
+      , "<br>("
       , scales::comma(n,accuracy=1)
       ," plots)"
     )
     , range = paste0(min, "—", max)
   ) %>% 
   dplyr::relocate(unit_lab) %>% 
-  dplyr::select(-c(n,min,max)) %>% 
+  dplyr::select(-c(siteID,n,min,max)) %>% 
   dplyr::arrange(unit_lab,metric) %>% 
   kableExtra::kbl(
-    caption = "Overall validation against field-collected stems ground truth"
+    caption = "NEON site-level validation against field collected-stems ground truth"
     , col.names = c(
-      "Score level", "Metric"
+      "site", "Metric"
       , "Mean", "Median"
       , "Std Dev", "Range"
     )
@@ -3260,5 +3268,24 @@ evaluation_fld_cllctd_stems %>%
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
+the recall values for our lidar-based tree list are much better using the field collected stems for validation than using the image annotated crowns...this might this suggest that our "canopy" filter is aligned for field stems (which we based the filter on) but not for crowns visible from aerial photography
+
+where are these NEON sites that we were able to evaluate using the field-collected stems ground truth data
+
+```{r}
+lidar_df %>% 
+  dplyr::inner_join(
+    evaluation_fld_cllctd_stems %>% dplyr::distinct(plot_name)
+  ) %>% 
+  dplyr::count(siteID) %>%
+  dplyr::rename(plots_evaluated=n) %>% 
+  mapview::mapview(
+    cex = "plots_evaluated"
+    , label = "siteID"
+    , legend = F
+    # , layer.name = "# plots evaluated"
+    , col.regions = "steelblue2"
+  )
+```
 
 
