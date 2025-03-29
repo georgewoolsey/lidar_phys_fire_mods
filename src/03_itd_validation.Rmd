@@ -3385,7 +3385,7 @@ looks good. let's load in an example file and look at what it has
 ```{r}
 las_temp <- fi_lidar_df %>% 
   dplyr::filter(data_type=="training") %>% 
-  dplyr::slice(1) %>% 
+  dplyr::slice(2) %>% 
   dplyr::pull(f_path) %>% 
   lidR::readLAS()
 # what?
@@ -3561,38 +3561,7 @@ ggplot2::ggplot() +
   ggplot2::theme_void()
 ```
 
-Neat. In a real-world forest canopy tree crowns overlap. For example, where shorter trees are partially or entirely under the crown of taller trees. We want to ensure that we are allowing for this overlap because it represents reality. This will penalize the 2D crown-delineation process implemented in `cloud2trees` during evaluation since it does not capture this overlap.
-
-Let's check another point cloud to ensure we are capturing potential crown overlap.
-
-```{r, rgl=T}
-fi_lidar_df %>% 
-  dplyr::filter(data_type=="training") %>% 
-  dplyr::slice(18) %>% 
-  dplyr::pull(f_path) %>% 
-  lidR::readLAS() %>% 
-  lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
-  lidR::plot(color = "treeID", bg = "white", legend = F)
-```
-
-ok, there are overlapping crowns in this plot, let's look at our 2D crown polygon representation that we'll use for instance segmentation evaluation
-
-```{r}
-polys_temp <- fi_lidar_df %>% 
-  dplyr::filter(data_type=="training") %>% 
-  dplyr::slice(18) %>% 
-  dplyr::pull(f_path) %>% 
-  lidR::readLAS() %>% 
-  fi_las_to_poly(res = 0.1, smooth = F)
-# plot it
-ggplot2::ggplot() +
-  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
-  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
-  ggplot2::scale_fill_manual(values = c("forestgreen","gray11"), name = "") +
-  ggplot2::theme_void()
-```
-
-the darker green areas show individual tree crowns overlapping which appropriately reflects reality
+Neat. In a real-world forest canopy tree crowns overlap, for example, where shorter trees are partially or entirely under the crown of taller trees. We want to ensure that we are allowing for this overlap because it represents reality. This will penalize the 2D crown-delineation process implemented in `cloud2trees` during evaluation since it does not capture this overlap. There are overlapping crowns in this plot and our 2D crown polygon representation that we'll use for instance segmentation evaluation appropriately reflects reality (darker green areas show individual tree crowns overlapping)
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
