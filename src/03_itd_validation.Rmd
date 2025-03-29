@@ -3342,7 +3342,7 @@ times the test data is used.
 
 70% of the annotated area was selected for development (i.e. "training") and 30% for testing (i.e. "evaluation"). We downloaded this data from the online archive at [https://zenodo.org/records/8287792](https://zenodo.org/records/8287792) 
 
-## lidar data in **FOR-instance**
+### lidar data in **FOR-instance**
 
 FOR-instance includes the following five forest types described by Puliti et al. [(2023, p. 5)](https://doi.org/10.48550/arXiv.2309.01279):
 
@@ -3404,22 +3404,157 @@ las_temp %>%
   dplyr::glimpse()
 ```
 
-look at that `treeID` attribute, super slick. let's look at a small segment of the point cloud and color the points by `treeID`
+look at that `treeID` attribute, super slick. this particular plot has a small area, let's plot point cloud and color the points by `treeID`
 
-```{r}
-lidR::clip_roi(
-    las_temp
-    , las_temp %>% 
-      lidR::st_bbox() %>% 
-      sf::st_as_sfc() %>% 
-      sf::st_centroid() %>% 
-      sf::st_buffer(sqrt(1000/4), endCapStyle = "SQUARE")
-  ) %>% 
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+# ## if want to get current rgl parameters
+par3d()$zoom
+par3d()$FOV
+par3d()$userMatrix %>% c()
+par3d()$windowRect
+## set up for printing rgl graphics
+r3dDefaults <- rgl::r3dDefaults
+m  <- structure(c(
+  1.0000000,0.0000000,0.0000000,0.0000000,0.0000000
+  ,0.3420201,-0.9396926,0.0000000,0.0000000,0.9396926
+  ,0.3420201,0.0000000,0.0000000,0.0000000,0.0000000,1.0000000
+), .Dim = c(4L, 4L))
+r3dDefaults$FOV <- 30
+r3dDefaults$userMatrix <- m
+r3dDefaults$zoom <- 1
+r3dDefaults$windowRect <- c(371,31,1139,872)
+rgl::setupKnitr(autoprint = TRUE)
+```
+
+```{r, rgl = TRUE}
+las_temp %>% 
   lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
-  lidR::plot(color = "treeID", bg = "white", legend = F, pal = viridis::turbo(n=111))
+  lidR::plot(color = "treeID", bg = "white", legend = F)
 ```
 
 those sure look like trees \\ (^_^) /
+
+one challenge we will face is how to deal with trees that are in the data but not marked as trees because they are out of the plot
+
+```{r, rgl = TRUE}
+las_temp %>% 
+  lidR::filter_poi(!is.na(treeID)) %>% 
+  lidR::add_attribute(
+    ifelse(las_temp$treeID==0,0,1)
+    , "is_tree"
+  ) %>% 
+  lidR::plot(color = "is_tree", bg = "white", legend = T)
+```
+
+these non-plot trees will be classified with the Classification code of "3" for "out-points"
+
+```{r, rgl = TRUE}
+las_temp %>% 
+  lidR::filter_poi(!is.na(treeID)) %>% 
+  lidR::plot(color = "Classification", bg = "white", legend = T)
+```
+
+we will use the Classification code of "3" for "out-points" to mask our `cloud2trees` detected trees so that they don't count against us for precision
+
+Since the individual tree segmentation from Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) resides in the point cloud data only, we will need to transform the 3D point cloud into 2D representations of the tree crown. Let's make a quick function to do this so that we can compare tree crown polygons from the benchmark to our `cloud2trees` tree crown polygons. This will allow us to perform "instance segmentation evaluation" whereby we assess the the ability of our method to correctly identify and delineate individual trees.
+
+we'll want to use the FOR-instance point cloud as input and return: 1) tree crown polygons; 2) polygons of areas outside of the plot to mask
+
+```{r, include=FALSE,eval=FALSE}
+ggplot() + 
+  geom_sf(
+    data = las_temp %>% 
+      lidR::filter_poi(Classification == 3) %>% 
+      lidR::pixel_metrics(fun = max(!treeID), res = 0.1) %>% 
+      terra::as.polygons(aggregate = T, na.rm = T, crs = lidR::crs(las_temp)) %>% 
+      sf::st_as_sf()
+    , color = "black"
+    , fill = "gray22"
+  ) +
+  geom_sf(
+    data = las_temp %>% 
+      lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+      lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave") # yesssss
+    , fill=NA, color = "red",lwd=0.9
+  ) + 
+  geom_sf(
+    data = las_temp %>% 
+      lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+      lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "convex") # nooooo
+    , fill=NA, color = "blue",lwd=0.8
+  ) +
+  geom_sf(
+    data = sf::st_difference(
+      las_temp %>% 
+      lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+      lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave")
+      , las_temp %>% 
+      lidR::filter_poi(Classification == 3) %>% 
+      lidR::pixel_metrics(fun = max(!treeID), res = 0.1) %>% 
+      terra::as.polygons(aggregate = T, na.rm = T, crs = lidR::crs(las_temp)) %>% 
+      sf::st_as_sf()
+    )
+    , fill=NA, color = "cyan",lwd=0.5
+  )
+```
+
+```{r}
+fi_las_to_poly <- function(las,res=0.1) {
+  if(!inherits(las,"LAS")){stop("must be LAS class")}
+  # get the mask using out of plot points these areas will be removed from both
+  # the ground truth crowns and our estimated crowns
+  mask <- las %>% 
+    lidR::filter_poi(Classification == 3) %>% 
+    lidR::pixel_metrics(fun = max(!treeID), res = res) %>% 
+    terra::as.polygons(aggregate = T, na.rm = T, crs = lidR::crs(las)) %>% 
+    sf::st_as_sf()
+  # tree crown polygons
+  crowns <- sf::st_difference(
+      las %>% 
+        lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+        lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave") %>% 
+        dplyr::select(treeID)
+      , mask
+    )
+  # return
+  return(list(
+    crowns = crowns
+    , mask = mask
+  ))
+}
+```
+
+let's see if this function gets us 1) tree crown polygons; 2) polygons of areas outside of the plot to mask
+
+```{r}
+polys_temp <- fi_las_to_poly(las = las_temp)
+# plot it
+ggplot2::ggplot() +
+  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA) +
+  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA) +
+  ggplot2::scale_fill_manual(values = c("forestgreen","gray11"), name = "") +
+  ggplot2::theme_void()
+```
+
+neat.
+
+### Example validation process
+
+Puliti et al. [(2023, p. 14)](https://doi.org/10.48550/arXiv.2309.01279) provide guidance on performing "instance segmentation evaluation" whereby we assess the the ability of our method to correctly identify and delineate individual trees
+
+The first step in performing any instance segmentation evaluation is to match the point cloud reference and predicted instance IDs. To do this, it is necessary to define whether a prediction is correct. Here we adopt a method Wielgosz et al. (2023) proposed for matching tree instance IDs from two point clouds with reference and predicted instance IDs, respectively. Given a reference and a predicted point cloud with two separate sets of instances, the tree instances are iteratively matched in descending order from the tallest to the shortest trees by using the following algorithm:
+
+a) Find the tallest tree in the reference data;
+b) Find the tree in the predicted instances that have the largest intersection over union (IoU) with
+the tree selected in the previous step;
+c) if the IoU is <0.5: the predicted tree is considered an error, and thus no reference instance ID
+is available;
+d) if the IoU is ≥0.5: the tree is considered a correct match, and assign reference instance ID label
+to the predicted tree;
+e) Add to collection (dictionary) of predicted tree instances with IDs matching the reference
+instance IDs.
+
+Following the initial matching of reference and predicted instance IDs, the evaluation can be done on the tree level to evaluate detection, omission, and commission rates (which can be used to calculate precision, recall, and the F-score metric)
 
 ```{r}
 
