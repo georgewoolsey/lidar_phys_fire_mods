@@ -3408,10 +3408,10 @@ look at that `treeID` attribute, super slick. this particular plot has a small a
 
 ```{r,echo=FALSE,message=FALSE,warning=FALSE}
 # ## if want to get current rgl parameters
-par3d()$zoom
-par3d()$FOV
-par3d()$userMatrix %>% c()
-par3d()$windowRect
+# par3d()$zoom
+# par3d()$FOV
+# par3d()$userMatrix %>% c()
+# par3d()$windowRect
 ## set up for printing rgl graphics
 r3dDefaults <- rgl::r3dDefaults
 m  <- structure(c(
@@ -3438,25 +3438,25 @@ one challenge we will face is how to deal with trees that are in the data but no
 
 ```{r, rgl = TRUE}
 las_temp %>% 
-  lidR::filter_poi(!is.na(treeID)) %>% 
   lidR::add_attribute(
     ifelse(las_temp$treeID==0,0,1)
     , "is_tree"
   ) %>% 
+  lidR::filter_poi(!is.na(treeID)) %>% 
   lidR::plot(color = "is_tree", bg = "white", legend = T)
 ```
 
 these non-plot trees will be classified with the Classification code of "3" for "out-points"
 
-```{r, rgl = TRUE}
+```{r, eval=FALSE}
 las_temp %>% 
-  lidR::filter_poi(!is.na(treeID)) %>% 
+  lidR::filter_poi(!is.na(treeID) & Classification %in% c(3)) %>% 
   lidR::plot(color = "Classification", bg = "white", legend = T)
 ```
 
 we will use the Classification code of "3" for "out-points" to mask our `cloud2trees` detected trees so that they don't count against us for precision
 
-Since the individual tree segmentation from Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) resides in the point cloud data only, we will need to transform the 3D point cloud into 2D representations of the tree crown. Let's make a quick function to do this so that we can compare tree crown polygons from the benchmark to our `cloud2trees` tree crown polygons. This will allow us to perform "instance segmentation evaluation" whereby we assess the the ability of our method to correctly identify and delineate individual trees.
+Since the individual tree segmentation from Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) resides in the point cloud data only, we will need to transform the 3D point cloud into 2D representations of the tree crown. Let's make a quick function to do this so that we can compare tree crown polygons from the benchmark to our `cloud2trees` tree crown polygons. This will allow us to perform "instance segmentation evaluation" whereby we assess the ability of our method to correctly identify and delineate individual trees.
 
 we'll want to use the FOR-instance point cloud as input and return: 1) tree crown polygons; 2) polygons of areas outside of the plot to mask
 
@@ -3540,7 +3540,7 @@ neat.
 
 ### Example validation process
 
-Puliti et al. [(2023, p. 14)](https://doi.org/10.48550/arXiv.2309.01279) provide guidance on performing "instance segmentation evaluation" whereby we assess the the ability of our method to correctly identify and delineate individual trees
+Puliti et al. [(2023, p. 14)](https://doi.org/10.48550/arXiv.2309.01279) provide guidance on performing "instance segmentation evaluation" whereby we assess the ability of our method to correctly identify and delineate individual trees
 
 The first step in performing any instance segmentation evaluation is to match the point cloud reference and predicted instance IDs. To do this, it is necessary to define whether a prediction is correct. Here we adopt a method Wielgosz et al. (2023) proposed for matching tree instance IDs from two point clouds with reference and predicted instance IDs, respectively. Given a reference and a predicted point cloud with two separate sets of instances, the tree instances are iteratively matched in descending order from the tallest to the shortest trees by using the following algorithm:
 
