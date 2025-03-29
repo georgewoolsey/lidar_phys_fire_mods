@@ -738,7 +738,7 @@ readr::write_csv(lidar_df, "../data/NeonTreeEvaluation_lidar_df.csv", append = F
 
 ## Example validation process{#ex_valid}
 
-now that we have our lidar data and post-processing height filter that we can test our point cloud-based tree detection and crown segmentation process against, let's walk through the validation for a single point cloud
+now that we have our lidar data list and post-processing height filter that we can test our point cloud-based tree detection and crown segmentation process against, let's walk through the validation for a single point cloud
 
 we'll test with a single evaluation point cloud
 
@@ -3443,18 +3443,28 @@ las_temp %>%
     , "is_tree"
   ) %>% 
   lidR::filter_poi(!is.na(treeID)) %>% 
-  lidR::plot(color = "is_tree", bg = "white", legend = T)
+  lidR::plot(color = "is_tree", bg = "white", legend = F)
 ```
 
-these non-plot trees will be classified with the Classification code of "3" for "out-points"
+these non-plot trees shown in blue will be classified with the Classification code of "3" for "out-points"
 
-```{r, eval=FALSE}
+```{r}
 las_temp %>% 
-  lidR::filter_poi(!is.na(treeID) & Classification %in% c(3)) %>% 
-  lidR::plot(color = "Classification", bg = "white", legend = T)
+  purrr::pluck("data") %>% 
+  dplyr::count(Classification)
 ```
 
-we will use the Classification code of "3" for "out-points" to mask our `cloud2trees` detected trees so that they don't count against us for precision
+| Classification    | Class Name            |
+|-------------------|-----------------------|
+| 0           | Unclassified |
+| 1           | Low-vegetation |
+| 2           | Terrain |
+| 3           | Out-points |
+| 4           | Stem |
+| 5           | Live branches |
+| 6           | Woody branches |
+
+we will use the Classification code of "3" for "out-points" to mask our `cloud2trees` results in post-processing so that they don't count against us for precision. In performing instance segmentation, we'll also use the mask on the ground truth tree crowns for consistent comparison.
 
 Since the individual tree segmentation from Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) resides in the point cloud data only, we will need to transform the 3D point cloud into 2D representations of the tree crown. Let's make a quick function to do this so that we can compare tree crown polygons from the benchmark to our `cloud2trees` tree crown polygons. This will allow us to perform "instance segmentation evaluation" whereby we assess the ability of our method to correctly identify and delineate individual trees.
 
@@ -3499,13 +3509,28 @@ ggplot() +
 ```
 
 ```{r}
-fi_las_to_poly <- function(las,res=0.1) {
+fi_las_to_poly <- function(las,res=0.25,smooth=T) {
   if(!inherits(las,"LAS")){stop("must be LAS class")}
   # get the mask using out of plot points these areas will be removed from both
   # the ground truth crowns and our estimated crowns
   mask <- las %>% 
     lidR::filter_poi(Classification == 3) %>% 
-    lidR::pixel_metrics(fun = max(!treeID), res = res) %>% 
+    lidR::pixel_metrics(fun = max(!treeID), res = res)
+  if(smooth){
+    mask <- terra::focal(
+      mask
+      , w = 3
+      , fun = "max"
+      , na.rm = T
+      # na.policy Must be one of:
+        # "all" (compute for all cells)
+        # , "only" (only for cells that are NA)
+        # , or "omit" (skip cells that are NA).
+      , na.policy = "only"
+    )
+  }
+  # mask to polygons
+   mask <- mask %>% 
     terra::as.polygons(aggregate = T, na.rm = T, crs = lidR::crs(las)) %>% 
     sf::st_as_sf()
   # tree crown polygons
@@ -3527,36 +3552,186 @@ fi_las_to_poly <- function(las,res=0.1) {
 let's see if this function gets us 1) tree crown polygons; 2) polygons of areas outside of the plot to mask
 
 ```{r}
-polys_temp <- fi_las_to_poly(las = las_temp)
+polys_temp <- fi_las_to_poly(las = las_temp,res=0.1,smooth = F)
 # plot it
 ggplot2::ggplot() +
-  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA) +
-  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA) +
+  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
   ggplot2::scale_fill_manual(values = c("forestgreen","gray11"), name = "") +
   ggplot2::theme_void()
 ```
 
-neat.
+Neat. In a real-world forest canopy tree crowns overlap. For example, where shorter trees are partially or entirely under the crown of taller trees. We want to ensure that we are allowing for this overlap because it represents reality. This will penalize the 2D crown-delineation process implemented in `cloud2trees` during evaluation since it does not capture this overlap.
+
+Let's check another point cloud to ensure we are capturing potential crown overlap.
+
+```{r, rgl=T}
+fi_lidar_df %>% 
+  dplyr::filter(data_type=="training") %>% 
+  dplyr::slice(18) %>% 
+  dplyr::pull(f_path) %>% 
+  lidR::readLAS() %>% 
+  lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+  lidR::plot(color = "treeID", bg = "white", legend = F)
+```
+
+ok, there are overlapping crowns in this plot, let's look at our 2D crown polygon representation that we'll use for instance segmentation evaluation
+
+```{r}
+polys_temp <- fi_lidar_df %>% 
+  dplyr::filter(data_type=="training") %>% 
+  dplyr::slice(18) %>% 
+  dplyr::pull(f_path) %>% 
+  lidR::readLAS() %>% 
+  fi_las_to_poly(res = 0.1, smooth = F)
+# plot it
+ggplot2::ggplot() +
+  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
+  ggplot2::scale_fill_manual(values = c("forestgreen","gray11"), name = "") +
+  ggplot2::theme_void()
+```
+
+the darker green areas show individual tree crowns overlapping which appropriately reflects reality
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
 
 ### Example validation process
 
 Puliti et al. [(2023, p. 14)](https://doi.org/10.48550/arXiv.2309.01279) provide guidance on performing "instance segmentation evaluation" whereby we assess the ability of our method to correctly identify and delineate individual trees
 
-The first step in performing any instance segmentation evaluation is to match the point cloud reference and predicted instance IDs. To do this, it is necessary to define whether a prediction is correct. Here we adopt a method Wielgosz et al. (2023) proposed for matching tree instance IDs from two point clouds with reference and predicted instance IDs, respectively. Given a reference and a predicted point cloud with two separate sets of instances, the tree instances are iteratively matched in descending order from the tallest to the shortest trees by using the following algorithm:
+>The first step in performing any instance segmentation evaluation is to match the point cloud reference and predicted instance IDs. To do this, it is necessary to define whether a prediction is correct. Here we adopt a method Wielgosz et al. (2023) proposed for matching tree instance IDs from two point clouds with reference and predicted instance IDs, respectively. Given a reference and a predicted point cloud with two separate sets of instances, the tree instances are iteratively matched in descending order from the tallest to the shortest trees by using the following algorithm:
 
 a) Find the tallest tree in the reference data;
-b) Find the tree in the predicted instances that have the largest intersection over union (IoU) with
-the tree selected in the previous step;
-c) if the IoU is <0.5: the predicted tree is considered an error, and thus no reference instance ID
-is available;
-d) if the IoU is ≥0.5: the tree is considered a correct match, and assign reference instance ID label
-to the predicted tree;
-e) Add to collection (dictionary) of predicted tree instances with IDs matching the reference
-instance IDs.
+b) Find the tree in the predicted instances that have the largest intersection over union (IoU) with the tree selected in the previous step;
+c) if the IoU is <0.5: the predicted tree is considered an error, and thus no reference instance ID is available;
+d) if the IoU is ≥0.5: the tree is considered a correct match, and assign reference instance ID label to the predicted tree;
+e) Add to collection (dictionary) of predicted tree instances with IDs matching the reference instance IDs.
 
 Following the initial matching of reference and predicted instance IDs, the evaluation can be done on the tree level to evaluate detection, omission, and commission rates (which can be used to calculate precision, recall, and the F-score metric)
 
-```{r}
+#### `cloud2trees::cloud2trees()`
 
+for our example, we'll use all default settings in `cloud2trees::cloud2trees()` to get a point cloud-detected tree list
+
+```{r, warning=FALSE, message=FALSE, results=F}
+lidar_df_row_temp <-
+  fi_lidar_df %>% 
+  dplyr::mutate(
+    rn = ifelse(
+      data_type=="training"
+      ,dplyr::row_number()
+      ,NA
+  )) %>% 
+  dplyr::filter(!is.na(rn)) %>% 
+  dplyr::slice(1) %>% 
+  dplyr::pull(rn)
+```
+
+look at the point cloud
+
+```{r, rgl=T}
+fi_lidar_df %>% 
+  dplyr::slice(lidar_df_row_temp) %>% 
+  dplyr::pull(f_path) %>% 
+  lidR::readLAS() %>% 
+  lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+  lidR::plot(color = "treeID", bg = "white", legend = F)
+```
+
+extract trees using our `cloud2trees::cloud2trees()` process
+
+```{r, warning=FALSE, message=FALSE, results=F}
+# c2t
+ans <- cloud2trees::cloud2trees(
+  input_las_dir = fi_lidar_df$f_path[lidar_df_row_temp]
+  , output_dir = tempdir()
+)
+# simplify multipolygon crowns
+ans_crowns <- cloud2trees::simplify_multipolygon_crowns(ans$crowns_sf)
+```
+
+check out our extracted trees
+
+```{r}
+ggplot2::ggplot() +
+  ggplot2::geom_tile(
+    data = ans$chm_rast %>%
+      terra::as.data.frame(xy=T) %>%
+      dplyr::rename(f=3)
+    , mapping = ggplot2::aes(x = x, y = y, fill = f)
+    , na.rm = T
+  ) +
+  harrypotter::scale_fill_hp(
+    option = "gryffindor"
+    , breaks = scales::breaks_extended(n=10)
+  ) +
+  ggplot2::geom_sf(
+    data = ans_crowns
+    , fill = NA, color = "gray44", lwd = 1.2
+  ) +
+  ggplot2::labs(x = "", y = "", fill = "CHM (m)") +
+  ggplot2::theme_void() +
+  ggplot2::theme(axis.text = ggplot2::element_blank())
+```
+
+#### Comparison with ground truth
+
+check out the crown polygons from the ground truth data and we'll match the resolution to the `cloud2trees::cloud2trees()` setting
+
+```{r}
+polys_temp <- fi_lidar_df %>% 
+  dplyr::slice(lidar_df_row_temp) %>% 
+  dplyr::pull(f_path) %>% 
+  lidR::readLAS() %>% 
+  fi_las_to_poly(res = 0.25,smooth = T)
+# plot it
+ggplot2::ggplot() +
+  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
+  ggplot2::scale_fill_manual(values = c("forestgreen","gray11"), name = "") +
+  ggplot2::theme_void()
+```
+
+we'll implement a rule to remove the entire crown from our predicted data if >= 80% of it's area is masked
+
+```{r}
+# remove trees with >80% overlap with mask
+ans_crowns_no_mask <-
+  ans_crowns %>% 
+  dplyr::left_join(
+    # calculate area within mask
+    ans_crowns %>% 
+      dplyr::select(treeID) %>% 
+      sf::st_intersection(polys_temp$mask) %>% 
+      dplyr::mutate(mask_area = sf::st_area(.) %>% as.numeric()) %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::select(treeID,mask_area)
+    , by = "treeID"
+  ) %>% 
+  dplyr::filter(
+    ( dplyr::coalesce(mask_area,0)/as.numeric(sf::st_area(.)) ) < 0.8
+  ) %>% 
+  dplyr::select(-mask_area)
+```
+
+here are the predicted trees we are left to evaluate compared to the ground truth and the mask
+
+```{r}
+# plot it
+ggplot2::ggplot() +
+  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(
+    data = ans_crowns_no_mask
+    , mapping = ggplot2::aes(fill = "prediction")
+    , alpha = 0
+    , color = "purple", lwd = 1
+  ) +
+  ggplot2::scale_fill_manual(values = c("forestgreen","gray11","purple"), name = "") +
+  ggplot2::theme_void()
 ```
 
