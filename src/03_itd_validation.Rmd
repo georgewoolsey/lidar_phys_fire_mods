@@ -3364,6 +3364,10 @@ fi_lidar_df <-
   dplyr::mutate(
     f_path = file.path( normalizePath("../data/FORinstance_dataset"), path )
     , siteID = folder
+    , plotID = 
+      stringr::str_extract(path, pattern = "plot_\\d+") %>% 
+      stringr::str_remove("plot_") %>% 
+      readr::parse_number()
     , plot_name = paste0(
       siteID
       , "_"
@@ -3373,6 +3377,22 @@ fi_lidar_df <-
       split == "dev" ~ "training"
       , split == "test" ~ "evaluation"
     ) %>% as.factor()
+  ) %>% 
+  # we need to figure out where the tree level data resides
+  dplyr::left_join(
+    list.files(
+        "../data/FORinstance_dataset"
+        , pattern = "tree_data_.*\\.csv$"
+        , full.names = T, recursive = T
+      ) %>% 
+      normalizePath() %>% 
+      dplyr::as_tibble() %>% 
+      dplyr::rename(tree_data = 1) %>% 
+      dplyr::mutate(siteID = dirname(tree_data) %>% word(-1,sep = "/")) %>% 
+      dplyr::group_by(siteID) %>% 
+      dplyr::filter(dplyr::row_number()==1) %>% 
+      dplyr::ungroup()
+    , by = "siteID"
   ) %>% 
   # filter for the conifer sites
   dplyr::filter(siteID %in% c("NIBIO","CULS","SCION") )
@@ -3538,9 +3558,10 @@ fi_las_to_poly <- function(las,res=0.25,smooth=T) {
       las %>% 
         lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
         lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave") %>% 
-        dplyr::select(treeID)
+        dplyr::rename(highest_z_val = Z)
       , mask
-    )
+    ) %>% 
+    dplyr::select(treeID,highest_z_val)
   # return
   return(list(
     crowns = crowns
@@ -3652,15 +3673,15 @@ ggplot2::ggplot() +
 check out the crown polygons from the ground truth data and we'll match the resolution to the `cloud2trees::cloud2trees()` setting
 
 ```{r}
-polys_temp <- fi_lidar_df %>% 
+ground_truth_temp <- fi_lidar_df %>% 
   dplyr::slice(lidar_df_row_temp) %>% 
   dplyr::pull(f_path) %>% 
   lidR::readLAS() %>% 
   fi_las_to_poly(res = 0.25,smooth = T)
 # plot it
 ggplot2::ggplot() +
-  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
-  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = ground_truth_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = ground_truth_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
   ggplot2::scale_fill_manual(values = c("forestgreen","gray11"), name = "") +
   ggplot2::theme_void()
 ```
@@ -3675,7 +3696,7 @@ ans_crowns_no_mask <-
     # calculate area within mask
     ans_crowns %>% 
       dplyr::select(treeID) %>% 
-      sf::st_intersection(polys_temp$mask) %>% 
+      sf::st_intersection(ground_truth_temp$mask) %>% 
       dplyr::mutate(mask_area = sf::st_area(.) %>% as.numeric()) %>% 
       sf::st_drop_geometry() %>% 
       dplyr::select(treeID,mask_area)
@@ -3692,15 +3713,126 @@ here are the predicted trees we are left to evaluate compared to the ground trut
 ```{r}
 # plot it
 ggplot2::ggplot() +
-  ggplot2::geom_sf(data = polys_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
-  ggplot2::geom_sf(data = polys_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = ground_truth_temp$mask, mapping = ggplot2::aes(fill = "mask"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(data = ground_truth_temp$crowns, mapping = ggplot2::aes(fill = "crowns"), color = NA,alpha=0.9) +
+  ggplot2::geom_sf(
+    data = ans_crowns %>% 
+      dplyr::anti_join(
+        ans_crowns_no_mask %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::select(treeID)
+        , by = "treeID"
+      )
+    , mapping = ggplot2::aes(fill = "prediction\nremoved")
+    , alpha = 0
+    , color = "plum", lwd = 1
+  ) +
   ggplot2::geom_sf(
     data = ans_crowns_no_mask
     , mapping = ggplot2::aes(fill = "prediction")
     , alpha = 0
     , color = "purple", lwd = 1
   ) +
-  ggplot2::scale_fill_manual(values = c("forestgreen","gray11","purple"), name = "") +
+  ggplot2::scale_fill_manual(values = c("forestgreen","gray11","purple","plum"), name = "") +
   ggplot2::theme_void()
+```
+
+#### Prediction vs ground truth matching
+
+Given a reference and a predicted point cloud with two separate sets of instances, the tree instances are iteratively matched in descending order from the tallest to the shortest trees by using the following algorithm:
+
+a) Find the tallest tree in the reference data;
+b) Find the tree in the predicted instances that have the largest intersection over union (IoU) with the tree selected in the previous step;
+c) if the IoU is <0.5: the predicted tree is considered an error, and thus no reference instance ID is available;
+d) if the IoU is ≥0.5: the tree is considered a correct match, and assign reference instance ID label to the predicted tree;
+e) Add to collection (dictionary) of predicted tree instances with IDs matching the reference instance IDs.
+
+to find the tallest tree in the data we need to bring in the tree attributes data
+
+```{r}
+ground_truth_temp$crowns <- ground_truth_temp$crowns %>% 
+  # add in tree attribute data
+  dplyr::left_join(
+    # read tree data
+    fi_lidar_df %>% 
+      dplyr::slice(lidar_df_row_temp) %>% 
+      dplyr::pull(tree_data) %>% 
+      readr::read_csv(show_col_types = F, progress = F) %>% 
+      # filter for just the current plot
+      dplyr::filter(
+        plotID == fi_lidar_df %>% 
+          dplyr::slice(lidar_df_row_temp) %>% 
+          dplyr::pull(plotID)
+      ) %>% 
+      dplyr::rename_with(.fn = tolower, .cols = -c(plotID,treeID))
+    , by = "treeID"
+  )
+# what tree attributes are there?
+ground_truth_temp$crowns %>% dplyr::glimpse()
+```
+
+looks like there is only DBH so we'll use the `highest_z_val` data calculated from the point cloud using our `fi_las_to_poly()` for the matching algorithm above
+
+first, we'll define a function to attempt a match with a single ground truth tree
+
+```{r}
+ground_truth_single_tree_match <- function(gt_tree, predictions, min_iou_pct = 0.5) {
+  if( !inherits(gt_tree,"sf") || nrow(gt_tree)!=1 ){stop("ground truth tree must be spatial `sf` data with a single record")}
+  if( !inherits(predictions,"sf") ){stop("predictions must be spatial `sf` data")}
+  if( !(names(gt_tree) %>% stringr::str_equal("treeID") %>% any()) ){stop("ground truth tree data must contain `treeID` column")}
+  if( names(predictions) %>% stringr::str_equal("treeID") %>% any() ){
+    predictions <- predictions %>% dplyr::rename(treeID_pred = treeID)
+  }
+  # intersection
+    i_temp <-
+      sf::st_intersection(predictions,gt_tree) %>% 
+      dplyr::mutate(i_area = sf::st_area(.) %>% as.numeric())
+    if(nrow(i_temp)==0){return(NULL)}
+  # union
+    u_temp <-
+      i_temp %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::inner_join(predictions %>% sf::st_set_geometry("geom1")) %>% 
+      dplyr::inner_join(gt_tree %>% sf::st_set_geometry("geom2") %>% dplyr::select(treeID), by = "treeID") %>% 
+      dplyr::rowwise() %>% 
+      dplyr::mutate(
+        u_area = sf::st_union(geom1, geom2) %>% sf::st_area() %>% as.numeric()
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(-c(geom1,geom2)) %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::mutate(
+        iou = dplyr::case_when(
+          is.na(u_area) | is.nan(u_area) ~ NA
+          , T ~ dplyr::coalesce(i_area,0)/u_area
+        )
+      ) %>% 
+      dplyr::filter(!is.na(iou) & iou>=min_iou_pct)
+    if(nrow(u_temp)==0){return(NULL)}
+  # return
+  return(
+    u_temp %>% 
+      # pick the highest iou
+      dplyr::arrange(desc(iou)) %>% 
+      dplyr::slice(1) %>% 
+      # column clean
+      dplyr::select(
+        treeID, i_area, u_area, iou
+        , base::setdiff( 
+          names(predictions)
+          , c("geometry", "geom", "treeID", "i_area", "u_area", "iou") 
+        )
+      )
+  )
+}
+```
+
+test
+
+```{r}
+ground_truth_single_tree_match(
+  gt_tree = ground_truth_temp$crowns %>% dplyr::arrange(desc(highest_z_val)) %>% dplyr::slice(1)
+  , predictions = ans_crowns_no_mask %>% dplyr::select(treeID)
+)
 ```
 
