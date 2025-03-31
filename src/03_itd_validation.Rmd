@@ -3484,7 +3484,7 @@ las_temp %>%
 | 5           | Live branches |
 | 6           | Woody branches |
 
-we will use the Classification code of "3" for "out-points" to mask our `cloud2trees` results in post-processing so that they don't count against us for precision. In performing instance segmentation, we'll also use the mask on the ground truth tree crowns for consistent comparison.
+we will use the Classification code of "3" for "out-points" to mask our `cloud2trees` results in post-processing so that they don't count against us for precision.
 
 Since the individual tree segmentation from Puliti et al. [(2023)](https://doi.org/10.48550/arXiv.2309.01279) resides in the point cloud data only, we will need to transform the 3D point cloud into 2D representations of the tree crown. Let's make a quick function to do this so that we can compare tree crown polygons from the benchmark to our `cloud2trees` tree crown polygons. This will allow us to perform "instance segmentation evaluation" whereby we assess the ability of our method to correctly identify and delineate individual trees.
 
@@ -3549,18 +3549,17 @@ fi_las_to_poly <- function(las,res=0.25,smooth=T) {
       , na.policy = "only"
     )
   }
-  # mask to polygons
+  # raster mask to polygons
    mask <- mask %>% 
     terra::as.polygons(aggregate = T, na.rm = T, crs = lidR::crs(las)) %>% 
     sf::st_as_sf()
   # tree crown polygons
-  crowns <- sf::st_difference(
-      las %>% 
-        lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
-        lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave") %>% 
-        dplyr::rename(highest_z_val = Z)
-      , mask
-    ) %>% 
+  crowns <- 
+    las %>% 
+    lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+    lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave") %>% 
+    dplyr::rename(highest_z_val = Z) %>% 
+    # sf::st_difference(mask) %>% # to be consistent we
     dplyr::select(treeID,highest_z_val)
   # return
   return(list(
@@ -3617,7 +3616,7 @@ lidar_df_row_temp <-
       ,NA
   )) %>% 
   dplyr::filter(!is.na(rn)) %>% 
-  dplyr::slice(1) %>% 
+  dplyr::slice(2) %>% 
   dplyr::pull(rn)
 ```
 
@@ -3686,10 +3685,10 @@ ggplot2::ggplot() +
   ggplot2::theme_void()
 ```
 
-we'll implement a rule to remove the entire crown from our predicted data if >= 80% of it's area is masked
+we'll implement a rule to remove the entire crown from our predicted data if >= 70% of it's area is masked
 
 ```{r}
-# remove trees with >80% overlap with mask
+# remove trees with >70% overlap with mask
 ans_crowns_no_mask <-
   ans_crowns %>% 
   dplyr::left_join(
@@ -3703,7 +3702,7 @@ ans_crowns_no_mask <-
     , by = "treeID"
   ) %>% 
   dplyr::filter(
-    ( dplyr::coalesce(mask_area,0)/as.numeric(sf::st_area(.)) ) < 0.8
+    ( dplyr::coalesce(mask_area,0)/as.numeric(sf::st_area(.)) ) < 0.7
   ) %>% 
   dplyr::select(-mask_area)
 ```
@@ -3783,6 +3782,10 @@ ground_truth_single_tree_match <- function(gt_tree, predictions, min_iou_pct = 0
   if( names(predictions) %>% stringr::str_equal("treeID") %>% any() ){
     predictions <- predictions %>% dplyr::rename(treeID_pred = treeID)
   }
+  if( !(names(predictions) %>% stringr::str_equal("treeID_pred") %>% any()) ){
+    stop("predictions tree data must contain `treeID` or `treeID_pred` column")
+  }
+  
   # intersection
     i_temp <-
       sf::st_intersection(predictions,gt_tree) %>% 
@@ -3792,7 +3795,7 @@ ground_truth_single_tree_match <- function(gt_tree, predictions, min_iou_pct = 0
     u_temp <-
       i_temp %>% 
       sf::st_drop_geometry() %>% 
-      dplyr::inner_join(predictions %>% sf::st_set_geometry("geom1")) %>% 
+      dplyr::inner_join(predictions %>% sf::st_set_geometry("geom1"), by = "treeID_pred") %>% 
       dplyr::inner_join(gt_tree %>% sf::st_set_geometry("geom2") %>% dplyr::select(treeID), by = "treeID") %>% 
       dplyr::rowwise() %>% 
       dplyr::mutate(
@@ -3827,12 +3830,190 @@ ground_truth_single_tree_match <- function(gt_tree, predictions, min_iou_pct = 0
 }
 ```
 
-test
+test for a single ground truth tree
 
 ```{r}
 ground_truth_single_tree_match(
-  gt_tree = ground_truth_temp$crowns %>% dplyr::arrange(desc(highest_z_val)) %>% dplyr::slice(1)
+  gt_tree = ground_truth_temp$crowns %>% dplyr::arrange(desc(highest_z_val)) %>% dplyr::slice(2)
   , predictions = ans_crowns_no_mask %>% dplyr::select(treeID)
 )
 ```
 
+now we need to make a function that takes reference and predicted tree crown polygons, matches the trees iteratively allowing for only a single match from the predictions (i.e. one prediction can only go to one ground truth tree), and returns all trees labeled as true positive (correctly matched with a prediction), commission (predictions which do not match a ground truth tree), or omission (ground truth trees for which no predictions match)
+
+```{r}
+ground_truth_crown_match <- function(
+  # ground_truth should be sorted already
+  ground_truth
+  # predictions just needs treeID
+  , predictions
+  , min_iou_pct = 0.5
+) {
+  # checks
+  if( !inherits(ground_truth,"sf") || nrow(ground_truth)==0 ){stop("ground truth must be spatial `sf` data")}
+  if( !inherits(predictions,"sf") ){stop("predictions must be spatial `sf` data")}
+  if( !(names(ground_truth) %>% stringr::str_equal("treeID") %>% any()) ){
+    stop("ground truth tree data must contain `treeID` column")
+  }
+  if( !(names(predictions) %>% stringr::str_equal("treeID") %>% any()) ){
+    stop("predictions tree data must contain `treeID` column")
+  }else{
+    predictions <- predictions %>% dplyr::rename(treeID_pred = treeID)
+  }
+  # set up a blank data frame
+  return_df <-
+    dplyr::tibble(
+      i_area = as.numeric(NA)
+      , u_area = as.numeric(NA)
+      , iou = as.numeric(NA)
+    ) %>% 
+    dplyr::bind_cols(
+      ground_truth %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::select(treeID) %>% 
+        dplyr::slice(0)
+    ) %>% 
+    dplyr::bind_cols(
+      predictions %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::select(treeID_pred) %>% 
+        dplyr::slice(0)
+    ) %>% 
+    dplyr::relocate(tidyselect::starts_with("treeID"))
+  # start with tallest tree and match to get true positives
+    for (i in 1:nrow(ground_truth)) {
+      match_temp <- ground_truth_single_tree_match(
+        gt_tree = ground_truth %>% dplyr::slice(i)
+        , predictions = predictions %>% dplyr::anti_join(return_df,by="treeID_pred")
+        , min_iou_pct = min_iou_pct
+      )
+      # add to return
+      if(!is.null(match_temp)){
+        return_df <- return_df %>% 
+          dplyr::bind_rows(match_temp %>% dplyr::select(names(return_df)))
+      }
+      match_temp <- NULL
+    }
+  # label tps
+  return_df <- return_df %>% 
+    dplyr::mutate(match_grp = "true positive")
+  # add omissions
+  return_df <-
+    return_df %>% 
+    dplyr::bind_rows(
+      ground_truth %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::anti_join(return_df,by="treeID") %>% 
+        dplyr::select(treeID) %>% 
+        dplyr::mutate(match_grp = "omission")
+    )
+  # add commissions
+  return_df <-
+    return_df %>% 
+    dplyr::bind_rows(
+      predictions %>% 
+        sf::st_drop_geometry() %>% 
+        dplyr::anti_join(return_df,by="treeID_pred") %>% 
+        dplyr::select(treeID_pred) %>% 
+        dplyr::mutate(match_grp = "commission")
+    )
+  # make match_grp factor
+  return_df <- return_df %>% 
+    dplyr::mutate(
+      match_grp = factor(
+        match_grp
+        , ordered = T
+        , levels = c(
+          "true positive"
+          , "commission"
+          , "omission"
+        )
+      ) %>% forcats::fct_rev()
+    )
+  # return
+  if(nrow(return_df)==0){
+    warning("no records found for ground truth to predition matching")
+    return(NULL)
+  }else{
+    return(return_df)
+  }
+  
+}
+```
+
+test the tree matching process on the full data
+
+```{r}
+ground_truth_crown_match_ans <- ground_truth_crown_match(
+  # ground_truth should be sorted already
+  ground_truth = ground_truth_temp$crowns %>% dplyr::arrange(desc(highest_z_val))
+  # predictions just needs treeID
+  , predictions = ans_crowns_no_mask %>% dplyr::select(treeID)
+  , min_iou_pct = 0.5
+)
+```
+
+how did our predictions do for this particular example?
+
+```{r}
+# what did we get?
+ground_truth_crown_match_ans %>% 
+  dplyr::count(match_grp) %>% 
+  dplyr::mutate(pct = (n/sum(n)) %>% scales::percent(accuracy=0.1))
+```
+
+let's look at that spatially
+
+```{r}
+pal_match_grp = c(
+  "omission"=viridis::cividis(3)[1]
+  , "commission"=viridis::cividis(3)[2]
+  , "true positive"=viridis::cividis(3)[3]
+)
+# plot it
+ggplot2::ggplot() +
+  ggplot2::geom_sf(
+    data = 
+      ground_truth_temp$crowns %>% 
+        dplyr::left_join(
+          ground_truth_crown_match_ans %>% 
+            dplyr::select(treeID,match_grp)
+          , by = "treeID"
+        )
+    , mapping = ggplot2::aes(fill = match_grp)
+    , color = NA ,alpha=0.7
+  ) + 
+  ggplot2::geom_sf(
+    data =
+      ans_crowns_no_mask %>%
+        dplyr::left_join(
+          ground_truth_crown_match_ans %>%
+            dplyr::select(treeID_pred,match_grp)
+          , by = dplyr::join_by(treeID==treeID_pred)
+        )
+    , mapping = ggplot2::aes(fill = match_grp, color = match_grp)
+    , alpha = 0
+    , lwd = 1.2
+  ) +
+  ggplot2::scale_fill_manual(values = pal_match_grp, name = "") +
+  ggplot2::scale_color_manual(values = pal_match_grp, name = "") +
+  ggplot2::theme_void() +
+  ggplot2::guides(
+    fill = ggplot2::guide_legend(override.aes = list(color = c(NA,NA,viridis::cividis(3)[2])))
+    , color = "none"
+  )
+```
+
+Note the predicted crowns classified as commission errors that encompass multiple ground truth tree crowns which are counted as omission errors. Even though the predicted crowns cover at least on ground truth crowns, these instances are classified as such due to the criteria that "if the IoU is <0.5: the predicted tree is considered an error" and thus no ground truth instance is matched
+
+let's quickly look at the IoU values on the true positive trees
+
+```{r}
+ground_truth_crown_match_ans %>% dplyr::select(iou) %>% summary()
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(m,r3dDefaults,ans_crowns,ans_crowns_no_mask,ans,ground_truth_crown_match_ans)
+gc()
+```
