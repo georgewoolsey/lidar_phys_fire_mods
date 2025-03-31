@@ -4167,11 +4167,7 @@ ggplot2::ggplot() +
   ) + 
   ggplot2::geom_sf(
     data =
-      fi_training_submission %>% 
-        dplyr::filter(
-          plot_name == fi_training_submission$plot_name[9999]
-          & ws_fn_nm == fi_training_submission$ws_fn_nm[9999]
-        ) %>% 
+      ans_crowns %>% 
         dplyr::inner_join(
           fi_evaluate_ans_temp$ground_truth_crown_match %>% 
             dplyr::select(treeID_pred,match_grp)
@@ -4184,14 +4180,14 @@ ggplot2::ggplot() +
   ) +
   ggplot2::scale_fill_manual(values = pal_match_grp, name = "") +
   ggplot2::scale_color_manual(values = pal_match_grp, name = "") +
-  ggplot2::theme_void() 
-+
+  ggplot2::theme_void() +
   ggplot2::guides(
     fill = ggplot2::guide_legend(override.aes = list(color = c(NA,NA,viridis::cividis(3)[2])))
     , color = "none"
   )
 ```
 
+works
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
@@ -4284,51 +4280,89 @@ We'll compare our aerial point cloud-based tree detection and crown delineation 
 ```{r, eval=FALSE,include=FALSE}
 # where should we save the file?
 training_eval_temp <- "../data/ForInstance_training_evaluate.csv"
+training_eval_m_temp <- "../data/ForInstance_training_evaluate_crown_match.csv"
+training_eval_c_temp <- "../data/ForInstance_training_evaluate_crown_gt_crowns.gpkg"
 # if we don't already have the data, run it
-if(!file.exists(training_eval_temp)){
-# if(T){
-  # filter for only those with this type of validation data
-  submission_temp <- fi_training_submission %>% 
-    dplyr::inner_join(
-      fi_lidar_df %>% 
-        sf::st_drop_geometry() %>% 
-        dplyr::filter(data_type == "training") %>% 
-        dplyr::distinct(plot_name)
-      , by = "plot_name"
-    )
+if(
+  !file.exists(training_eval_temp) ||
+  !file.exists(training_eval_m_temp) ||
+  !file.exists(training_eval_c_temp)
+){
+  # get unique plot_name,ws_fn_nm
+  combs_temp <-
+    fi_training_submission %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::distinct(plot_name,ws_fn_nm)
   
-  # safe it bc: error in `clue::solve_LSAP()`: long vectors (argument 1) are not supported
-  # would need to dig through NeonTreeEvaluation, fix, and pull request...
-  safe_evaluate_image_crowns <- purrr::safely(NeonTreeEvaluation::evaluate_image_crowns)
-  # validate
-  training_img_annttd_crwns <-
-    submission_temp$ws_fn_nm %>% 
-    unique() %>% 
-    purrr::map(function(x){
-      ans <- safe_evaluate_image_crowns(
-        predictions = submission_temp %>% 
-          sf::st_drop_geometry() %>% 
-          dplyr::filter(ws_fn_nm == x) %>% 
-          dplyr::select(xmin,ymin,xmax,ymax,label,plot_name)
-        , show = F
-        , summarize = T
-      )
-      if(!is.null(ans$error)){
-        return(NULL)
-      }else{
-        return(
-          ans$result %>% 
-            purrr::pluck("plot_level") %>% 
-            dplyr::ungroup() %>% 
-            dplyr::mutate(ws_fn_nm = x)
-        ) 
-      }
-    }) %>% 
-    dplyr::bind_rows()
+  # safe it
+  safe_fi_evaluate <- purrr::safely(fi_evaluate)
+  
+  # set up empty sets
+  training_plot_score_df <- NULL
+  training_ground_truth_crown_match_df <- NULL
+  training_ground_truth_crowns_df <- NULL
+  
+  # we'll just loop this validation
+  for (i in 1:nrow(combs_temp)) {
+    # validate
+    fi_evaluate_ans_temp <- safe_fi_evaluate(
+      predictions = 
+        fi_training_submission %>% 
+        dplyr::filter(
+          plot_name == combs_temp$plot_name[i]
+          & ws_fn_nm == combs_temp$ws_fn_nm[i]
+        )
+      , las_f_path = fi_lidar_df %>% dplyr::filter(plot_name==combs_temp$plot_name[i]) %>% dplyr::pull(f_path)
+      , remove_mask_overlap_pct = 0.7
+      , min_iou_pct = 0.5
+      , force_same_crs = T
+    )
+    # populate results if available
+    if(is.null(fi_evaluate_ans_temp$error)){
+      # training_plot_score_df
+      training_plot_score_df <- training_plot_score_df %>% 
+        dplyr::bind_rows(
+          fi_evaluate_ans_temp$result$plot_score %>% 
+            dplyr::mutate(
+              plot_name = combs_temp$plot_name[i]
+              , ws_fn_nm = combs_temp$ws_fn_nm[i]
+            )
+        )
+      # training_ground_truth_crown_match_df
+      training_ground_truth_crown_match_df <- training_ground_truth_crown_match_df %>% 
+        dplyr::bind_rows(
+          fi_evaluate_ans_temp$result$ground_truth_crown_match %>% 
+            dplyr::mutate(
+              plot_name = combs_temp$plot_name[i]
+              , ws_fn_nm = combs_temp$ws_fn_nm[i]
+            )
+        )
+      # training_ground_truth_crowns_df
+      training_ground_truth_crowns_df <- training_ground_truth_crowns_df %>% 
+        dplyr::bind_rows(
+          fi_evaluate_ans_temp$result$ground_truth_crowns %>% 
+            dplyr::mutate(
+              plot_name = combs_temp$plot_name[i]
+              , ws_fn_nm = combs_temp$ws_fn_nm[i]
+            ) %>% 
+            sf::st_set_crs(NA)
+        )
+    }
+    fi_evaluate_ans_temp <- NULL
+  }
+  
   # save
-  readr::write_csv(training_img_annttd_crwns, file = training_eval_temp)
+  readr::write_csv(training_plot_score_df, file = training_eval_temp)
+  readr::write_csv(training_ground_truth_crown_match_df, file = training_eval_m_temp)
+  sf::st_write(training_ground_truth_crowns_df, training_eval_c_temp, append = F)
 }else{
-  training_img_annttd_crwns <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
+  training_plot_score_df <- readr::read_csv(training_eval_temp, progress = F, show_col_types = F)
+  training_ground_truth_crown_match_df <- readr::read_csv(training_eval_m_temp, progress = F, show_col_types = F)
+  training_ground_truth_crowns_df <- sf::st_read(training_eval_c_temp, quiet = T)
 }
 ```
 
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
