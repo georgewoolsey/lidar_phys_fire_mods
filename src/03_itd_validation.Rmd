@@ -3489,6 +3489,20 @@ Since the individual tree segmentation from Puliti et al. [(2023)](https://doi.o
 we'll want to use the FOR-instance point cloud as input and return: 1) tree crown polygons; 2) polygons of areas outside of the plot to mask
 
 ```{r, include=FALSE,eval=FALSE}
+stdtreemetrics_new = function(x, y, z){
+  metrics <- list(
+    max_z = max(z),
+    min_z = min(z),
+    npoints = length(x)
+  )
+  return(metrics)
+}
+
+las_temp %>% 
+  lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
+  lidR::crown_metrics(func = ~stdtreemetrics_new(X, Y, Z), attribute = "treeID", geom = "concave")
+
+
 ggplot() + 
   geom_sf(
     data = las_temp %>% 
@@ -3527,6 +3541,16 @@ ggplot() +
 ```
 
 ```{r}
+# .stdtreemetrics from lidR does not return min(z)
+stdtreemetrics_new = function(x, y, z){
+  metrics <- list(
+    max_z = max(z),
+    min_z = min(z),
+    npoints = length(x)
+  )
+  return(metrics)
+}
+# pass a las, return some polygons with metrics
 fi_las_to_poly <- function(las,res=0.25,smooth=T) {
   if(!inherits(las,"LAS")){stop("must be LAS class")}
   # get the mask using out of plot points these areas will be removed from both
@@ -3555,10 +3579,12 @@ fi_las_to_poly <- function(las,res=0.25,smooth=T) {
   crowns <- 
     las %>% 
     lidR::filter_poi(!is.na(treeID) & treeID != 0) %>% 
-    lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave") %>% 
-    dplyr::rename(highest_z_val = Z) %>% 
+    # lidR::crown_metrics(func = .stdtreemetrics, attribute = "treeID", geom = "concave") %>% 
+    lidR::crown_metrics(func = ~stdtreemetrics_new(X, Y, Z), attribute = "treeID", geom = "concave") %>% 
+    dplyr::ungroup() %>% 
+    dplyr::mutate(gt_tree_height = max_z - min_z) %>% 
     # sf::st_difference(mask) %>% # to be consistent we
-    dplyr::select(treeID,highest_z_val)
+    dplyr::select(treeID,gt_tree_height)
   # return
   return(list(
     crowns = crowns
@@ -3768,7 +3794,7 @@ ground_truth_temp$crowns <- ground_truth_temp$crowns %>%
 ground_truth_temp$crowns %>% dplyr::glimpse()
 ```
 
-looks like there is only DBH so we'll use the `highest_z_val` data calculated from the point cloud using our `fi_las_to_poly()` for the matching algorithm above
+looks like there is only DBH so we'll use the `gt_tree_height` data calculated from the point cloud using our `fi_las_to_poly()` for the matching algorithm above. We calculated ground truth tree height in the For-Instance benchmark (`gt_tree_height`) as the difference between the highest and lowest point for each tree instance following Wielgosz et al. ([2024](https://doi.org/10.1016/j.rse.2024.114367)).
 
 first, we'll define a function to attempt a match with a single ground truth tree
 
@@ -3832,7 +3858,7 @@ test for a single ground truth tree
 
 ```{r}
 ground_truth_single_tree_match(
-  gt_tree = ground_truth_temp$crowns %>% dplyr::arrange(desc(highest_z_val)) %>% dplyr::slice(2)
+  gt_tree = ground_truth_temp$crowns %>% dplyr::arrange(desc(gt_tree_height)) %>% dplyr::slice(2)
   , predictions = ans_crowns_no_mask %>% dplyr::select(treeID)
 )
 ```
@@ -3846,6 +3872,7 @@ ground_truth_crown_match <- function(
   # predictions just needs treeID
   , predictions
   , min_iou_pct = 0.5
+  , calculate_height_diff = F
 ) {
   # checks
   if( !inherits(ground_truth,"sf") || nrow(ground_truth)==0 ){stop("ground truth must be spatial `sf` data")}
@@ -3853,11 +3880,18 @@ ground_truth_crown_match <- function(
   if( !(names(ground_truth) %>% stringr::str_equal("treeID") %>% any()) ){
     stop("ground truth tree data must contain `treeID` column")
   }
+  if(calculate_height_diff && !(names(ground_truth) %>% stringr::str_equal("gt_tree_height") %>% any()) ){
+    stop("ground truth tree data must contain `gt_tree_height` column if `calculate_height_diff=T`")
+  }
+  if(calculate_height_diff && !(names(predictions) %>% stringr::str_equal("tree_height_m") %>% any()) ){
+    stop("ground truth tree data must contain `tree_height_m` column if `calculate_height_diff=T`")
+  }
   if( !(names(predictions) %>% stringr::str_equal("treeID") %>% any()) ){
     stop("predictions tree data must contain `treeID` column")
   }else{
     predictions <- predictions %>% dplyr::rename(treeID_pred = treeID)
   }
+  
   # set up a blank data frame
   return_df <-
     dplyr::tibble(
@@ -3878,17 +3912,21 @@ ground_truth_crown_match <- function(
         dplyr::slice(0)
     ) %>% 
     dplyr::relocate(tidyselect::starts_with("treeID"))
+  
+  # save names to select
+  nms_temp <- names(return_df)
+  
   # start with tallest tree and match to get true positives
     for (i in 1:nrow(ground_truth)) {
       match_temp <- ground_truth_single_tree_match(
         gt_tree = ground_truth %>% dplyr::slice(i)
-        , predictions = predictions %>% dplyr::anti_join(return_df,by="treeID_pred")
+        , predictions = predictions %>% dplyr::select(treeID_pred) %>% dplyr::anti_join(return_df,by="treeID_pred")
         , min_iou_pct = min_iou_pct
       )
       # add to return
       if(!is.null(match_temp)){
         return_df <- return_df %>% 
-          dplyr::bind_rows(match_temp %>% dplyr::select(names(return_df)))
+          dplyr::bind_rows(match_temp %>% dplyr::select(nms_temp))
       }
       match_temp <- NULL
     }
@@ -3928,6 +3966,24 @@ ground_truth_crown_match <- function(
         )
       ) %>% forcats::fct_rev()
     )
+  
+  # calculate height difference for matched trees
+  if(calculate_height_diff){
+    return_df <- return_df %>% 
+      dplyr::left_join(
+        ground_truth %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::select(treeID,gt_tree_height)
+        , by = "treeID"
+      ) %>% 
+      dplyr::left_join(
+        predictions %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::select(treeID_pred,tree_height_m)
+        , by="treeID_pred"
+      ) %>% 
+      dplyr::mutate(height_diff = gt_tree_height-tree_height_m)
+  }
   # return
   if(nrow(return_df)==0){
     warning("no records found for ground truth to predition matching")
@@ -3942,13 +3998,15 @@ ground_truth_crown_match <- function(
 test the tree matching process on the full data
 
 ```{r}
-ground_truth_crown_match_ans <- ground_truth_crown_match(
-  # ground_truth should be sorted already
-  ground_truth = ground_truth_temp$crowns %>% dplyr::arrange(desc(highest_z_val))
-  # predictions just needs treeID
-  , predictions = ans_crowns_no_mask %>% dplyr::select(treeID)
-  , min_iou_pct = 0.5
-)
+ground_truth_crown_match_ans <-
+  ground_truth_crown_match(
+    # ground_truth should be sorted already
+    ground_truth = ground_truth_temp$crowns %>% dplyr::arrange(desc(gt_tree_height))
+    # predictions just needs treeID
+    , predictions = ans_crowns_no_mask %>% dplyr::select(treeID,tree_height_m)
+    , min_iou_pct = 0.5
+    , calculate_height_diff = T
+  )
 ```
 
 how did our predictions do for this particular example?
@@ -4010,7 +4068,11 @@ let's quickly look at the IoU values on the true positive trees
 ground_truth_crown_match_ans %>% dplyr::select(iou) %>% summary()
 ```
 
-Lastly, we'll make a function to aggregate our plot-level scores to evaluate detection, omission, and commission rates which can be used to calculate precision, recall (detection rate), and the F-score metric. As a reminder, true positive ($TP$) trees correctly match ground truth trees with a prediction, commission tree predictions do not match a ground truth tree (false positive; $FP$), and omissions are ground truth trees for which no predictions match (false negative; $FN$)
+Lastly, we'll make a function to aggregate our plot-level scores to evaluate omission rate (false negative rate or miss rate), commission rate (false positive rate), precision, recall (detection rate), and the F-score metric. As a reminder, true positive ($TP$) trees correctly match ground truth trees with a prediction, commission tree predictions do not match a ground truth tree (false positive; $FP$), and omissions are ground truth trees for which no predictions match (false negative; $FN$)
+
+$$\textrm{omission rate} = \frac{FN}{TP+FN}$$
+
+$$\textrm{commission rate} = \frac{FP}{TP+FP}$$
 
 $$\textrm{precision} = \frac{TP}{TP+FP}$$
 
@@ -4020,6 +4082,16 @@ $$
 \textrm{F-score} = 2 \times \frac{\bigl(precision \times recall \bigr)}{\bigl(precision + recall \bigr)}
 $$
 
+we'll also automatically calculate root mean square error (RMSE) for the tree height in meters above ground if the we detect the `height_diff` column. Inclusion of tree height RMSE represents a complementary measure to the tree detection rates that captures the ability of the model to properly extract the tree tops. 
+
+tree height RMSE is calculated as 
+
+$$
+\textrm{RMSE} = \sqrt{ \frac{  \sum_{i=1}^{N} (y_{i} - \hat{y_{i}})^{2}}{N}}
+$$
+
+Where $N$ is equal to the total number of trees either in a FOR-instance collection or in the whole dataset, $y_i$ is the reference height value and $\hat{y_i}$ is the predicted tree height value of tree $i$ in meters above ground (m).
+
 ```{r}
 agg_ground_truth_crown_match <- function(ground_truth_crown_match_ans) {
   if(nrow(ground_truth_crown_match_ans)==0){return(NULL)}
@@ -4027,7 +4099,6 @@ agg_ground_truth_crown_match <- function(ground_truth_crown_match_ans) {
   # count by match group
   agg <- ground_truth_crown_match_ans %>% 
     dplyr::count(match_grp) %>% 
-    dplyr::mutate(rate=n/sum(n,na.rm = T)) %>% 
     dplyr::mutate(
       match_grp = dplyr::case_match(
         match_grp
@@ -4039,16 +4110,24 @@ agg_ground_truth_crown_match <- function(ground_truth_crown_match_ans) {
   # true positive, false positive, false negative rates
   return_df <- dplyr::tibble(match_grp = c("tp","fp","fn")) %>% 
     dplyr::left_join(agg, by = "match_grp") %>% 
-    dplyr::mutate(dplyr::across(.cols = c(n,rate), .fn = ~dplyr::coalesce(.x,0))) %>% 
+    dplyr::mutate(dplyr::across(.cols = c(n), .fn = ~dplyr::coalesce(.x,0))) %>% 
     tidyr::pivot_wider(
       names_from = match_grp
-      , values_from = c(n,rate)
+      , values_from = c(n)
       , names_glue = "{match_grp}_{.value}"
     )
-  # precision, recall, f-score
+  # rates, precision, recall, f-score
   return_df <- return_df %>% 
     dplyr::mutate(
-      precision = dplyr::case_when(
+      omission_rate = dplyr::case_when(
+        (tp_n+fn_n) == 0  ~ as.numeric(NA)
+        , T ~ fn_n/(tp_n+fn_n)
+      ) # False Negative Rate or Miss Rate
+      , commission_rate = dplyr::case_when(
+        (tp_n+fp_n) == 0  ~ as.numeric(NA)
+        , T ~ fp_n/(tp_n+fp_n)
+      ) # False Positive Rate
+      , precision = dplyr::case_when(
         (tp_n+fp_n) == 0  ~ as.numeric(NA)
         , T ~ tp_n/(tp_n+fp_n)
       )
@@ -4062,6 +4141,25 @@ agg_ground_truth_crown_match <- function(ground_truth_crown_match_ans) {
         , T ~ 2 * ( (precision*recall)/(precision+recall) )
       )    
     )
+  # height rmse
+  if( names(ground_truth_crown_match_ans) %>% stringr::str_equal("height_diff") %>% any() ){
+    return_df <- return_df %>% 
+      dplyr::bind_cols(
+        ground_truth_crown_match_ans %>% 
+        dplyr::ungroup() %>% 
+        dplyr::summarise(
+          height_diff_sq = sum(height_diff^2, na.rm = T)
+          , n = sum(ifelse(!is.na(height_diff),1,0))
+        ) %>% 
+        dplyr::mutate(
+          rmse_height_m = dplyr::case_when(
+            dplyr::coalesce(n,0)==0 ~ as.numeric(NA)
+            , T ~ sqrt(height_diff_sq/n)
+          )
+        ) %>% 
+        dplyr::select(rmse_height_m)
+      )
+  }
   # return
   return(return_df)
 }
@@ -4081,6 +4179,7 @@ fi_evaluate <- function(
   , las_f_path
   , remove_mask_overlap_pct = 0.7
   , min_iou_pct = 0.5
+  , calculate_height_diff = F
   , force_same_crs = F
 ) {
   # checks, no balances
@@ -4119,10 +4218,10 @@ fi_evaluate <- function(
   ground_truth_crown_match_ans <- ground_truth_crown_match(
     # ground_truth should be sorted already
     ground_truth = ground_truth_temp$crowns %>% 
-      dplyr::arrange(desc(highest_z_val)) # column calculated in fi_las_to_poly()
-    # predictions just needs treeID
-    , predictions = ans_crowns_no_mask %>% dplyr::select(treeID)
+      dplyr::arrange(desc(gt_tree_height)) # column calculated in fi_las_to_poly()
+    , predictions = ans_crowns_no_mask
     , min_iou_pct = min_iou_pct
+    , calculate_height_diff = calculate_height_diff
   )
   
   # plot-level score
@@ -4143,6 +4242,7 @@ test it
 fi_evaluate_ans_temp <- fi_evaluate(
   predictions = ans_crowns
   , las_f_path = fi_lidar_df %>% dplyr::slice(lidar_df_row_temp) %>% dplyr::pull(f_path)
+  , calculate_height_diff = T
   , force_same_crs = T
 )
 # fi_evaluate_ans_temp
@@ -4277,17 +4377,18 @@ gc()
 
 We'll compare our aerial point cloud-based tree detection and crown delineation results to the ground truth using the steps we outlined in the [example above](#ex_valid2).
 
-```{r, eval=FALSE,include=FALSE}
+```{r, warning=FALSE,message=FALSE,results='hide'}
 # where should we save the file?
 training_eval_temp <- "../data/ForInstance_training_evaluate.csv"
 training_eval_m_temp <- "../data/ForInstance_training_evaluate_crown_match.csv"
-training_eval_c_temp <- "../data/ForInstance_training_evaluate_crown_gt_crowns.gpkg"
+training_eval_c_temp <- "../data/ForInstance_training_evaluate_gt_crowns.gpkg"
 # if we don't already have the data, run it
 if(
   !file.exists(training_eval_temp) ||
   !file.exists(training_eval_m_temp) ||
   !file.exists(training_eval_c_temp)
 ){
+# if(T){
   # get unique plot_name,ws_fn_nm
   combs_temp <-
     fi_training_submission %>% 
@@ -4315,6 +4416,7 @@ if(
       , las_f_path = fi_lidar_df %>% dplyr::filter(plot_name==combs_temp$plot_name[i]) %>% dplyr::pull(f_path)
       , remove_mask_overlap_pct = 0.7
       , min_iou_pct = 0.5
+      , calculate_height_diff = T
       , force_same_crs = T
     )
     # populate results if available
@@ -4338,12 +4440,16 @@ if(
             )
         )
       # training_ground_truth_crowns_df
+      epsg_temp <- fi_evaluate_ans_temp$result$ground_truth_crowns %>% 
+        sf::st_crs(parameters=T) %>% 
+        purrr::pluck("epsg")
       training_ground_truth_crowns_df <- training_ground_truth_crowns_df %>% 
         dplyr::bind_rows(
           fi_evaluate_ans_temp$result$ground_truth_crowns %>% 
             dplyr::mutate(
               plot_name = combs_temp$plot_name[i]
               , ws_fn_nm = combs_temp$ws_fn_nm[i]
+              , epsg = ifelse(identical(epsg_temp,character(0)),as.numeric(NA),as.numeric(epsg_temp))
             ) %>% 
             sf::st_set_crs(NA)
         )
@@ -4364,5 +4470,286 @@ if(
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+plot precision, recall, and F-score by plot
+
+```{r}
+training_plot_score_df %>% 
+  tidyr::pivot_longer(cols = c(precision,recall,f_score)) %>% 
+  dplyr::mutate(
+    name = ifelse(name=="f_score","F-score",name) %>% forcats::fct_rev()
+    , plot_name = plot_name %>% forcats::fct_rev()
+  ) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = value, y = plot_name, color = ws_fn_nm)) +
+    # ggplot2::geom_point(size = 4) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 3) +
+    ggplot2::facet_grid(cols = dplyr::vars(name)) +
+    ggplot2::scale_color_manual(values = pal_ws) +
+    ggplot2::labs(
+      x = "", y = ""
+      , color = "variable\nwindow\nfunction"
+      , subtitle = "Training data: validation against image annotated crowns ground truth"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_text(size=8)
+      , panel.grid.major.y = ggplot2::element_line(color="gray22")
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+    )
+```
+
+we'll quickly compare the variable window functions by averaging across sites and making a "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns
+
+```{r}
+agg_pr_temp <- training_plot_score_df %>% 
+  dplyr::group_by(ws_fn_nm) %>% 
+  dplyr::summarise(dplyr::across(dplyr::where(is.numeric),mean))
+agg_pr_temp %>% 
+  ggplot2::ggplot(ggplot2::aes(x=precision,y=recall,color=ws_fn_nm)) +
+  ggplot2::geom_hline(yintercept = median(agg_pr_temp$recall,na.rm = T),linetype="dashed") +
+  ggplot2::geom_vline(xintercept = median(agg_pr_temp$precision,na.rm = T),linetype="dashed") +
+  ggplot2::geom_point(size = 6) +
+  ggplot2::scale_color_manual(values = pal_ws) +
+  # ggplot2::scale_x_continuous(limits = c(0,0.5)) +
+  # ggplot2::scale_y_continuous(limits = c(0,0.5)) +
+  ggplot2::labs(
+    color = "variable\nwindow\nfunction"
+    , subtitle = "Training data: validation against image annotated crowns ground truth"
+    , caption = "*values are averaged across sites and plots"
+  ) +
+  ggplot2::theme_light() +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+  )
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+##### Best variable window function by site
+
+we collapsed across plot to calculate an average precision, recall, and F-score for each site and variable window function combination
+
+As a reminder, we limited our evaluation to only sites with conifer trees: **NIBIO**, **CULS**, and **SCION**
+
+* **NIBIO**: Coniferous dominated boreal forest study site in Norway composed of mature forests dominated by Norway spruce (*Picea abies*) and with few Scots pine (*Pinus Sylvestris*) and deciduous species (mainly *Betula* sp.).
+* **CULS**: Coniferous dominated temperate forest study site in the Czech north of Prague with forested plots consisting of productive even-aged Scots pine forest
+* **SCION**: Coniferous non-native temperate study site in New Zealand consisting of pure Monterey pine (*Pinus radiata*) of 18-20 years of age and is representative of a typical productive plantation forest
+
+first, we'll collapse across plot to calculate the site-level metrics for each variable window function 
+
+```{r}
+# site eval results
+fi_training_eval_by_site <-
+  training_plot_score_df %>% 
+  dplyr::inner_join(
+    fi_lidar_df %>% dplyr::distinct(plot_name,siteID)
+    , by="plot_name"
+  ) %>% 
+  dplyr::group_by(siteID,ws_fn_nm) %>% 
+  dplyr::summarise(
+    precision = mean(precision, na.rm = T)
+    , recall = mean(recall, na.rm = T)
+    , omission_rate = mean(omission_rate, na.rm = T)
+    , commission_rate = mean(commission_rate, na.rm = T)
+    , rmse_height_m = mean(rmse_height_m, na.rm = T)
+    , rmse_height_m_weighted_mean = sum(rmse_height_m*tp_n, na.rm = T)/sum(tp_n, na.rm = T)
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    dplyr::across(
+      .cols = c(precision,recall,tidyselect::ends_with("_rate"),tidyselect::starts_with("rmse_"))
+      , ~ifelse(is.nan(.x),as.numeric(NA),.x)
+    )
+    , f_score = dplyr::case_when(
+      is.na(precision) | is.na(recall) ~ as.numeric(NA)
+      , (precision+recall) == 0 ~ 0
+      , T ~ 2 * ( (precision*recall)/(precision+recall) )
+    )
+  ) %>% 
+  dplyr::arrange(siteID,desc(f_score),desc(precision),desc(recall),omission_rate,commission_rate) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::mutate(is_best_fn = dplyr::row_number()==1) %>% 
+  dplyr::ungroup()
+# save it after cleaning
+readr::write_csv(fi_training_eval_by_site, "../data/ForInstance_training_eval_by_site.csv", append = F, progress = F)
+```
+
+show the best window function by site 
+
+```{r}
+fi_training_eval_by_site %>% 
+  tidyr::pivot_longer(cols = c(precision,recall,f_score)) %>% 
+  dplyr::mutate(
+    name = ifelse(name=="f_score","F-score",name) %>% forcats::fct_rev()
+    , siteID = forcats::fct_rev(siteID)
+  ) %>% 
+  dplyr::arrange(is_best_fn) %>% 
+  ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = ws_fn_nm)) +
+    # ggplot2::geom_point(size = 4) +
+    ggplot2::geom_jitter(
+      ggplot2::aes(shape = is_best_fn)
+      ,height = 0.12
+      , width = 0
+      , size = 5
+    ) +
+    ggplot2::facet_grid(cols = dplyr::vars(name)) +
+    ggplot2::scale_color_manual(values = pal_ws) +
+    ggplot2::scale_shape_manual(values = c(20,15)) +
+    ggplot2::scale_x_continuous(limits = c(NA,1.01)) +
+    ggplot2::labs(
+      x = "", y = ""
+      , color = "variable\nwindow\nfunction"
+      , subtitle = "Best variable window function by study site based on training data evaluation"
+      , caption = "*a square indicates the best function"
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(size=7)
+      , panel.grid.major.y = ggplot2::element_line(color="gray22")
+      , strip.text = ggplot2::element_text(color = "black", size = 10)
+    ) +
+    ggplot2::guides(
+      color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+      , shape = "none"
+    )
+```
+
+table of the best function by site
+
+```{r}
+fi_training_eval_by_site %>% 
+  dplyr::filter(is_best_fn) %>% 
+  dplyr::select(siteID,ws_fn_nm, omission_rate,commission_rate,recall,precision,f_score) %>% 
+  dplyr::arrange(siteID) %>% 
+kableExtra::kbl(
+    caption = "Best variable window function by study site based on training data evaluation"
+    , digits = 2
+    , col.names = c(
+      "site","variable<br>window<br>function"
+      , "omission<br>rate"
+      , "commission<br>rate"
+      ,"recall","precision","F-score"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+##### Best variable window function overall
+
+to select the best overall variable window function to apply to NEON sites that lacked training data, we collapsed across all training sites and plots to calculate an average precision and recall at the variable window function level
+
+we can look at the full results table
+
+```{r}
+# overall eval results
+training_eval_overall <-
+  training_eval_combined_temp %>% 
+  dplyr::group_by(ws_fn_nm) %>% 
+  dplyr::summarise(
+    precision = mean(precision, na.rm = T)
+    , recall = mean(recall, na.rm = T)
+    , n_fld_cllctd_stems = sum(ifelse(eval_type == "fld_cllctd_stems",1,0))
+    , n_img_annttd_crwns = sum(ifelse(eval_type == "img_annttd_crwns",1,0))
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    dplyr::across(.cols = c(precision,recall), ~ifelse(is.nan(.x),as.numeric(NA),.x))
+    , f_score = dplyr::case_when(
+      is.na(precision) | is.na(recall) ~ as.numeric(NA)
+      , (precision+recall) == 0 ~ 0
+      , T ~ 2 * ( (precision*recall)/(precision+recall) )
+    )
+  ) %>% 
+  dplyr::arrange(desc(f_score),desc(precision),desc(recall),desc(n_fld_cllctd_stems),desc(n_img_annttd_crwns)) %>% 
+  dplyr::mutate(is_best_fn = dplyr::row_number()==1)
+# save it
+readr::write_csv(training_eval_overall, "../data/NeonTreeEvaluation_training_eval_overall.csv", append = F, progress = F)
+```
+
+```{r}
+training_eval_overall %>% 
+  dplyr::select(-c(is_best_fn)) %>% 
+  dplyr::relocate(tidyselect::starts_with("n_"), .after = dplyr::last_col()) %>% 
+  kableExtra::kbl(
+    caption = "Best variable window function overall based on training data evaluation"
+    , digits = 2
+    , col.names = c(
+      "variable<br>window<br>function"
+      ,"precision","recall","F-score"
+      ,"plots<br>with ground truth<br>field collected stems"
+      ,"plots<br>with ground truth<br>image ann. crowns"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+keep in mind that these are average values across plots and sites so the actual metric values matter little...it's the relative value that we care about
+
+we can view this "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns and field collected stems ground truth data
+
+```{r}
+training_eval_overall %>% 
+  ggplot2::ggplot(ggplot2::aes(x=precision,y=recall,color=ws_fn_nm)) +
+  ggplot2::geom_hline(yintercept = median(training_eval_overall$recall),linetype="dashed") +
+  ggplot2::geom_vline(xintercept = median(training_eval_overall$precision),linetype="dashed") +
+  ggplot2::geom_point(ggplot2::aes(shape=is_best_fn),size = 6) +
+  ggplot2::scale_color_manual(values = pal_ws) +
+  ggplot2::scale_shape_manual(values = c(20,15)) +
+  ggplot2::scale_x_continuous(limits = c(0,0.4)) +
+  ggplot2::scale_y_continuous(limits = c(0,0.7)) +
+  ggplot2::labs(
+    color = "variable\nwindow\nfunction"
+    , subtitle = "Best variable window function overall based on training data evaluation"
+    , caption = "*a square indicates the best function"
+  ) +
+  ggplot2::theme_light() +
+  ggplot2::guides(
+    color = ggplot2::guide_legend(override.aes = list(shape = 15, size = 6))
+    , shape = "none"
+  )
+```
+
+now we'll attach the best variable window function to our processing data
+
+```{r}
+lidar_df <- lidar_df %>%
+  dplyr::left_join(
+    training_eval_by_site %>%
+      dplyr::filter(is_best_fn) %>% 
+      dplyr::select(siteID,ws_fn_nm)
+    , by = "siteID"
+  ) %>% 
+  dplyr::mutate(
+    ws_fn_nm = dplyr::coalesce(
+      ws_fn_nm
+      , training_eval_overall %>%
+        dplyr::filter(is_best_fn) %>% 
+        dplyr::pull(ws_fn_nm)
+    )
+  )
+# save
+readr::write_csv(lidar_df, "../data/NeonTreeEvaluation_lidar_df.csv", append = F, progress = F)
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+remove(
+  training_submission, training_eval_by_site
+  , training_eval_overall, training_fld_cllctd_stems
+  , training_img_annttd_crwns
+  , submission_fn
+  , neontree_plot_fn, clean_field_data
+  , m, r3dDefaults
+)
 gc()
 ```
