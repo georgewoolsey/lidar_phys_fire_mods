@@ -3794,7 +3794,7 @@ ground_truth_temp$crowns <- ground_truth_temp$crowns %>%
 ground_truth_temp$crowns %>% dplyr::glimpse()
 ```
 
-looks like there is only DBH so we'll use the `gt_tree_height` data calculated from the point cloud using our `fi_las_to_poly()` for the matching algorithm above. We calculated ground truth tree height in the For-Instance benchmark (`gt_tree_height`) as the difference between the highest and lowest point for each tree instance following Wielgosz et al. ([2024](https://doi.org/10.1016/j.rse.2024.114367)).
+looks like there is only DBH so we'll use the `gt_tree_height` data calculated from the point cloud using our `fi_las_to_poly()` for the matching algorithm above. We calculated ground truth tree height in the FOR-instance benchmark (`gt_tree_height`) as the difference between the highest and lowest point for each tree instance following Wielgosz et al. ([2024](https://doi.org/10.1016/j.rse.2024.114367)).
 
 first, we'll define a function to attempt a match with a single ground truth tree
 
@@ -4561,6 +4561,7 @@ fi_training_eval_by_site <-
     , commission_rate = mean(commission_rate, na.rm = T)
     , rmse_height_m = mean(rmse_height_m, na.rm = T)
     , rmse_height_m_weighted_mean = sum(rmse_height_m*tp_n, na.rm = T)/sum(tp_n, na.rm = T)
+    , n_plots = dplyr::n()
   ) %>% 
   dplyr::ungroup() %>% 
   dplyr::mutate(
@@ -4645,48 +4646,52 @@ kableExtra::kbl(
 
 ##### Best variable window function overall
 
-to select the best overall variable window function to apply to NEON sites that lacked training data, we collapsed across all training sites and plots to calculate an average precision and recall at the variable window function level
-
-we can look at the full results table
-
 ```{r}
 # overall eval results
-training_eval_overall <-
-  training_eval_combined_temp %>% 
+fi_training_eval_overall <-
+  training_plot_score_df %>% 
   dplyr::group_by(ws_fn_nm) %>% 
   dplyr::summarise(
     precision = mean(precision, na.rm = T)
     , recall = mean(recall, na.rm = T)
-    , n_fld_cllctd_stems = sum(ifelse(eval_type == "fld_cllctd_stems",1,0))
-    , n_img_annttd_crwns = sum(ifelse(eval_type == "img_annttd_crwns",1,0))
+    , omission_rate = mean(omission_rate, na.rm = T)
+    , commission_rate = mean(commission_rate, na.rm = T)
+    , rmse_height_m = mean(rmse_height_m, na.rm = T)
+    , rmse_height_m_weighted_mean = sum(rmse_height_m*tp_n, na.rm = T)/sum(tp_n, na.rm = T)
+    , n_plots = dplyr::n()
   ) %>% 
   dplyr::ungroup() %>% 
   dplyr::mutate(
-    dplyr::across(.cols = c(precision,recall), ~ifelse(is.nan(.x),as.numeric(NA),.x))
+    dplyr::across(
+      .cols = c(precision,recall,tidyselect::ends_with("_rate"),tidyselect::starts_with("rmse_"))
+      , ~ifelse(is.nan(.x),as.numeric(NA),.x)
+    )
     , f_score = dplyr::case_when(
       is.na(precision) | is.na(recall) ~ as.numeric(NA)
       , (precision+recall) == 0 ~ 0
       , T ~ 2 * ( (precision*recall)/(precision+recall) )
     )
   ) %>% 
-  dplyr::arrange(desc(f_score),desc(precision),desc(recall),desc(n_fld_cllctd_stems),desc(n_img_annttd_crwns)) %>% 
-  dplyr::mutate(is_best_fn = dplyr::row_number()==1)
+  dplyr::arrange(desc(f_score),desc(precision),desc(recall),omission_rate,commission_rate) %>% 
+  dplyr::mutate(is_best_fn = dplyr::row_number()==1) %>% 
+  dplyr::ungroup()
 # save it
-readr::write_csv(training_eval_overall, "../data/NeonTreeEvaluation_training_eval_overall.csv", append = F, progress = F)
+readr::write_csv(fi_training_eval_overall, "../data/ForInstance_training_eval_overall.csv", append = F, progress = F)
 ```
 
+results table
+
 ```{r}
-training_eval_overall %>% 
-  dplyr::select(-c(is_best_fn)) %>% 
-  dplyr::relocate(tidyselect::starts_with("n_"), .after = dplyr::last_col()) %>% 
+fi_training_eval_overall %>% 
+  dplyr::select(ws_fn_nm, omission_rate,commission_rate,recall,precision,f_score) %>% 
   kableExtra::kbl(
     caption = "Best variable window function overall based on training data evaluation"
     , digits = 2
     , col.names = c(
       "variable<br>window<br>function"
-      ,"precision","recall","F-score"
-      ,"plots<br>with ground truth<br>field collected stems"
-      ,"plots<br>with ground truth<br>image ann. crowns"
+      , "omission<br>rate"
+      , "commission<br>rate"
+      ,"recall","precision","F-score"
     )
     , escape = F
   ) %>% 
@@ -4698,15 +4703,15 @@ keep in mind that these are average values across plots and sites so the actual 
 we can view this "quadrant" plot whereby we overlay the median value to differentiate the "best" window size by the two dimensions (precision, recall)...the upper-right quadrant is the "best" of the variable window functions tested based on these training plots evaluated against image annotated crowns and field collected stems ground truth data
 
 ```{r}
-training_eval_overall %>% 
+fi_training_eval_overall %>% 
   ggplot2::ggplot(ggplot2::aes(x=precision,y=recall,color=ws_fn_nm)) +
-  ggplot2::geom_hline(yintercept = median(training_eval_overall$recall),linetype="dashed") +
-  ggplot2::geom_vline(xintercept = median(training_eval_overall$precision),linetype="dashed") +
+  ggplot2::geom_hline(yintercept = median(fi_training_eval_overall$recall),linetype="dashed") +
+  ggplot2::geom_vline(xintercept = median(fi_training_eval_overall$precision),linetype="dashed") +
   ggplot2::geom_point(ggplot2::aes(shape=is_best_fn),size = 6) +
   ggplot2::scale_color_manual(values = pal_ws) +
   ggplot2::scale_shape_manual(values = c(20,15)) +
-  ggplot2::scale_x_continuous(limits = c(0,0.4)) +
-  ggplot2::scale_y_continuous(limits = c(0,0.7)) +
+  ggplot2::scale_x_continuous(limits = c(0,1)) +
+  ggplot2::scale_y_continuous(limits = c(0,1)) +
   ggplot2::labs(
     color = "variable\nwindow\nfunction"
     , subtitle = "Best variable window function overall based on training data evaluation"
@@ -4722,9 +4727,9 @@ training_eval_overall %>%
 now we'll attach the best variable window function to our processing data
 
 ```{r}
-lidar_df <- lidar_df %>%
+fi_lidar_df <- fi_lidar_df %>%
   dplyr::left_join(
-    training_eval_by_site %>%
+    fi_training_eval_by_site %>%
       dplyr::filter(is_best_fn) %>% 
       dplyr::select(siteID,ws_fn_nm)
     , by = "siteID"
@@ -4732,24 +4737,318 @@ lidar_df <- lidar_df %>%
   dplyr::mutate(
     ws_fn_nm = dplyr::coalesce(
       ws_fn_nm
-      , training_eval_overall %>%
+      , fi_training_eval_overall %>%
         dplyr::filter(is_best_fn) %>% 
         dplyr::pull(ws_fn_nm)
     )
   )
 # save
-readr::write_csv(lidar_df, "../data/NeonTreeEvaluation_lidar_df.csv", append = F, progress = F)
+readr::write_csv(fi_lidar_df, "../data/ForInstance_lidar_df.csv", append = F, progress = F)
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 remove(
-  training_submission, training_eval_by_site
-  , training_eval_overall, training_fld_cllctd_stems
-  , training_img_annttd_crwns
-  , submission_fn
-  , neontree_plot_fn, clean_field_data
-  , m, r3dDefaults
+  fi_training_submission, fi_training_eval_by_site
+  , fi_training_eval_overall
+  , training_ground_truth_crown_match_df
+  , training_ground_truth_crowns_df
+  , training_plot_score_df
 )
 gc()
 ```
+
+### Evaluation validation process
+
+We can finally process the evaluation data using all that we have gleaned in our analysis with the training data
+
+#### Extract trees for evaluation data
+
+as a reminder, here's how many evaluation plots we have by study site
+
+```{r}
+fi_lidar_df %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(data_type == "evaluation") %>% 
+  dplyr::count(siteID) %>% 
+  kableExtra::kbl(
+    caption = "FOR-instance sites with conifers and lidar plots for evaluation"
+    , col.names = c(
+      "site","evaluation (\"test\")<br>plots"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling()
+```
+
+Now we'll extract trees from the evaluation lidar data using the best window function for a site based on the training data
+
+```{r, results=FALSE, warning=FALSE, message=FALSE}
+# where should we save the file?
+submission_fn_temp <- "../data/ForInstance_evaluation_submission.gpkg"
+# if we don't already have the data, run it
+if(!file.exists(submission_fn_temp)){
+# if(T){ ### !!!!!!! take out when it gets real
+  # just get evaluation
+  evaluation_df_temp <- fi_lidar_df %>% 
+    dplyr::filter(data_type == "evaluation")
+  
+  # get trees for each evaluation plot and ws fn combination
+  fi_evaluation_submission <- 
+    1:nrow(evaluation_df_temp) %>%
+    purrr::map(function(x){ 
+      # get ws fn
+      my_fn_nm <- evaluation_df_temp %>% dplyr::slice(x) %>% dplyr::pull(ws_fn_nm)
+      # run it
+      ans <- cloud2trees_for_eval(
+        lidar_df_row = x
+        , lidar_df = evaluation_df_temp
+        , ws = my_ws_functions[[my_fn_nm]]
+      )
+      ### some of these ws functions may not extract any trees
+      ### account for this
+      if(is.null(ans) || !inherits(ans,"data.frame")){
+        return(NULL)
+      }else{
+        return(
+          ans # %>% dplyr::mutate(ws_fn_nm = my_fn_nm) # uncomment for testing
+        )
+      }
+    }) %>% 
+    dplyr::bind_rows()
+  
+  # generate treeID
+  fi_evaluation_submission <- fi_evaluation_submission %>% 
+    dplyr::group_by(plot_name) %>% 
+    dplyr::mutate(treeID = dplyr::row_number()) %>% 
+    dplyr::ungroup()
+  
+  # save it 
+  sf::st_write(fi_evaluation_submission, submission_fn_temp, append = F)
+}else{
+  fi_evaluation_submission <- sf::st_read(submission_fn_temp, quiet = T)
+}
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+#### Evaluation: validation against ground truth
+
+We'll compare our aerial point cloud-based tree detection and crown delineation results to the ground truth using the steps we outlined in the [example above](#ex_valid2).
+
+```{r, warning=FALSE,message=FALSE,results='hide'}
+# where should we save the file?
+evaluation_eval_temp <- "../data/ForInstance_evaluation_evaluate.csv"
+evaluation_eval_m_temp <- "../data/ForInstance_evaluation_evaluate_crown_match.csv"
+evaluation_eval_c_temp <- "../data/ForInstance_evaluation_evaluate_gt_crowns.gpkg"
+# if we don't already have the data, run it
+if(
+  !file.exists(evaluation_eval_temp) ||
+  !file.exists(evaluation_eval_m_temp) ||
+  !file.exists(evaluation_eval_c_temp)
+){
+# if(T){
+  # get unique plot_name,ws_fn_nm
+  combs_temp <-
+    fi_evaluation_submission %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::distinct(plot_name)
+  
+  # safe it
+  safe_fi_evaluate <- purrr::safely(fi_evaluate)
+  
+  # set up empty sets
+  evaluation_plot_score_df <- NULL
+  evaluation_ground_truth_crown_match_df <- NULL
+  evaluation_ground_truth_crowns_df <- NULL
+  
+  # we'll just loop this validation
+  for (i in 1:nrow(combs_temp)) {
+    # validate
+    fi_evaluate_ans_temp <- safe_fi_evaluate(
+      predictions = 
+        fi_evaluation_submission %>% 
+        dplyr::filter(
+          plot_name == combs_temp$plot_name[i]
+        )
+      , las_f_path = fi_lidar_df %>% dplyr::filter(plot_name==combs_temp$plot_name[i]) %>% dplyr::pull(f_path)
+      , remove_mask_overlap_pct = 0.7
+      , min_iou_pct = 0.5
+      , calculate_height_diff = T
+      , force_same_crs = T
+    )
+    # populate results if available
+    if(is.null(fi_evaluate_ans_temp$error)){
+      # evaluation_plot_score_df
+      evaluation_plot_score_df <- evaluation_plot_score_df %>% 
+        dplyr::bind_rows(
+          fi_evaluate_ans_temp$result$plot_score %>% 
+            dplyr::mutate(
+              plot_name = combs_temp$plot_name[i]
+            )
+        )
+      # evaluation_ground_truth_crown_match_df
+      evaluation_ground_truth_crown_match_df <- evaluation_ground_truth_crown_match_df %>% 
+        dplyr::bind_rows(
+          fi_evaluate_ans_temp$result$ground_truth_crown_match %>% 
+            dplyr::mutate(
+              plot_name = combs_temp$plot_name[i]
+            )
+        )
+      # evaluation_ground_truth_crowns_df
+      epsg_temp <- fi_evaluate_ans_temp$result$ground_truth_crowns %>% 
+        sf::st_crs(parameters=T) %>% 
+        purrr::pluck("epsg")
+      evaluation_ground_truth_crowns_df <- evaluation_ground_truth_crowns_df %>% 
+        dplyr::bind_rows(
+          fi_evaluate_ans_temp$result$ground_truth_crowns %>% 
+            dplyr::mutate(
+              plot_name = combs_temp$plot_name[i]
+              , epsg = ifelse(identical(epsg_temp,character(0)),as.numeric(NA),as.numeric(epsg_temp))
+            ) %>% 
+            sf::st_set_crs(NA)
+        )
+    }
+    fi_evaluate_ans_temp <- NULL
+  }
+  
+  # save
+  readr::write_csv(evaluation_plot_score_df, file = evaluation_eval_temp)
+  readr::write_csv(evaluation_ground_truth_crown_match_df, file = evaluation_eval_m_temp)
+  sf::st_write(evaluation_ground_truth_crowns_df, evaluation_eval_c_temp, append = F)
+}else{
+  evaluation_plot_score_df <- readr::read_csv(evaluation_eval_temp, progress = F, show_col_types = F)
+  evaluation_ground_truth_crown_match_df <- readr::read_csv(evaluation_eval_m_temp, progress = F, show_col_types = F)
+  evaluation_ground_truth_crowns_df <- sf::st_read(evaluation_eval_c_temp, quiet = T)
+}
+```
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```
+
+table of results (roughly matches table 6 from [Xiang et al. 2024](https://doi.org/10.1016/j.rse.2024.114078))
+
+```{r}
+evaluation_plot_score_df %>% 
+  dplyr::inner_join(
+    fi_lidar_df %>% 
+      dplyr::select(plot_name,siteID,plotID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::mutate(
+    ref_trees = tp_n+fn_n
+    , det_trees = tp_n+fp_n
+  ) %>% 
+  dplyr::select(
+    siteID,plotID
+    , ref_trees
+    , det_trees
+    , tp_n
+    , omission_rate,commission_rate,recall,precision,f_score
+    , rmse_height_m
+  ) %>% 
+  dplyr::mutate(
+    dplyr::across(
+      .cols = c(omission_rate,commission_rate,recall,precision,f_score)
+      , .fns = ~scales::percent(.x,accuracy=0.1)
+    )
+    , rmse_height_m = scales::comma(rmse_height_m,accuracy=0.1)
+  ) %>% 
+  dplyr::arrange(siteID,plotID) %>% 
+  kableExtra::kbl(
+    caption = "FOR-instance individual tree segmentation results for each plot in the evaluation set"
+    , col.names = c(
+      "site","plot"
+      , "reference", "detected", "correct"
+      , "omission<br>rate"
+      , "commission<br>rate"
+      ,"recall","precision","F-score"
+      , "RMSE<br>height (m)"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::collapse_rows(columns = 1, valign = "top") %>% 
+  kableExtra::add_header_above(
+    c(" "=2, "Trees" = 3, " " = 6)
+  )
+```
+
+to look at the results in space we'll make each plot separately and then combine via `patchwork`
+
+```{r}
+plt_nms_temp <- evaluation_plot_score_df %>% 
+  dplyr::inner_join(
+    fi_lidar_df %>% 
+      dplyr::select(plot_name,siteID,plotID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::arrange(siteID,plotID) %>% 
+  dplyr::select(plot_name,siteID,plotID)
+plt_fn <- function(
+    rn
+    , list_df = plt_nms_temp
+    , my_evaluation_ground_truth_crowns_df = evaluation_ground_truth_crowns_df
+    , my_evaluation_ground_truth_crown_match_df = evaluation_ground_truth_crown_match_df
+    , my_fi_evaluation_submission = fi_evaluation_submission
+    , my_pal_match_grp = pal_match_grp
+) {
+  # evaluation
+  e_temp <- my_evaluation_ground_truth_crowns_df %>%
+    dplyr::filter(plot_name==list_df$plot_name[rn]) %>%
+    dplyr::inner_join(
+      my_evaluation_ground_truth_crown_match_df %>%
+        dplyr::select(plot_name,treeID,match_grp)
+      , by = dplyr::join_by(plot_name,treeID)
+    )
+  # prediciton
+  p_temp <- my_fi_evaluation_submission %>%
+    dplyr::filter(plot_name==list_df$plot_name[rn]) %>% 
+    dplyr::inner_join(
+      my_evaluation_ground_truth_crown_match_df %>%
+        dplyr::select(plot_name,treeID_pred,match_grp)
+      , by = dplyr::join_by(plot_name, treeID==treeID_pred)
+    ) %>%
+    sf::st_set_crs(sf::st_crs(evaluation_ground_truth_crown_match_df))
+  # plot it
+  ggplot2::ggplot(mapping = ggplot2::aes(fill = match_grp, color = match_grp)) +
+    ggplot2::geom_sf(
+      data = e_temp
+      , color = NA ,alpha=0.6
+    ) +
+    ggplot2::geom_sf(
+      data = p_temp %>% dplyr::filter(match_grp=="commission")
+      , alpha = 0
+      , lwd = 2.8
+    ) +
+    ggplot2::geom_sf(
+      data = p_temp %>% dplyr::filter(match_grp!="commission")
+      , alpha = 0
+      , lwd = 1.2
+    ) +
+    ggplot2::coord_sf(default_crs = NA) +
+    # ggplot2::facet_wrap(facets = dplyr::vars(plot_name)) +
+    ggplot2::scale_fill_manual(values = my_pal_match_grp, name = "") +
+    ggplot2::scale_color_manual(values = my_pal_match_grp, name = "") +
+    ggplot2::labs(
+      subtitle = paste0(
+        list_df$siteID[rn]
+        , " plot "
+        , list_df$plotID[rn]
+      )
+    ) +
+    ggplot2::theme_void() +
+    ggplot2::theme(plot.subtitle = ggplot2::element_text(hjust=0.5)) +
+    ggplot2::guides(
+      fill = ggplot2::guide_legend(override.aes = list(color = c(my_pal_match_grp["commission"],NA,NA)))
+      , color = "none"
+    )
+}
+plt_fn(3)
+```
+
