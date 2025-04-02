@@ -4023,7 +4023,7 @@ let's look at that spatially
 ```{r}
 pal_match_grp = c(
   "omission"=viridis::cividis(3)[1]
-  , "commission"=viridis::cividis(3)[2]
+  , "commission"= "black" #viridis::cividis(3)[2]
   , "true positive"=viridis::cividis(3)[3]
 )
 # plot it
@@ -4060,7 +4060,7 @@ ggplot2::ggplot() +
   )
 ```
 
-Note the predicted crowns classified as commission errors that encompass multiple ground truth tree crowns which are counted as omission errors. Even though the predicted crowns cover at least on ground truth crowns, these instances are classified as such due to the criteria that "if the IoU is <0.5: the predicted tree is considered an error" and thus no ground truth instance is matched
+Note the predicted crowns classified as commission errors that enclose multiple ground truth tree crowns which are counted as omission errors. Even though the predicted crowns overlap the ground truth crowns, these instances are classified as such due to the criteria that "if the IoU is <0.5: the predicted tree is considered an error" and thus no ground truth instance is matched
 
 let's quickly look at the IoU values on the true positive trees
 
@@ -4093,6 +4093,35 @@ $$
 Where $N$ is equal to the total number of trees either in a FOR-instance collection or in the whole dataset, $y_i$ is the reference height value and $\hat{y_i}$ is the predicted tree height value of tree $i$ in meters above ground (m).
 
 ```{r}
+# first function takes df with cols tp_n, fp_n, and fn_n to calculate rates
+confusion_matrix_scores_fn <- function(df) {
+  df %>% 
+  dplyr::mutate(
+    omission_rate = dplyr::case_when(
+      (tp_n+fn_n) == 0  ~ as.numeric(NA)
+      , T ~ fn_n/(tp_n+fn_n)
+    ) # False Negative Rate or Miss Rate
+    , commission_rate = dplyr::case_when(
+      (tp_n+fp_n) == 0  ~ as.numeric(NA)
+      , T ~ fp_n/(tp_n+fp_n)
+    ) # False Positive Rate
+    , precision = dplyr::case_when(
+      (tp_n+fp_n) == 0  ~ as.numeric(NA)
+      , T ~ tp_n/(tp_n+fp_n)
+    )
+    , recall = dplyr::case_when(
+      (tp_n+fn_n) == 0  ~ as.numeric(NA)
+      , T ~ tp_n/(tp_n+fn_n)
+    )
+    , f_score = dplyr::case_when(
+      is.na(precision) | is.na(recall) ~ as.numeric(NA)
+      , (precision+recall) == 0 ~ 0
+      , T ~ 2 * ( (precision*recall)/(precision+recall) )
+    )    
+  ) 
+}
+
+
 agg_ground_truth_crown_match <- function(ground_truth_crown_match_ans) {
   if(nrow(ground_truth_crown_match_ans)==0){return(NULL)}
   if( !(names(ground_truth_crown_match_ans) %>% stringr::str_equal("match_grp") %>% any()) ){stop("ground_truth_crown_match_ans must contain `match_grp` column")}
@@ -4117,30 +4146,7 @@ agg_ground_truth_crown_match <- function(ground_truth_crown_match_ans) {
       , names_glue = "{match_grp}_{.value}"
     )
   # rates, precision, recall, f-score
-  return_df <- return_df %>% 
-    dplyr::mutate(
-      omission_rate = dplyr::case_when(
-        (tp_n+fn_n) == 0  ~ as.numeric(NA)
-        , T ~ fn_n/(tp_n+fn_n)
-      ) # False Negative Rate or Miss Rate
-      , commission_rate = dplyr::case_when(
-        (tp_n+fp_n) == 0  ~ as.numeric(NA)
-        , T ~ fp_n/(tp_n+fp_n)
-      ) # False Positive Rate
-      , precision = dplyr::case_when(
-        (tp_n+fp_n) == 0  ~ as.numeric(NA)
-        , T ~ tp_n/(tp_n+fp_n)
-      )
-      , recall = dplyr::case_when(
-        (tp_n+fn_n) == 0  ~ as.numeric(NA)
-        , T ~ tp_n/(tp_n+fn_n)
-      )
-      , f_score = dplyr::case_when(
-        is.na(precision) | is.na(recall) ~ as.numeric(NA)
-        , (precision+recall) == 0 ~ 0
-        , T ~ 2 * ( (precision*recall)/(precision+recall) )
-      )    
-    )
+  return_df <- return_df %>% confusion_matrix_scores_fn()
   # height rmse
   if( names(ground_truth_crown_match_ans) %>% stringr::str_equal("height_diff") %>% any() ){
     return_df <- return_df %>% 
@@ -4931,6 +4937,8 @@ remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
 
+##### Plot-level scores
+
 table of results (roughly matches table 6 from [Xiang et al. 2024](https://doi.org/10.1016/j.rse.2024.114078))
 
 ```{r}
@@ -4957,14 +4965,14 @@ evaluation_plot_score_df %>%
       .cols = c(omission_rate,commission_rate,recall,precision,f_score)
       , .fns = ~scales::percent(.x,accuracy=0.1)
     )
-    , rmse_height_m = scales::comma(rmse_height_m,accuracy=0.1)
+    , rmse_height_m = scales::comma(rmse_height_m,accuracy=0.01)
   ) %>% 
   dplyr::arrange(siteID,plotID) %>% 
   kableExtra::kbl(
     caption = "FOR-instance individual tree segmentation results for each plot in the evaluation set"
     , col.names = c(
       "site","plot"
-      , "reference", "detected", "correct"
+      , "reference<br>trees", "detected<br>trees", "correct<br>trees"
       , "omission<br>rate"
       , "commission<br>rate"
       ,"recall","precision","F-score"
@@ -4973,15 +4981,16 @@ evaluation_plot_score_df %>%
     , escape = F
   ) %>% 
   kableExtra::kable_styling() %>% 
-  kableExtra::collapse_rows(columns = 1, valign = "top") %>% 
-  kableExtra::add_header_above(
-    c(" "=2, "Trees" = 3, " " = 6)
-  )
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+  # kableExtra::add_header_above(
+  #   c(" "=2, "Trees" = 3, " " = 6)
+  # )
 ```
 
 to look at the results in space we'll make each plot separately and then combine via `patchwork`
 
-```{r}
+```{r, results=F,message=FALSE,warning=FALSE}
+# list of plots to process
 plt_nms_temp <- evaluation_plot_score_df %>% 
   dplyr::inner_join(
     fi_lidar_df %>% 
@@ -4990,13 +4999,15 @@ plt_nms_temp <- evaluation_plot_score_df %>%
   ) %>% 
   dplyr::arrange(siteID,plotID) %>% 
   dplyr::select(plot_name,siteID,plotID)
+# plot function
 plt_fn <- function(
     rn
     , list_df = plt_nms_temp
-    , my_evaluation_ground_truth_crowns_df = evaluation_ground_truth_crowns_df
+    , my_evaluation_ground_truth_crowns_df = evaluation_ground_truth_crowns_df %>% sf::st_set_crs(NA)
     , my_evaluation_ground_truth_crown_match_df = evaluation_ground_truth_crown_match_df
-    , my_fi_evaluation_submission = fi_evaluation_submission
+    , my_fi_evaluation_submission = fi_evaluation_submission %>% sf::st_set_crs(NA)
     , my_pal_match_grp = pal_match_grp
+    , my_evaluation_plot_score_df = evaluation_plot_score_df
 ) {
   # evaluation
   e_temp <- my_evaluation_ground_truth_crowns_df %>%
@@ -5005,8 +5016,10 @@ plt_fn <- function(
       my_evaluation_ground_truth_crown_match_df %>%
         dplyr::select(plot_name,treeID,match_grp)
       , by = dplyr::join_by(plot_name,treeID)
-    )
-  # prediciton
+    ) %>% 
+    dplyr::mutate(match_grp=forcats::fct_rev(match_grp)) %>% 
+    dplyr::arrange(desc(match_grp))
+  # prediction
   p_temp <- my_fi_evaluation_submission %>%
     dplyr::filter(plot_name==list_df$plot_name[rn]) %>% 
     dplyr::inner_join(
@@ -5014,22 +5027,24 @@ plt_fn <- function(
         dplyr::select(plot_name,treeID_pred,match_grp)
       , by = dplyr::join_by(plot_name, treeID==treeID_pred)
     ) %>%
-    sf::st_set_crs(sf::st_crs(evaluation_ground_truth_crown_match_df))
+    sf::st_set_crs(sf::st_crs(evaluation_ground_truth_crown_match_df)) %>% 
+    dplyr::mutate(match_grp=forcats::fct_rev(match_grp)) %>% 
+    dplyr::arrange(desc(match_grp))
   # plot it
   ggplot2::ggplot(mapping = ggplot2::aes(fill = match_grp, color = match_grp)) +
     ggplot2::geom_sf(
       data = e_temp
-      , color = NA ,alpha=0.6
+      , color = "gray" ,alpha=0.7, lwd = 0.1
     ) +
     ggplot2::geom_sf(
       data = p_temp %>% dplyr::filter(match_grp=="commission")
       , alpha = 0
-      , lwd = 2.8
+      , lwd = 2.2
     ) +
     ggplot2::geom_sf(
       data = p_temp %>% dplyr::filter(match_grp!="commission")
       , alpha = 0
-      , lwd = 1.2
+      , lwd = 1.0
     ) +
     ggplot2::coord_sf(default_crs = NA) +
     # ggplot2::facet_wrap(facets = dplyr::vars(plot_name)) +
@@ -5040,15 +5055,301 @@ plt_fn <- function(
         list_df$siteID[rn]
         , " plot "
         , list_df$plotID[rn]
+        , "\nF-score: "
+        , my_evaluation_plot_score_df %>% 
+          dplyr::filter(plot_name==list_df$plot_name[rn]) %>% 
+          dplyr::pull(f_score) %>% 
+          scales::percent(accuracy=0.1)
       )
     ) +
     ggplot2::theme_void() +
     ggplot2::theme(plot.subtitle = ggplot2::element_text(hjust=0.5)) +
     ggplot2::guides(
-      fill = ggplot2::guide_legend(override.aes = list(color = c(my_pal_match_grp["commission"],NA,NA)))
+      fill = ggplot2::guide_legend(
+        override.aes = list(
+          color = c(my_pal_match_grp["true positive"],"transparent",my_pal_match_grp["commission"])
+          , lwd = 1 # c(1,0.1,1)
+        )
+      )
       , color = "none"
     )
 }
-plt_fn(3)
+# plt_fn(3)
+# map over plots
+plt_list <- 1:nrow(plt_nms_temp) %>% 
+  purrr::map(plt_fn)
 ```
 
+combine the figures as tiles
+
+```{r, fig.height=9.5,fig.width=8.5}
+patchwork::wrap_plots(plt_list, ncol = 3, guides = "collect") &
+  ggplot2::theme(legend.position = "bottom")
+```
+
+The ground truth trees are shown as filled polygons while our predicted crowns are shown as unfilled polygon outlines. Note the predicted crowns classified as commission errors that enclose multiple ground truth tree crowns which are counted as omission errors. Even though the predicted crowns overlap the ground truth crowns, these instances are classified as such due to the criteria that "if the IoU is <0.5: the predicted tree is considered an error" and thus no ground truth instance is matched.
+
+Let's look at the distribution of tree heights in the evaluation versus the predicted data for *all* trees (true positive, omission, and commission)
+
+```{r}
+# scales::show_col(RColorBrewer::brewer.pal(n = 3, name = "Dark2"))
+pal_gt_train = c(
+  "ground truth"=RColorBrewer::brewer.pal(n = 3, name = "Dark2")[1]
+  , "prediction"= RColorBrewer::brewer.pal(n = 3, name = "Dark2")[3]
+)
+# plot
+evaluation_ground_truth_crown_match_df %>% 
+  dplyr::inner_join(
+    fi_lidar_df %>% 
+      dplyr::select(plot_name,siteID,plotID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::select(siteID,plotID,tidyselect::contains("tree_height")) %>% 
+  tidyr::pivot_longer(
+    cols = tidyselect::contains("tree_height")
+  ) %>% 
+  dplyr::arrange(siteID,plotID) %>% 
+  dplyr::mutate(
+    lab = paste0(
+        siteID
+        , " plot "
+        , plotID
+      )
+    , name = dplyr::case_match(
+      name
+      , "gt_tree_height" ~ "ground truth"
+      , "tree_height_m" ~ "prediction"
+    )
+  ) %>% 
+  ggplot2::ggplot(
+    mapping = ggplot2::aes(x = value, color = name, fill = name, group = name)
+  ) +
+  ggplot2::geom_density(alpha = 0.7, lwd = 1) +
+  ggplot2::facet_wrap(facets = dplyr::vars(lab), ncol = 3, scales = "free") +
+  ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
+  ggplot2::scale_fill_manual(values = pal_gt_train, name = "") +
+  ggplot2::scale_color_manual(values = pal_gt_train, name = "") +
+  ggplot2::labs(
+    x = "height (m)", y = ""
+  ) +
+  ggplot2::theme_light() +
+  ggplot2::theme(
+    legend.position = "top"
+    , axis.text.y = ggplot2::element_blank()
+    , axis.ticks.y = ggplot2::element_blank()
+    , strip.text = ggplot2::element_text(color = "black", size = 10)
+  )
+```
+
+These distributions indicate that, in general, our aerial point cloud tree detection methodology missed lower canopy trees. Under-detection of suppressed or understory trees based on aerial lidar data is a well-known shortcoming of these methodologies.
+
+For the most part, our aerial point cloud tree detection method performed well at identifying tree tops based on the tree height RMSE values. Let's look at the matched tree pairs (true positive) and the predicted height difference.
+
+```{r, fig.height=9.1, fig.width=8.5}
+# plot
+evaluation_ground_truth_crown_match_df %>% 
+  dplyr::inner_join(
+    fi_lidar_df %>% 
+      dplyr::select(plot_name,siteID,plotID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::filter(match_grp=="true positive") %>%
+  dplyr::mutate(height_diff=abs(height_diff )) %>% 
+  dplyr::select(plot_name,treeID,siteID,plotID,tidyselect::contains("tree_height"),height_diff) %>% 
+  tidyr::pivot_longer(
+    cols = tidyselect::contains("tree_height")
+  ) %>% 
+  dplyr::group_by(siteID,plotID,treeID) %>% 
+  dplyr::mutate(x_ht = max(value)) %>% 
+  dplyr::group_by(siteID,plotID) %>% 
+  dplyr::mutate(
+    rk_ht = dplyr::dense_rank(desc(x_ht))
+    , force_lab = rk_ht==max(rk_ht) | rk_ht==min(rk_ht)
+  ) %>% 
+  dplyr::arrange(siteID,plotID,desc(x_ht) ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::inner_join(evaluation_plot_score_df %>% dplyr::select(plot_name, rmse_height_m)) %>% 
+  dplyr::mutate(
+    lab = paste0(
+        siteID
+        , " plot "
+        , plotID
+        , "\nheight RMSE: "
+        , scales::comma(rmse_height_m,accuracy=0.01)
+        , " (m)"
+      )
+    , name = dplyr::case_match(
+      name
+      , "gt_tree_height" ~ "ground truth"
+      , "tree_height_m" ~ "prediction"
+    ) %>% as.factor()
+    , ht_lab = ifelse(
+      rk_ht %in% seq(from = 1, by = 3, length.out = 111) | force_lab
+      , value
+      , NA
+    )
+  ) %>% 
+  ggplot2::ggplot(
+    mapping = ggplot2::aes(x = name, y = value)
+  ) +
+  ggplot2::geom_line(mapping = ggplot2::aes(group = treeID, color = height_diff)) +
+  ggplot2::scale_colour_gradient(low = "gray66", high = "gray19") +
+  ggnewscale::new_scale_color() +
+  ggplot2::geom_point(mapping = ggplot2::aes(color = name)) +
+  ggplot2::scale_color_manual(values = pal_gt_train, name = "") +
+  ggrepel::geom_text_repel(
+    mapping = ggplot2::aes(
+      x = ifelse(name=="ground truth",name,NA)
+      , label = scales::comma(ht_lab,accuracy=0.1)
+    )
+    , segment.color  = pal_gt_train["ground truth"]
+    , size = 2.5, max.overlaps = 3
+    , nudge_x = -0.2, direction = "y", hjust = "right"
+    , min.segment.length = 0.2
+  ) +
+  ggrepel::geom_text_repel(
+    mapping = ggplot2::aes(
+      x = ifelse(name=="prediction",name,NA)
+      , label = scales::comma(ht_lab,accuracy=0.1)
+    )
+    , segment.color  = pal_gt_train["prediction"]
+    , size = 2.5, max.overlaps = 3
+    , nudge_x = 0.1, direction = "y", hjust = "left"
+    , min.segment.length = 0.2
+  ) +
+  ggplot2::facet_wrap(facets = dplyr::vars(lab), ncol = 3, scales = "free") +
+  ggplot2::labs(
+    y = "height (m)", x = ""
+  ) +
+  ggplot2::theme_light() +
+  ggplot2::theme(
+    legend.position = "none"
+    , axis.text.y = ggplot2::element_blank()
+    , axis.ticks.y = ggplot2::element_blank()
+    , strip.text = ggplot2::element_text(color = "black", size = 10)
+  )
+
+```
+
+Notice that one tree in a few plots had a significant impact on increasing the plot-level tree height RMSE value. However, overall, our method performed well detecting the tree tops
+
+##### Site-level scores
+
+To aggregate our plot-level scores to the site level we'll summarize our confusion matrix ($TP$, $FP$, $FN$) by site.
+
+Our table of results will align with table 5 from Wielgosz et al. ([2024](https://doi.org/10.1016/j.rse.2024.114367)) for comparison
+
+```{r}
+eval_temp <- 
+  evaluation_plot_score_df %>% 
+  dplyr::inner_join(
+    fi_lidar_df %>% 
+      dplyr::select(plot_name,siteID)
+    , by = "plot_name"
+  ) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(dplyr::across(c(tp_n,fp_n,fn_n), .fn = sum)) %>%
+  dplyr::ungroup() %>%
+  confusion_matrix_scores_fn() %>% 
+  # height rmse
+  dplyr::left_join(
+    evaluation_ground_truth_crown_match_df %>% 
+      dplyr::inner_join(
+        fi_lidar_df %>% 
+          dplyr::select(plot_name,siteID)
+        , by = "plot_name"
+      ) %>% 
+      dplyr::group_by(siteID) %>% 
+      dplyr::summarise(
+        height_diff_sq = sum(height_diff^2, na.rm = T)
+        , n = sum(ifelse(!is.na(height_diff),1,0))
+      ) %>% 
+      dplyr::mutate(
+        rmse_height_m = dplyr::case_when(
+          dplyr::coalesce(n,0)==0 ~ as.numeric(NA)
+          , T ~ sqrt(height_diff_sq/n)
+        )
+      ) %>% 
+      dplyr::ungroup() %>% 
+      dplyr::select(siteID,rmse_height_m)
+  ) %>% 
+  dplyr::select(
+    siteID
+    , omission_rate,commission_rate,recall,precision,f_score
+    , rmse_height_m
+  ) 
+
+eval_temp %>% 
+  dplyr::mutate(
+    dplyr::across(
+      .cols = c(omission_rate,commission_rate,recall,precision,f_score)
+      , .fns = ~scales::percent(.x,accuracy=0.1)
+    )
+    , rmse_height_m = scales::comma(rmse_height_m,accuracy=0.01)
+  ) %>% 
+  dplyr::arrange(siteID) %>% 
+  kableExtra::kbl(
+    caption = "FOR-instance individual tree segmentation results for study site in the evaluation set with conifers"
+    , col.names = c(
+      "site"
+      , "omission<br>rate"
+      , "commission<br>rate"
+      ,"recall","precision","F-score"
+      , "RMSE<br>height (m)"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+here is the comparison to state-of-the-art methods that utilize deep learning models for tree segmentation from point cloud data as reported in Wielgosz et al. ([2024](https://doi.org/10.1016/j.rse.2024.114367))
+
+* Straker, A., Puliti, S., Breidenbach, J., Kleinn, C., Pearse, G., Astrup, R., & Magdon, P. (2023). Instance segmentation of individual tree crowns with YOLOv5: A comparison of approaches using the ForInstance benchmark LiDAR dataset. *ISPRS Open Journal of Photogrammetry and Remote Sensing, 9*, 100045. [https://doi.org/10.1016/j.ophoto.2023.100045](https://doi.org/10.1016/j.ophoto.2023.100045)
+* Xiang, B., Wielgosz, M., Kontogianni, T., Peters, T., Puliti, S., Astrup, R., & Schindler, K. (2024). Automated forest inventory: Analysis of high-density airborne LiDAR point clouds with 3D deep learning. *Remote Sensing of Environment, 305*, 114078. [https://doi.org/10.1016/j.rse.2024.114078](https://doi.org/10.1016/j.rse.2024.114078)
+* Wielgosz, M., Puliti, S., Xiang, B., Schindler, K., & Astrup, R. (2024). SegmentAnyTree: A sensor and platform agnostic deep learning model for tree segmentation using laser scanning data. *Remote Sensing of Environment, 313*, 114367. [https://doi.org/10.1016/j.rse.2024.114367](https://doi.org/10.1016/j.rse.2024.114367)
+
+```{r}
+df_temp <- read.csv(text = "
+siteID,study,omission_rate,commission_rate,recall,precision,f_score,rmse_height_m
+NIBIO,Straker et al. (2023),0.33,,0.67,,,
+NIBIO,Xiang et al. (2024),0.12,0.03,0.88,0.97,0.92,
+NIBIO,Wielgosz et al. (2024),0.12,0.09,0.88,0.91,0.88,3.4
+CULS,Straker et al. (2023),0,,1,,,
+CULS,Xiang et al. (2024),0,0.13,1,0.87,0.93,
+CULS,Wielgosz et al. (2024),0,0,1,1,0.99,0.14
+SCION,Straker et al. (2023),0.14,,0.86,,,
+SCION,Xiang et al. (2024),0.13,0.04,0.87,0.96,0.91,
+SCION,Wielgosz et al. (2024),0.08,0.07,0.92,0.93,0.91,1.7
+")
+
+df_temp %>% 
+  dplyr::bind_rows(
+    eval_temp %>% 
+    dplyr::mutate(study = "Our method") %>% 
+    dplyr::relocate(study, .after = siteID)
+  ) %>% 
+  dplyr::arrange(siteID) %>% 
+  dplyr::mutate(
+    dplyr::across(
+      .cols = c(omission_rate,commission_rate,recall,precision,f_score)
+      , .fns = ~scales::percent(.x,accuracy=0.1)
+    )
+    , rmse_height_m = scales::comma(rmse_height_m,accuracy=0.01)
+  ) %>% 
+  kableExtra::kbl(
+    caption = "FOR-instance individual tree segmentation results for existing studies employing deep learning against our results for the tested datasets"
+    , col.names = c(
+      "site","study"
+      , "omission<br>rate"
+      , "commission<br>rate"
+      ,"recall","precision","F-score"
+      , "RMSE<br>height (m)"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+interesting
