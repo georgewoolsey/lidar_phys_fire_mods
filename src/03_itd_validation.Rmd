@@ -5352,4 +5352,4 @@ df_temp %>%
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
-interesting
+While these deep learning methods offer superior accuracy and detail, capturing complex 3D tree structures often missed by 2D Canopy Height Model (CHM) approaches, their adoption is hindered by substantial computational demands, complex data variability requiring extensive annotated training sets, and the inherent complexity of 3D model design and training. In contrast, 2D CHM methods are computationally efficient and often provide adequate results, making them more attractive for many applications. Consequently, despite the potential of deep learning to enhance forest analysis, the relative simplicity and lower computational cost of 2D CHM methods have contributed to their wider adoption.

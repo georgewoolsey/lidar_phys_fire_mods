@@ -26,6 +26,11 @@ tab:unnamed-chunk-270
 tab:unnamed-chunk-272
 tab:unnamed-chunk-275
 tab:unnamed-chunk-321
+tab:unnamed-chunk-323
+tab:unnamed-chunk-327
+tab:unnamed-chunk-332
+tab:unnamed-chunk-337
+tab:unnamed-chunk-338
 introduction
 objective
 data_desc
@@ -123,6 +128,12 @@ training-validation-process-1
 extract-trees-for-training-data-1
 training-validation-against-ground-truth-1
 best-variable-window-function-by-site
+best-variable-window-function-overall-1
+evaluation-validation-process-1
+extract-trees-for-evaluation-data-1
+evaluation-validation-against-ground-truth-1
+plot-level-scores
+site-level-scores
 appendix
 data_ex
 cbh
