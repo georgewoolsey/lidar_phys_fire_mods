@@ -4288,7 +4288,7 @@ ggplot2::ggplot() +
   ggplot2::scale_color_manual(values = pal_match_grp, name = "") +
   ggplot2::theme_void() +
   ggplot2::guides(
-    fill = ggplot2::guide_legend(override.aes = list(color = c(NA,NA,viridis::cividis(3)[2])))
+    fill = ggplot2::guide_legend(override.aes = list(color = c(NA,NA,pal_match_grp["commission"])))
     , color = "none"
   )
 ```
@@ -4301,7 +4301,7 @@ remove(m,r3dDefaults,ans_crowns,ans_crowns_no_mask,ans,ground_truth_crown_match_
 gc()
 ```
 
-### Training validation process
+### Training validation process{#fi_train}
 
 Now that we have been through the validation process for a [single sample plot](#ex_valid2) and [defined different variable window functions](#itd_more) for use in ITD, we'll detect trees and delineate tree crowns using our `cloud2trees::cloud2trees()` [method](#xtract) to apply over each training lidar data set.
 
@@ -4766,7 +4766,7 @@ gc()
 
 ### Evaluation validation process
 
-We can finally process the evaluation data using all that we have gleaned in our analysis with the training data
+We can finally process the evaluation data using all that we have gleaned in our [analysis with the training data](#fi_train)
 
 #### Extract trees for evaluation data
 
@@ -4980,7 +4980,7 @@ evaluation_plot_score_df %>%
     )
     , escape = F
   ) %>% 
-  kableExtra::kable_styling() %>% 
+  kableExtra::kable_styling(font_size = 12.5) %>% 
   kableExtra::collapse_rows(columns = 1, valign = "top")
   # kableExtra::add_header_above(
   #   c(" "=2, "Trees" = 3, " " = 6)
@@ -5348,8 +5348,13 @@ df_temp %>%
     )
     , escape = F
   ) %>% 
-  kableExtra::kable_styling() %>% 
+  kableExtra::kable_styling(font_size = 13) %>% 
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
 While these deep learning methods offer superior accuracy and detail, capturing complex 3D tree structures often missed by 2D Canopy Height Model (CHM) approaches, their adoption is hindered by substantial computational demands, complex data variability requiring extensive annotated training sets, and the inherent complexity of 3D model design and training. In contrast, 2D CHM methods are computationally efficient and often provide adequate results, making them more attractive for many applications. Consequently, despite the potential of deep learning to enhance forest analysis, the relative simplicity and lower computational cost of 2D CHM methods have contributed to their wider adoption.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+remove(list = ls()[grep("_temp",ls())])
+gc()
+```

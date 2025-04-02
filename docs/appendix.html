@@ -248,7 +248,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <ul>
 <li class="chapter" data-level="4.3.1" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#lidar-data-in-for-instance"><i class="fa fa-check"></i><b>4.3.1</b> lidar data in <strong>FOR-instance</strong></a></li>
 <li class="chapter" data-level="4.3.2" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#ex_valid2"><i class="fa fa-check"></i><b>4.3.2</b> Example validation process</a></li>
-<li class="chapter" data-level="4.3.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#training-validation-process-1"><i class="fa fa-check"></i><b>4.3.3</b> Training validation process</a></li>
+<li class="chapter" data-level="4.3.3" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#fi_train"><i class="fa fa-check"></i><b>4.3.3</b> Training validation process</a></li>
 <li class="chapter" data-level="4.3.4" data-path="validate-tree-detection-and-crown-delineation.html"><a href="validate-tree-detection-and-crown-delineation.html#evaluation-validation-process-1"><i class="fa fa-check"></i><b>4.3.4</b> Evaluation validation process</a></li>
 </ul></li>
 </ul></li>
@@ -345,14 +345,14 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb364-3"><a href="appendix.html#cb364-3" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;Z&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> T</span>
 <span id="cb364-4"><a href="appendix.html#cb364-4" tabindex="-1"></a>   , <span class="at">pal =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
 <span id="cb364-5"><a href="appendix.html#cb364-5" tabindex="-1"></a>  )</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-345-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-346-1.png" width="1008" /></p>
 <p>now we’ll attach the <code>treeID</code> column to the normalized las file</p>
 <div class="sourceCode" id="cb365"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb365-1"><a href="appendix.html#cb365-1" tabindex="-1"></a>las <span class="ot">&lt;-</span> cloud2trees<span class="sc">::</span><span class="fu">polygon_attribute_to_las</span>(<span class="at">las =</span> las, <span class="at">poly_df =</span> crowns_sf, <span class="at">attribute =</span> <span class="st">&quot;treeID&quot;</span>, <span class="at">force_crs =</span> T)</span></code></pre></div>
 <p>let’s look at our point cloud colored by <code>treeID</code></p>
 <div class="sourceCode" id="cb366"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb366-1"><a href="appendix.html#cb366-1" tabindex="-1"></a>las <span class="sc">%&gt;%</span> </span>
 <span id="cb366-2"><a href="appendix.html#cb366-2" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">filter_poi</span>(<span class="sc">!</span><span class="fu">is.na</span>(treeID)) <span class="sc">%&gt;%</span> </span>
 <span id="cb366-3"><a href="appendix.html#cb366-3" tabindex="-1"></a>  lidR<span class="sc">::</span><span class="fu">plot</span>(<span class="at">color =</span> <span class="st">&quot;treeID&quot;</span>, <span class="at">bg =</span> <span class="st">&quot;white&quot;</span>, <span class="at">legend =</span> F)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-347-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-348-1.png" width="1008" /></p>
 <p>let’s filter for a single tree</p>
 <div class="sourceCode" id="cb367"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb367-1"><a href="appendix.html#cb367-1" tabindex="-1"></a><span class="co"># sf</span></span>
 <span id="cb367-2"><a href="appendix.html#cb367-2" tabindex="-1"></a>one_tree_sf <span class="ot">&lt;-</span> crowns_sf <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">filter</span>(tree_height_m <span class="sc">==</span> <span class="fu">max</span>(tree_height_m)) <span class="sc">%&gt;%</span> dplyr<span class="sc">::</span><span class="fu">slice</span>(<span class="dv">1</span>)</span>
@@ -371,7 +371,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb368-10"><a href="appendix.html#cb368-10" tabindex="-1"></a>  , <span class="at">col =</span> harrypotter<span class="sc">::</span><span class="fu">hp</span>(<span class="at">n=</span><span class="dv">50</span>, <span class="at">house =</span> <span class="st">&quot;gryffindor&quot;</span>)</span>
 <span id="cb368-11"><a href="appendix.html#cb368-11" tabindex="-1"></a>  , <span class="at">main =</span><span class="st">&quot;single tree point cloud&quot;</span></span>
 <span id="cb368-12"><a href="appendix.html#cb368-12" tabindex="-1"></a>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-350-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-351-1.png" width="1008" /></p>
 </div>
 <div id="cbh" class="section level2 hasAnchor" number="5.2">
 <h2><span class="header-section-number">5.2</span> CBH Process<a href="appendix.html#cbh" class="anchor-section" aria-label="Anchor link to header"></a></h2>
@@ -430,7 +430,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb374-27"><a href="appendix.html#cb374-27" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> scales<span class="sc">::</span><span class="fu">extended_breaks</span>(<span class="dv">10</span>)) <span class="sc">+</span></span>
 <span id="cb374-28"><a href="appendix.html#cb374-28" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb374-29"><a href="appendix.html#cb374-29" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;top&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-354-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-355-1.png" width="1008" /></p>
 <p>note, the <code>gap</code> and <code>cbh</code> columns in <code>ladderfuelsr_cbh_ans$gaps_fbhs</code> contain the data needed for the plot ( but not the <code>gap_</code> and <code>cbh_</code> columns ;/ ).</p>
 <p>but what are these columns?</p>
 <ul>
@@ -514,7 +514,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb377-19"><a href="appendix.html#cb377-19" tabindex="-1"></a>(plots_cbh_maxdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_maxdist&quot;</span>)) <span class="sc">+</span></span>
 <span id="cb377-20"><a href="appendix.html#cb377-20" tabindex="-1"></a>(plots_cbh_lastdist[[<span class="dv">1</span>]] <span class="sc">+</span> <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">&quot;get_plots_cbh_lastdist&quot;</span>)) <span class="sc">+</span></span>
 <span id="cb377-21"><a href="appendix.html#cb377-21" tabindex="-1"></a>  patchwork<span class="sc">::</span><span class="fu">plot_layout</span>(<span class="at">ncol =</span> <span class="dv">2</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-356-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-357-1.png" width="1008" /></p>
 <p>these plots represent the three criteria to define the CBH in a segmented tree:</p>
 <ul>
 <li><code>get_plots_cbh_LAD</code> = the fuel layer containing the maximum LAD percentage (column named <code>maxlad_Hcbh</code>)</li>
@@ -523,7 +523,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 </ul>
 <p>in our <a href="processing.html#processing">point cloud processing</a> we used the fuel layer separated by the last effective distance (column named <code>last_Hcbh</code>) by setting the parameter <code>which_cbh = "lowest"</code> in <code>cloud2trees::trees_cbh()</code></p>
 <div class="sourceCode" id="cb378"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb378-1"><a href="appendix.html#cb378-1" tabindex="-1"></a>plots_cbh_lastdist[[<span class="dv">1</span>]]</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-357-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-358-1.png" width="1008" /></p>
 </div>
 <div id="cbh-on-the-point-cloud" class="section level3 hasAnchor" number="5.2.2">
 <h3><span class="header-section-number">5.2.2</span> CBH on the point cloud<a href="appendix.html#cbh-on-the-point-cloud" class="anchor-section" aria-label="Anchor link to header"></a></h3>
@@ -567,7 +567,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb379-37"><a href="appendix.html#cb379-37" tabindex="-1"></a>    , <span class="at">lwd =</span> <span class="dv">2</span></span>
 <span id="cb379-38"><a href="appendix.html#cb379-38" tabindex="-1"></a>  )</span>
 <span id="cb379-39"><a href="appendix.html#cb379-39" tabindex="-1"></a>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-358-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-359-1.png" width="1008" /></p>
 </div>
 </div>
 <div id="hmd" class="section level2 hasAnchor" number="5.3">
@@ -654,7 +654,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb383-25"><a href="appendix.html#cb383-25" tabindex="-1"></a>  <span class="fu">theme_light</span>() <span class="sc">+</span></span>
 <span id="cb383-26"><a href="appendix.html#cb383-26" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text =</span> <span class="fu">element_blank</span>()) <span class="sc">+</span></span>
 <span id="cb383-27"><a href="appendix.html#cb383-27" tabindex="-1"></a>  <span class="fu">guides</span>(<span class="at">size =</span> <span class="st">&quot;none&quot;</span>)</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-362-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-363-1.png" width="1008" /></p>
 <p>look at the data on the point farthest from the tree center</p>
 <div class="sourceCode" id="cb384"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb384-1"><a href="appendix.html#cb384-1" tabindex="-1"></a>pts_temp <span class="sc">%&gt;%</span> </span>
 <span id="cb384-2"><a href="appendix.html#cb384-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(is_max_dist_to_center) <span class="sc">%&gt;%</span> </span>
@@ -716,7 +716,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb391-9"><a href="appendix.html#cb391-9" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">scale_x_continuous</span>(<span class="at">breaks =</span> scales<span class="sc">::</span><span class="fu">extended_breaks</span>(<span class="at">n=</span><span class="dv">14</span>)) <span class="sc">+</span></span>
 <span id="cb391-10"><a href="appendix.html#cb391-10" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">scale_color_viridis_d</span>(<span class="at">option =</span> <span class="st">&quot;turbo&quot;</span>, <span class="at">begin =</span> <span class="fl">0.2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>, <span class="at">name =</span> <span class="st">&quot;is HMD</span><span class="sc">\n</span><span class="st">from cloud?&quot;</span>) <span class="sc">+</span></span>
 <span id="cb391-11"><a href="appendix.html#cb391-11" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">theme_light</span>()</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-367-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-368-1.png" width="1008" /></p>
 <p>We can look at this data spatially too.</p>
 <div class="sourceCode" id="cb392"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb392-1"><a href="appendix.html#cb392-1" tabindex="-1"></a>trees_hmd_ans <span class="sc">%&gt;%</span></span>
 <span id="cb392-2"><a href="appendix.html#cb392-2" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">arrange</span>(is_training_hmd) <span class="sc">%&gt;%</span></span>
@@ -732,7 +732,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb392-12"><a href="appendix.html#cb392-12" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">guides</span>(</span>
 <span id="cb392-13"><a href="appendix.html#cb392-13" tabindex="-1"></a>    <span class="at">color =</span> ggplot2<span class="sc">::</span><span class="fu">guide_legend</span>(<span class="at">override.aes =</span> <span class="fu">list</span>(<span class="at">lwd =</span> <span class="dv">3</span>, <span class="at">fill =</span> <span class="cn">NA</span>))</span>
 <span id="cb392-14"><a href="appendix.html#cb392-14" tabindex="-1"></a>  )</span></code></pre></div>
-<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-368-1.png" width="1008" /></p>
+<p><img src="lidar_phys_fire_mods_files/figure-html/unnamed-chunk-369-1.png" width="1008" /></p>
 
 </div>
 </div>

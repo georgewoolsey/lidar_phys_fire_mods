@@ -124,7 +124,7 @@ ex_valid2
 cloud2treescloud2trees-1
 comparison-with-ground-truth
 prediction-vs-ground-truth-matching
-training-validation-process-1
+fi_train
 extract-trees-for-training-data-1
 training-validation-against-ground-truth-1
 best-variable-window-function-by-site
