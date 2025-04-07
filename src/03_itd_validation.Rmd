@@ -1372,7 +1372,7 @@ training_lidar_sum_temp %>%
     caption = "summary of training lidar data"
     , digits = 1
     , col.names = c(
-      "site","plot","# points","area m<sup>2</sup>", "points<br>per m<sup>2</sup>"
+      "site","plot","# points","area m<sup>2</sup>", "points m<sup>-2</sup>"
     )
     , escape = F
   ) %>% 
@@ -2443,11 +2443,17 @@ lidar_sum_temp <-
       dplyr::relocate(plot_name)
   }) %>% 
   dplyr::bind_rows()
+```
+
+summary of evaluation lidar data for image annotated crowns ground truth
+
+```{r}
 # check it
 lidar_sum_temp %>% 
   dplyr::inner_join(
     lidar_df %>% 
       sf::st_drop_geometry() %>% 
+      dplyr::filter(has_image_annotation) %>% 
       dplyr::select(plot_name,siteID) 
     , by = "plot_name"
   ) %>% 
@@ -2504,7 +2510,86 @@ lidar_sum_temp %>%
   dplyr::select(-c(n,min,max,siteID)) %>% 
   dplyr::arrange(unit_lab,metric) %>% 
   kableExtra::kbl(
-    caption = "summary of evaluation lidar data"
+    caption = "summary of evaluation lidar data for image annotated crowns ground truth"
+    , digits = 1
+    , col.names = c(
+      "site", "Metric"
+      , "Mean", "Median"
+      , "Std Dev", "Range"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::scroll_box(height = "622px",fixed_thead = T) %>%
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+summary of evaluation lidar data for field-collected stems ground truth
+
+```{r}
+# check it
+lidar_sum_temp %>% 
+  dplyr::inner_join(
+    lidar_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(has_field_stems) %>% 
+      dplyr::select(plot_name,siteID) 
+    , by = "plot_name"
+  ) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    dplyr::across(
+      dplyr::where(is.numeric)
+      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
+    )
+    , n = dplyr::n()
+  ) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
+  dplyr::mutate(
+    agg = stringr::word(name,-1,sep = "_")
+    , metric = stringr::str_remove_all(name, paste0("_",agg))
+  ) %>% 
+  dplyr::select(-name) %>% 
+  dplyr::mutate(
+    value = dplyr::case_when(
+      metric=="num_points" ~ scales::comma(value,accuracy=1)
+      , metric=="area_m2" ~ scales::comma(value,accuracy=0.1)
+      , metric=="points_per_m2" ~ scales::comma(value,accuracy=0.1)
+      , T ~ scales::comma(value,accuracy=0.1)
+    )
+  ) %>% 
+  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
+  dplyr::mutate(
+    unit_lab = paste0(
+      siteID
+      , "<br>("
+      , scales::comma(n,accuracy=1)
+      ," plots)"
+    )
+    , range = paste0(min, "—", max)
+  ) %>% 
+  dplyr::relocate(unit_lab) %>% 
+  dplyr::mutate(
+    metric = factor(
+      metric
+      , ordered = T
+      , levels = c(
+          "num_points"
+          , "area_m2"
+          , "points_per_m2"
+        )
+      , labels = c(
+          "# points"
+          ,"area m<sup>2</sup>"
+          , "points m<sup>-2</sup>"
+        )
+    )
+  ) %>%
+  dplyr::select(-c(n,min,max,siteID)) %>% 
+  dplyr::arrange(unit_lab,metric) %>% 
+  kableExtra::kbl(
+    caption = "summary of evaluation lidar data for field-collected stems ground truth"
     , digits = 1
     , col.names = c(
       "site", "Metric"
@@ -4922,75 +5007,28 @@ lidar_sum_temp <-
       dplyr::relocate(plot_name)
   }) %>% 
   dplyr::bind_rows() %>% 
-  dplyr::inner_join(fi_lidar_df %>% dplyr::select(plot_name,siteID))
+  dplyr::inner_join(fi_lidar_df %>% dplyr::select(plot_name,siteID,plotID))
 # check it
 lidar_sum_temp %>% 
-  dplyr::group_by(siteID) %>% 
-  dplyr::summarise(
-    dplyr::across(
-      dplyr::where(is.numeric)
-      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
-    )
-    , n = dplyr::n()
+  dplyr::arrange(siteID, plotID) %>% 
+  dplyr::select(
+    siteID, plotID
+    , num_points, area_m2, points_per_m2
   ) %>% 
-  dplyr::ungroup() %>% 
-  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
   dplyr::mutate(
-    agg = stringr::word(name,-1,sep = "_")
-    , metric = stringr::str_remove_all(name, paste0("_",agg))
+    num_points = scales::comma(num_points,accuracy=1)
+    , area_m2 = scales::comma(area_m2,accuracy=.1)
+    , points_per_m2 = scales::comma(points_per_m2,accuracy=.1)
   ) %>% 
-  dplyr::select(-name) %>% 
-  dplyr::mutate(
-    value = dplyr::case_when(
-      metric=="num_points" ~ scales::comma(value,accuracy=1)
-      , metric=="area_m2" ~ scales::comma(value,accuracy=0.1)
-      , metric=="points_per_m2" ~ scales::comma(value,accuracy=0.1)
-      , T ~ scales::comma(value,accuracy=0.1)
-    )
-  ) %>% 
-  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
-  dplyr::mutate(
-    unit_lab = paste0(
-      siteID
-      , "<br>("
-      , scales::comma(n,accuracy=1)
-      ," "
-      , ifelse(n==1,"plot","plots")
-      ,")"
-    )
-    , range = paste0(min, "—", max)
-  ) %>% 
-  dplyr::relocate(unit_lab) %>% 
-  dplyr::mutate(
-    metric = factor(
-      metric
-      , ordered = T
-      , levels = c(
-          "num_points"
-          , "area_m2"
-          , "points_per_m2"
-        )
-      , labels = c(
-          "# points"
-          ,"area m<sup>2</sup>"
-          , "points m<sup>-2</sup>"
-        )
-    )
-  ) %>%
-  dplyr::select(-c(n,min,max,siteID)) %>% 
-  dplyr::arrange(unit_lab,metric) %>% 
   kableExtra::kbl(
-    caption = "summary of evaluation lidar data"
+    caption = "FOR-instance summary of evaluation lidar data"
     , digits = 1
     , col.names = c(
-      "site", "Metric"
-      , "Mean", "Median"
-      , "Std Dev", "Range"
+      "site","plot","# points","area m<sup>2</sup>", "points m<sup>-2</sup>"
     )
     , escape = F
   ) %>% 
-  kableExtra::kable_styling() %>% 
-  kableExtra::scroll_box(height = "622px",fixed_thead = T) %>%
+  kableExtra::kable_styling(font_size = 12) %>% 
   kableExtra::collapse_rows(columns = 1, valign = "top")
 ```
 
