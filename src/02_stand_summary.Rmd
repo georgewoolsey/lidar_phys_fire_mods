@@ -1544,22 +1544,23 @@ crowns_sf <-
 # the records are the same
 identical(nrow(treetops_sf), nrow(crowns_sf))
 # crowns_sf %>% dplyr::filter(is.na(cruz_crown_biomass_kg)) %>% nrow()
+# crowns_sf %>% nrow()
+# crowns_sf %>% sf::st_drop_geometry() %>% dplyr::distinct(treeID) %>% nrow()
+# crowns_sf %>% sf::st_drop_geometry() %>% dplyr::distinct(treeID, unit_id) %>% nrow()
 ```
 
 save the data by unit for sharing with a boss, coworker, friend, etc.
 
 ```{r, eval=FALSE, message=FALSE, warning=FALSE, results=F}
-# write crowns and tree tops
-write_temp <- crowns_sf$unit_id %>%
-  unique() %>%
-  purrr::map(function(x, new_crs = proj_crs, my_outdir = outdir){
+# write fn
+write_fn <- function(x, data, fprefix = "final_detected", new_crs = proj_crs, my_outdir = outdir){
     # dsn's
-    cf <- file.path( my_outdir, paste0("final_detected_crowns_unit_",x,".gpkg") )
-    tf <- file.path( my_outdir, paste0("final_detected_tree_tops_unit_",x,".gpkg") )
+    cf <- file.path( my_outdir, paste0(fprefix, "_crowns_unit_",x,".gpkg") )
+    tf <- file.path( my_outdir, paste0(fprefix, "_tree_tops_unit_",x,".gpkg") )
     ### write the data to the disk
     # crown vector polygons
     sf::st_write(
-      crowns_sf %>%
+      data %>%
         dplyr::filter(unit_id == x) %>% 
         sf::st_transform(new_crs)
       , dsn = cf
@@ -1569,7 +1570,7 @@ write_temp <- crowns_sf$unit_id %>%
     # tree top vector points
     sf::st_write(
       # get tree points
-      crowns_sf %>%
+      data %>%
         dplyr::filter(unit_id == x) %>%
         sf::st_drop_geometry() %>%
         sf::st_as_sf(coords = c("tree_x", "tree_y"), crs = sf::st_crs(crowns_sf)) %>% 
@@ -1582,7 +1583,11 @@ write_temp <- crowns_sf$unit_id %>%
       , append = FALSE
       , quiet = TRUE
     )
-  })
+  }
+# write crowns and tree tops
+write_temp <- crowns_sf$unit_id %>%
+  unique() %>%
+  purrr::map(\(x) write_fn(x=x, data = crowns_sf, fprefix = "final_detected"))
 ```
 
 we now need to attach the `treeID` to the point cloud for use in performing tree species classification based on the three-dimensional data based on the methods developed within our study area by [Blackburn (2022)](https://scholar.google.com/scholar?cluster=12483518836038968271&hl=en&as_sdt=0,6)
@@ -1630,6 +1635,10 @@ now we'll simplify the multipolygon crowns using `cloud2trees::simplify_multipol
 # simplify multipolygon crowns
 simp_crowns_sf <- crowns_sf %>% 
     cloud2trees::simplify_multipolygon_crowns()
+# write crowns and tree tops
+write_temp <- simp_crowns_sf$unit_id %>%
+  unique() %>%
+  purrr::map(\(x) write_fn(x=x, data = simp_crowns_sf, fprefix = "simplified"))
 # make the treeID numeric
 # !!!!! this only works because our treeID is already numeric and can be cast as such
 # !!!!! if you have a treeID that cannot be cast to numeric then you will need to make a unique treeID
