@@ -34,6 +34,7 @@ tab:unnamed-chunk-332
 tab:unnamed-chunk-337
 tab:unnamed-chunk-342
 tab:unnamed-chunk-343
+tab:unnamed-chunk-345
 introduction
 objective
 data_desc
@@ -139,6 +140,7 @@ extract-trees-for-evaluation-data-1
 evaluation-validation-against-ground-truth-1
 plot-level-scores
 site-level-scores
+summary-of-lidar-data
 appendix
 data_ex
 cbh

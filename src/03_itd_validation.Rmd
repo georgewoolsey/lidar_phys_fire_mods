@@ -52,7 +52,7 @@ gc()
 
 ## ITD tuning{#itd_more}
 
-Before we perform tree extraction on the evaluation data we'll use the training data to tune our process for lidar-based tree detection implemented via the [`cloud2trees`]https://github.com/georgewoolsey/cloud2trees) package. Specifically, we are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure". See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
+Before we perform tree extraction on the evaluation data we'll use the training data to tune our process for lidar-based tree detection implemented via the [`cloud2trees`](https://github.com/georgewoolsey/cloud2trees) package. Specifically, we are going to use the training data to determine the "best" ITD window function to use for a given NEON site since the `cloud2trees` package [strongly recommends](https://github.com/georgewoolsey/cloud2trees?tab=readme-ov-file#individual-tree-detection-itd-tuning) that "a different window size function is defined for each region of your study area with significantly different forest structure". See the `lidR` [package book section](https://r-lidar.github.io/lidRbook/itd.html) by point cloud processing expert [Jean-Romain Roussel](https://github.com/Jean-Romain) for excellent detail on ITD and defining window size.
 
 ### Default variable window functions
 
@@ -2419,7 +2419,7 @@ We can finally process the evaluation data using all that we have gleaned in our
 Let's get a quick summary of the lidar data available for evaluation. We expect the evaluation data sets to be sized around 40m x 40m.
 
 ```{r}
-lidar_sum_temp <-
+lidar_sum_neon <-
   lidar_df %>% 
   sf::st_drop_geometry() %>% 
   dplyr::filter(
@@ -2449,7 +2449,7 @@ summary of evaluation lidar data for image annotated crowns ground truth
 
 ```{r}
 # check it
-lidar_sum_temp %>% 
+lidar_sum_neon %>% 
   dplyr::inner_join(
     lidar_df %>% 
       sf::st_drop_geometry() %>% 
@@ -2527,8 +2527,8 @@ lidar_sum_temp %>%
 summary of evaluation lidar data for field-collected stems ground truth
 
 ```{r}
-# check it
-lidar_sum_temp %>% 
+# we'll save this one for later
+lidar_sum_neon <- lidar_sum_neon %>% 
   dplyr::inner_join(
     lidar_df %>% 
       sf::st_drop_geometry() %>% 
@@ -2543,7 +2543,9 @@ lidar_sum_temp %>%
       , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
     )
     , n = dplyr::n()
-  ) %>% 
+  )
+# table it
+lidar_sum_neon %>% 
   dplyr::ungroup() %>% 
   tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
   dplyr::mutate(
@@ -3529,7 +3531,7 @@ lidar_df %>%
 remove(list = ls()[grep("_temp",ls())])
 remove(
   evaluation_fld_cllctd_stems, evaluation_img_annttd_crwns
-  , evaluation_submission, lidar_df
+  , evaluation_submission
   , safe_evaluate_field_crowns, safe_evaluate_field_stems
   , percentile_for_ht, neon_min_ht
 )
@@ -4985,7 +4987,7 @@ We can finally process the evaluation data using all that we have gleaned in our
 Let's get a quick summary of the lidar data available for evaluation
 
 ```{r}
-lidar_sum_temp <-
+lidar_sum_fi <-
   fi_lidar_df %>% 
   sf::st_drop_geometry() %>% 
   dplyr::filter(data_type == "evaluation") %>% 
@@ -5009,7 +5011,7 @@ lidar_sum_temp <-
   dplyr::bind_rows() %>% 
   dplyr::inner_join(fi_lidar_df %>% dplyr::select(plot_name,siteID,plotID))
 # check it
-lidar_sum_temp %>% 
+lidar_sum_fi %>% 
   dplyr::arrange(siteID, plotID) %>% 
   dplyr::select(
     siteID, plotID
@@ -5624,3 +5626,125 @@ While these deep learning methods offer superior accuracy and detail, capturing 
 remove(list = ls()[grep("_temp",ls())])
 gc()
 ```
+
+## Summary of lidar data
+
+summarize lidar from both benchmarks for reporting table
+
+```{r}
+# site descriptions
+df_temp <- read.csv(text = "
+siteID,desc,location
+CULS,Coniferous dominated temperate forest with productive even-aged Scots pine (<i>Pinus Sylvestris</i>) stands,\"Central Bohemia region, Czech Republic\"
+NIBIO,Coniferous dominated boreal forest composed of mature forests dominated by Norway spruce (<i>Picea abies</i>) with few Scots pine (<i>Pinus Sylvestris</i>),\"Oslo municipality, Norway\"
+SCION,Coniferous non-native temperate plantation forest consisting of pure radiata pine (<i>Pinus radiata</i>) of 18-20 years of age,New Zealand
+ABBY,Managed coniferous forest dominated by Douglas-fir (<i>Pseudotsuga menziesii</i>) with a western hemlock (<i>Tsuga heterophylla</i>) component,\"Clark County, Washington (USA)\"
+DEJU,\"Scrubby evergreen forest, where stunted trees like black spruce (<i>Picea mariana</i>) and white spruce (<i>Picea glauca</i>) dominate the canopy\",central Alaska (USA)
+JERC,Humid subtropical forest dominated by longleaf pine (<i>Pinus palustris</i>),\"Baker County, Georgia (USA)\"
+MOAB,\"Arid, high desert where Pinyon Pine (<i>Pinus edulis</i>) and Utah Juniper (<i>Juniperus osteosperma</i>) make up the canopy\",\"San Juan County, Utah (USA)\"
+NIWO,Coniferous subalpine forest with Engelmann spruce (<i>Picea engelmannii</i>) and subalpine fir (<i>Abies lasiocarpa</i>) at higher elevevations and lodgepole pine (<i>Pinus contorta</i>) at lower elevations,\"Boulder County, Colorado (USA)\"
+OSBS,Humid subtropical forest dominated by longleaf pine (<i>Pinus palustris</i>),\"Putnam County, Florida (USA)\"
+TALL,Humid subtropical forest with canopy dominated by longleaf pine (<i>Pinus palustris</i>) and loblolly pine (<i>Pinus taeda</i>),\"Bibb County, Alabama (USA)\"
+")
+
+# first aggregate the fi stats which are at the plot level
+lidar_sum_fi %>% 
+  dplyr::select(-plotID) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    dplyr::across(
+      dplyr::where(is.numeric)
+      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
+    )
+    , n = dplyr::n()
+  ) %>% 
+  dplyr::mutate(src = paste0("FOR-instance", "<br>", "Puliti et al. (2023)")) %>% 
+  dplyr::bind_rows(
+    lidar_sum_neon %>% 
+      dplyr::mutate(src = paste0("NEON", "<br>", "Weinstein et al. (2021)"))
+  ) %>% 
+  # add count of training data
+  dplyr::left_join(
+    lidar_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(
+        has_field_stems==T & 
+        (data_type=="training" | is_new_field_stems_training)
+      ) %>% 
+      dplyr::count(siteID) %>% 
+      dplyr::rename(n_t=n)
+    , by = "siteID"
+  ) %>% 
+  dplyr::left_join(
+    fi_lidar_df %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::filter(
+        data_type=="training"
+      ) %>% 
+      dplyr::count(siteID) %>% 
+      dplyr::rename(n_t=n)
+    , by = "siteID"
+  ) %>% 
+  dplyr::mutate(n_t = dplyr::coalesce(n_t.x,n_t.y,0)) %>% 
+  # add description
+  dplyr::left_join(
+    df_temp
+    , by = "siteID"
+  ) %>% 
+  dplyr::select(
+    src, siteID
+    , desc
+    , n_t, n
+    , area_m2_mean, points_per_m2_mean
+    , location
+  ) %>% 
+  dplyr::mutate(
+    dplyr::across(c(n,area_m2_mean), ~ scales::comma(.x,accuracy=1))
+    , points_per_m2_mean = scales::comma(points_per_m2_mean,accuracy=0.1)
+  ) %>% 
+  kableExtra::kbl(
+    caption = "summary of lidar data"
+    , digits = 1
+    , col.names = c(
+      "benchmark","site"
+      , "description"
+      , "training<br>plots", "evaluation<br>plots"
+      ,"mean<br>area m<sup>2</sup>", "mean<br>points m<sup>-2</sup>"
+      , "location"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling(font_size = 12) %>%
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+
+```{r, include=FALSE,eval=FALSE}
+conifer_spp <-
+  readr::read_csv(
+    "../data/OS_TAXON_PLANT-20220330T142149.csv"
+    , show_col_types = F
+    , progress = F
+  ) %>% 
+  dplyr::filter(
+    tolower(`class`) %in% c("pinopsida")
+  ) %>% 
+  dplyr::mutate(
+    taxonID = toupper(taxonID)
+    , vernacularName = tolower(vernacularName)
+    , genus = stringr::str_to_title(genus)
+  ) %>% 
+  dplyr::distinct(taxonID, vernacularName, genus, species)
+
+NeonTreeEvaluation::field %>% 
+  dplyr::left_join(
+    conifer_spp %>% dplyr::mutate(is_conifer = 1)
+    , by = "taxonID"
+  ) %>% 
+  dplyr::filter(is_conifer == 1) %>% 
+  dplyr::count(siteID, taxonID, vernacularName, genus, species) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::arrange(siteID, desc(n)) %>% 
+  View()
+```
+
