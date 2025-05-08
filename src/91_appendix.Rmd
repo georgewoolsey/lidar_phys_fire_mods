@@ -127,6 +127,70 @@ crowns_sf <- crowns_sf %>%
   cloud2trees::simplify_multipolygon_crowns()
 ```
 
+let's check out the CHM of the trees in the aoi
+
+```{r}
+chm_rast <- terra::rast("../data/point_cloud_processing_delivery/chm_0.25m.tif")
+# crop and plot
+plt_chm <-
+  chm_rast %>% 
+  terra::crop(
+    crowns_sf %>% 
+      sf::st_union() %>% 
+      sf::st_bbox() %>% 
+      sf::st_as_sfc() %>% 
+      sf::st_transform(terra::crs(chm_rast)) %>% 
+      terra::vect()
+  ) %>% 
+  terra::mask(
+    crowns_sf %>% 
+      sf::st_transform(terra::crs(chm_rast)) %>% 
+      terra::vect()
+  ) %>% 
+  terra::as.data.frame(xy=T) %>% 
+  dplyr::rename(f=3) %>% 
+  ggplot2::ggplot() +
+  ggplot2::geom_tile(ggplot2::aes(x=x,y=y,fill = f), color = NA) +
+  ggplot2::labs(fill="CHM (m)") +
+  harrypotter::scale_fill_hp("gryffindor") +
+  ggplot2::theme_void()
+# plot
+plt_chm
+```
+
+```{r, include=FALSE, eval=T}
+ggplot2::ggsave("../data/ex_chm.jpeg", height = 5, width = 5, dpi = "print")
+```
+
+and the DTM of the aoi
+
+```{r}
+dtm_rast <- terra::rast("../data/point_cloud_processing_delivery/dtm_1m.tif")
+# crop and plot
+dtm_rast %>% 
+  terra::crop(
+    crowns_sf %>% 
+      sf::st_union() %>% 
+      sf::st_bbox() %>% 
+      sf::st_as_sfc() %>% 
+      sf::st_buffer(100) %>% 
+      sf::st_transform(terra::crs(dtm_rast)) %>% 
+      terra::vect()
+  ) %>% 
+  terra::focal(w=5,fun="median",na.policy="omit") %>% 
+  terra::as.data.frame(xy=T) %>% 
+  dplyr::rename(f=3) %>% 
+  ggplot2::ggplot() +
+  ggplot2::geom_tile(ggplot2::aes(x=x,y=y,fill = f), color = NA) +
+  ggplot2::labs(fill="DTM (m)") +
+  ggplot2::scale_fill_viridis_c() +
+  ggplot2::theme_void()
+```
+
+```{r, include=FALSE, eval=T}
+ggplot2::ggsave("../data/ex_dtm.jpeg", height = 5, width = 5, dpi = "print")
+```
+
 now, we'll load in the point cloud data for our aoi
 
 ```{r}
@@ -159,9 +223,20 @@ rgl::setupKnitr(autoprint = TRUE)
 ```{r, rgl = TRUE}
 las %>% 
   lidR::plot(
-    color = "Z", bg = "white", legend = T
+    color = "Z", bg = "white", legend = F
    , pal = harrypotter::hp(n=50, house = "gryffindor")
   )
+```
+
+here is the CHM + tree crowns
+
+```{r}
+plt_chm +
+  ggplot2::geom_sf(data = crowns_sf %>% sf::st_transform(terra::crs(chm_rast)), fill = NA, color = "gray44", lwd = 1.5)
+```
+
+```{r, include=FALSE, eval=T}
+ggplot2::ggsave("../data/ex_chm_trees.jpeg", height = 5, width = 5, dpi = "print")
 ```
 
 now we'll attach the `treeID` column to the normalized las file

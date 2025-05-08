@@ -2414,220 +2414,6 @@ gc()
 
 We can finally process the evaluation data using all that we have gleaned in our analysis with the training data
 
-#### Summary of evaluation lidar data{#neon_lidar}
-
-Let's get a quick summary of the lidar data available for evaluation. We expect the evaluation data sets to be sized around 40m x 40m.
-
-```{r}
-lidar_sum_neon <-
-  lidar_df %>% 
-  sf::st_drop_geometry() %>% 
-  dplyr::filter(
-    data_type == "evaluation" &
-      !is_new_image_annotation_training &
-      !is_new_field_stems_training
-  ) %>% 
-  dplyr::pull(f_path) %>% 
-  purrr::map(function(x){
-    ctg <- lidR::readLAScatalog(x)
-    ctg@data %>% 
-      dplyr::summarise(
-        num_points = sum(Number.of.point.records)
-        , area_m2 = sum(as.numeric(sf::st_area(.)))
-      ) %>% 
-      dplyr::mutate(points_per_m2 = num_points/area_m2) %>% 
-      sf::st_drop_geometry() %>% 
-      dplyr::mutate(
-        plot_name = x %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")    
-      ) %>% 
-      dplyr::relocate(plot_name)
-  }) %>% 
-  dplyr::bind_rows()
-```
-
-summary of evaluation lidar data for image annotated crowns ground truth
-
-```{r}
-# check it
-lidar_sum_neon %>% 
-  dplyr::inner_join(
-    lidar_df %>% 
-      sf::st_drop_geometry() %>% 
-      dplyr::filter(has_image_annotation) %>% 
-      dplyr::select(plot_name,siteID) 
-    , by = "plot_name"
-  ) %>% 
-  dplyr::group_by(siteID) %>% 
-  dplyr::summarise(
-    dplyr::across(
-      dplyr::where(is.numeric)
-      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
-    )
-    , n = dplyr::n()
-  ) %>% 
-  dplyr::ungroup() %>% 
-  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
-  dplyr::mutate(
-    agg = stringr::word(name,-1,sep = "_")
-    , metric = stringr::str_remove_all(name, paste0("_",agg))
-  ) %>% 
-  dplyr::select(-name) %>% 
-  dplyr::mutate(
-    value = dplyr::case_when(
-      metric=="num_points" ~ scales::comma(value,accuracy=1)
-      , metric=="area_m2" ~ scales::comma(value,accuracy=0.1)
-      , metric=="points_per_m2" ~ scales::comma(value,accuracy=0.1)
-      , T ~ scales::comma(value,accuracy=0.1)
-    )
-  ) %>% 
-  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
-  dplyr::mutate(
-    unit_lab = paste0(
-      siteID
-      , "<br>("
-      , scales::comma(n,accuracy=1)
-      ," plots)"
-    )
-    , range = paste0(min, "—", max)
-  ) %>% 
-  dplyr::relocate(unit_lab) %>% 
-  dplyr::mutate(
-    metric = factor(
-      metric
-      , ordered = T
-      , levels = c(
-          "num_points"
-          , "area_m2"
-          , "points_per_m2"
-        )
-      , labels = c(
-          "# points"
-          ,"area m<sup>2</sup>"
-          , "points m<sup>-2</sup>"
-        )
-    )
-  ) %>%
-  dplyr::select(-c(n,min,max,siteID)) %>% 
-  dplyr::arrange(unit_lab,metric) %>% 
-  kableExtra::kbl(
-    caption = "summary of evaluation lidar data for image annotated crowns ground truth"
-    , digits = 1
-    , col.names = c(
-      "site", "Metric"
-      , "Mean", "Median"
-      , "Std Dev", "Range"
-    )
-    , escape = F
-  ) %>% 
-  kableExtra::kable_styling() %>% 
-  kableExtra::scroll_box(height = "622px",fixed_thead = T) %>%
-  kableExtra::collapse_rows(columns = 1, valign = "top")
-```
-
-summary of evaluation lidar data for field-collected stems ground truth
-
-```{r}
-# we'll save this one for later
-lidar_sum_neon <- lidar_sum_neon %>% 
-  dplyr::inner_join(
-    lidar_df %>% 
-      sf::st_drop_geometry() %>% 
-      dplyr::filter(has_field_stems) %>% 
-      dplyr::select(plot_name,siteID) 
-    , by = "plot_name"
-  ) %>% 
-  dplyr::group_by(siteID) %>% 
-  dplyr::summarise(
-    dplyr::across(
-      dplyr::where(is.numeric)
-      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
-    )
-    , n = dplyr::n()
-  )
-# table it
-lidar_sum_neon %>% 
-  dplyr::ungroup() %>% 
-  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
-  dplyr::mutate(
-    agg = stringr::word(name,-1,sep = "_")
-    , metric = stringr::str_remove_all(name, paste0("_",agg))
-  ) %>% 
-  dplyr::select(-name) %>% 
-  dplyr::mutate(
-    value = dplyr::case_when(
-      metric=="num_points" ~ scales::comma(value,accuracy=1)
-      , metric=="area_m2" ~ scales::comma(value,accuracy=0.1)
-      , metric=="points_per_m2" ~ scales::comma(value,accuracy=0.1)
-      , T ~ scales::comma(value,accuracy=0.1)
-    )
-  ) %>% 
-  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
-  dplyr::mutate(
-    unit_lab = paste0(
-      siteID
-      , "<br>("
-      , scales::comma(n,accuracy=1)
-      ," plots)"
-    )
-    , range = paste0(min, "—", max)
-  ) %>% 
-  dplyr::relocate(unit_lab) %>% 
-  dplyr::mutate(
-    metric = factor(
-      metric
-      , ordered = T
-      , levels = c(
-          "num_points"
-          , "area_m2"
-          , "points_per_m2"
-        )
-      , labels = c(
-          "# points"
-          ,"area m<sup>2</sup>"
-          , "points m<sup>-2</sup>"
-        )
-    )
-  ) %>%
-  dplyr::select(-c(n,min,max,siteID)) %>% 
-  dplyr::arrange(unit_lab,metric) %>% 
-  kableExtra::kbl(
-    caption = "summary of evaluation lidar data for field-collected stems ground truth"
-    , digits = 1
-    , col.names = c(
-      "site", "Metric"
-      , "Mean", "Median"
-      , "Std Dev", "Range"
-    )
-    , escape = F
-  ) %>% 
-  kableExtra::kable_styling() %>% 
-  kableExtra::scroll_box(height = "622px",fixed_thead = T) %>%
-  kableExtra::collapse_rows(columns = 1, valign = "top")
-```
-
-some of the study sites have very low density point clouds (e.g. <5 points per square meter). let's look at an example low density plot from the DSNY site
-
-```{r, rgl = TRUE, results='asis',fig.show='asis', warning=FALSE}
-lidar_df %>% 
-  sf::st_drop_geometry() %>% 
-  dplyr::filter(
-    data_type == "evaluation" &
-      !is_new_image_annotation_training &
-      !is_new_field_stems_training &
-      siteID == "DSNY"
-  ) %>% 
-  dplyr::slice(2) %>% 
-  dplyr::pull(f_path) %>% 
-  lidR::readLAS() %>% 
-  lidR::plot(
-   color = "Z", bg = "white", legend = T
-   # , breaks = "quantile"
-   , pal = harrypotter::hp(n=50, house = "gryffindor")
-  )
-```
-
-Notice how the canopy is clearly visible even with the low point density, our tree detection method should be able to extract individual overstory trees from these point clouds but defining the crown boundary might be challenging. Tree extraction of suppressed or understory trees from low point density like this is unlikely.
-
 #### Extract trees for evaluation data
 
 as a reminder, here's how many evaluation plots we have by NEON site
@@ -2984,40 +2770,6 @@ gc()
 ```
 
 our return data should include recall values for each plot and variable window function that resulted in trees extracted (some window functions might not have extracted any trees) with image annotated crown evaluation data...unless the `NeonTreeEvaluation::evaluate_field_stems()` resulted in an error
-
-count of the plots which resulted in trees extracted and were successfully evaluated using field collected stems ground truth data
-
-```{r}
-evaluation_submission %>% 
-  sf::st_drop_geometry() %>% 
-  dplyr::inner_join(
-    lidar_df %>% 
-      sf::st_drop_geometry() %>% 
-      dplyr::filter(has_field_stems) %>% 
-      dplyr::distinct(siteID,plot_name)
-    , by = "plot_name"
-  ) %>% 
-  dplyr::count(siteID,plot_name) %>% 
-  dplyr::left_join(
-    evaluation_fld_cllctd_stems %>% dplyr::select(-siteID)
-    , by = "plot_name"
-  ) %>% 
-  dplyr::group_by(siteID) %>% 
-  dplyr::summarize(plots = dplyr::n(), plots_eval = sum(ifelse(is.na(recall),0,1))) %>% 
-  dplyr::ungroup() %>% 
-  dplyr::mutate(pct = scales::percent(plots_eval/plots,accuracy = 1)) %>% 
-  dplyr::arrange(siteID) %>% 
-  kableExtra::kbl(
-    caption = "Count of plots with trees detected that were successfully evaluated using field collected stems"
-    , digits = 0
-    , col.names = c(
-      "site","# plots<br>with trees","# plots<br>successfully evaluated"
-      ,"% plots<br>successfully evaluated"
-    )
-    , escape = F
-  ) %>% 
-  kableExtra::kable_styling()
-```
 
 ```{r, include=FALSE,eval=FALSE}
 evaluation_submission %>% 
@@ -3526,6 +3278,209 @@ lidar_df %>%
     , col.regions = "steelblue2"
   )
 ```
+
+#### Summary of evaluation lidar data{#neon_lidar}
+
+Let's get a quick summary of the lidar data we used for evaluation. We expect the evaluation data sets to be sized around 40m x 40m.
+
+```{r}
+lidar_sum_neon <-
+  lidar_df %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::pull(f_path) %>% 
+  purrr::map(function(x){
+    ctg <- lidR::readLAScatalog(x)
+    ctg@data %>% 
+      dplyr::summarise(
+        num_points = sum(Number.of.point.records)
+        , area_m2 = sum(as.numeric(sf::st_area(.)))
+      ) %>% 
+      dplyr::mutate(points_per_m2 = num_points/area_m2) %>% 
+      sf::st_drop_geometry() %>% 
+      dplyr::mutate(
+        plot_name = x %>% basename() %>% stringr::str_remove_all("\\.(laz|las)$")    
+      ) %>% 
+      dplyr::relocate(plot_name)
+  }) %>% 
+  dplyr::bind_rows()
+```
+
+summary of evaluation lidar data for image annotated crowns ground truth
+
+```{r}
+# check it
+lidar_sum_neon %>% 
+  dplyr::inner_join(
+    evaluation_img_annttd_crwns %>% dplyr::distinct(plot_name)
+  ) %>% 
+  dplyr::inner_join(lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID)) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    dplyr::across(
+      dplyr::where(is.numeric)
+      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
+    )
+    , n = dplyr::n()
+  ) %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
+  dplyr::mutate(
+    agg = stringr::word(name,-1,sep = "_")
+    , metric = stringr::str_remove_all(name, paste0("_",agg))
+  ) %>% 
+  dplyr::select(-name) %>% 
+  dplyr::mutate(
+    value = dplyr::case_when(
+      metric=="num_points" ~ scales::comma(value,accuracy=1)
+      , metric=="area_m2" ~ scales::comma(value,accuracy=0.1)
+      , metric=="points_per_m2" ~ scales::comma(value,accuracy=0.1)
+      , T ~ scales::comma(value,accuracy=0.1)
+    )
+  ) %>% 
+  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
+  dplyr::mutate(
+    unit_lab = paste0(
+      siteID
+      , "<br>("
+      , scales::comma(n,accuracy=1)
+      ," plots)"
+    )
+    , range = paste0(min, "—", max)
+  ) %>% 
+  dplyr::relocate(unit_lab) %>% 
+  dplyr::mutate(
+    metric = factor(
+      metric
+      , ordered = T
+      , levels = c(
+          "num_points"
+          , "area_m2"
+          , "points_per_m2"
+        )
+      , labels = c(
+          "# points"
+          ,"area m<sup>2</sup>"
+          , "points m<sup>-2</sup>"
+        )
+    )
+  ) %>%
+  dplyr::select(-c(n,min,max,siteID)) %>% 
+  dplyr::arrange(unit_lab,metric) %>% 
+  kableExtra::kbl(
+    caption = "summary of evaluation lidar data for image annotated crowns ground truth"
+    , digits = 1
+    , col.names = c(
+      "site", "Metric"
+      , "Mean", "Median"
+      , "Std Dev", "Range"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::scroll_box(height = "622px",fixed_thead = T) %>%
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+summary of evaluation lidar data for field-collected stems ground truth
+
+```{r}
+# we'll save this one for later
+lidar_sum_neon <- lidar_sum_neon %>% 
+  dplyr::inner_join(
+    evaluation_fld_cllctd_stems %>% dplyr::distinct(plot_name)
+  ) %>% 
+  dplyr::inner_join(lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID)) %>% 
+  dplyr::group_by(siteID) %>% 
+  dplyr::summarise(
+    dplyr::across(
+      dplyr::where(is.numeric)
+      , .fns = list(mean = mean, median = median, sd = sd, min = min, max = max)
+    )
+    , n = dplyr::n()
+  )
+# table it
+lidar_sum_neon %>% 
+  dplyr::ungroup() %>% 
+  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
+  dplyr::mutate(
+    agg = stringr::word(name,-1,sep = "_")
+    , metric = stringr::str_remove_all(name, paste0("_",agg))
+  ) %>% 
+  dplyr::select(-name) %>% 
+  dplyr::mutate(
+    value = dplyr::case_when(
+      metric=="num_points" ~ scales::comma(value,accuracy=1)
+      , metric=="area_m2" ~ scales::comma(value,accuracy=0.1)
+      , metric=="points_per_m2" ~ scales::comma(value,accuracy=0.1)
+      , T ~ scales::comma(value,accuracy=0.1)
+    )
+  ) %>% 
+  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
+  dplyr::mutate(
+    unit_lab = paste0(
+      siteID
+      , "<br>("
+      , scales::comma(n,accuracy=1)
+      ," plots)"
+    )
+    , range = paste0(min, "—", max)
+  ) %>% 
+  dplyr::relocate(unit_lab) %>% 
+  dplyr::mutate(
+    metric = factor(
+      metric
+      , ordered = T
+      , levels = c(
+          "num_points"
+          , "area_m2"
+          , "points_per_m2"
+        )
+      , labels = c(
+          "# points"
+          ,"area m<sup>2</sup>"
+          , "points m<sup>-2</sup>"
+        )
+    )
+  ) %>%
+  dplyr::select(-c(n,min,max,siteID)) %>% 
+  dplyr::arrange(unit_lab,metric) %>% 
+  kableExtra::kbl(
+    caption = "summary of evaluation lidar data for field-collected stems ground truth"
+    , digits = 1
+    , col.names = c(
+      "site", "Metric"
+      , "Mean", "Median"
+      , "Std Dev", "Range"
+    )
+    , escape = F
+  ) %>% 
+  kableExtra::kable_styling() %>% 
+  kableExtra::scroll_box(height = "622px",fixed_thead = T) %>%
+  kableExtra::collapse_rows(columns = 1, valign = "top")
+```
+
+some of the study sites have very low density point clouds (e.g. <5 points per square meter). let's look at an example low density plot from the DSNY site
+
+```{r, rgl = TRUE, results='asis',fig.show='asis', warning=FALSE}
+lidar_df %>% 
+  sf::st_drop_geometry() %>% 
+  dplyr::filter(
+    data_type == "evaluation" &
+      !is_new_image_annotation_training &
+      !is_new_field_stems_training &
+      siteID == "DSNY"
+  ) %>% 
+  dplyr::slice(2) %>% 
+  dplyr::pull(f_path) %>% 
+  lidR::readLAS(select = "xyz") %>% 
+  lidR::plot(
+   color = "Z", bg = "white", legend = T
+   # , breaks = "quantile"
+   , pal = harrypotter::hp(n=50, house = "gryffindor")
+  )
+```
+
+Notice how the canopy is clearly visible even with the low point density, our tree detection method should be able to extract individual overstory trees from these point clouds but defining the crown boundary might be challenging. Tree extraction of suppressed or understory trees from low point density like this is unlikely.
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
