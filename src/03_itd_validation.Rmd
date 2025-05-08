@@ -2846,7 +2846,7 @@ evaluation_img_annttd_crwns %>%
     ggplot2::geom_vline(aes(xintercept = med_val), linetype = "dashed") +
     ggplot2::geom_rug() +
     ggplot2::facet_wrap(facets = vars(name), scales = "free") +
-    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6), labels = scales::percent) +
     ggplot2::scale_color_viridis_d(begin=0.3,end=0.7) +
     ggplot2::scale_fill_viridis_d(begin=0.3,end=0.7) +
     ggplot2::labs(
@@ -2883,7 +2883,7 @@ evaluation_img_annttd_crwns %>%
   ) %>% 
   dplyr::select(-name) %>% 
   dplyr::mutate(
-    value = scales::comma(value,accuracy=0.01)
+    value = scales::percent(value,accuracy=0.1)
   ) %>% 
   tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
   dplyr::mutate(
@@ -2948,7 +2948,7 @@ Weinstein et al. ([2021](https://scholar.google.com/scholar?cluster=498644871198
 distribution of plot-level scores
 
 ```{r}
-evaluation_fld_cllctd_stems %>% 
+p_temp <- evaluation_fld_cllctd_stems %>% 
   tidyr::pivot_longer(cols = c(recall,n)) %>% 
   dplyr::filter(name!="n") %>% 
   dplyr::mutate(
@@ -2962,7 +2962,7 @@ evaluation_fld_cllctd_stems %>%
     ggplot2::geom_vline(aes(xintercept = med_val), linetype = "dashed") +
     ggplot2::geom_rug() +
     ggplot2::facet_wrap(facets = vars(name), scales = "free") +
-    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6), labels = scales::percent) +
     ggplot2::scale_color_manual(values=c(viridis::viridis(n=3,begin=0.3,end=0.7)[1],"gray")) +
     ggplot2::scale_fill_manual(values=c(viridis::viridis(n=3,begin=0.3,end=0.7)[1],"gray")) +
     ggplot2::labs(
@@ -2977,6 +2977,22 @@ evaluation_fld_cllctd_stems %>%
       , axis.ticks.y = ggplot2::element_blank()
       , strip.text = ggplot2::element_text(color = "black", size = 10)
     )
+p_temp
+```
+
+```{r, include=FALSE, eval=TRUE}
+ggplot2::ggsave(
+  "../data/neon_overall_evaluate_field_stems.jpg"
+  , plot = p_temp +
+    ggplot2::labs(subtitle = "", x = "recall") +
+    ggplot2::theme(
+      strip.text = ggplot2::element_blank()
+      , plot.title =  ggplot2::element_blank()
+      , plot.subtitle =  ggplot2::element_blank()
+    )
+  , dpi = "print"
+  , height = 7, width = 10.5
+)
 ```
 
 summary statistics
@@ -2991,40 +3007,34 @@ evaluation_fld_cllctd_stems %>%
     )
     , n = dplyr::n()
   ) %>% 
-  tidyr::pivot_longer(cols = -c(n)) %>% 
+  dplyr::rename_with(.fn = ~stringr::str_remove_all(.x,"recall_")) %>% 
+  dplyr::mutate(dplyr::across(
+    .cols = -c(n)
+    , .fns = ~ scales::percent(.x, accuracy = 0.1)
+  )) %>% 
   dplyr::mutate(
-    agg = stringr::word(name,-1,sep = "_")
-    , metric = stringr::str_remove_all(name, paste0("_",agg))
-  ) %>% 
-  dplyr::select(-name) %>% 
-  dplyr::mutate(
-    value = scales::comma(value,accuracy=0.01)
-  ) %>% 
-  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
-  dplyr::mutate(
-    unit_lab = paste0(
-      "Overall<br>("
-      , scales::comma(n,accuracy=1)
-      ," plots)"
-    )
+    unit_lab = "Overall"
+    # unit_lab = paste0(
+    #   "Overall<br>("
+    #   , scales::comma(n,accuracy=1)
+    #   ," plots)"
+    # )
     , range = paste0(min, "—", max)
   ) %>% 
-  dplyr::relocate(unit_lab) %>% 
-  dplyr::select(-c(n,min,max)) %>% 
-  dplyr::arrange(unit_lab,metric) %>% 
+  dplyr::relocate(unit_lab,n) %>% 
+  dplyr::select(-c(min,max)) %>% 
   kableExtra::kbl(
     caption = "Overall validation against field-collected stems ground truth"
     , col.names = c(
-      "Score level", "Metric"
-      , "Mean", "Median"
-      , "Std Dev", "Range"
+      "Score level", "Plots"
+      , "Recall<br>Mean", "Recall<br>Median"
+      , "Recall<br>Std Dev", "Recall<br>Range"
     )
     , escape = F
     # , digits = 2
   ) %>% 
   kableExtra::kable_styling(font_size = 13) %>% 
   kableExtra::collapse_rows(columns = 1, valign = "top")
-
 ```
 
 ###### Comparison to other methods
@@ -3066,7 +3076,7 @@ evaluation_img_annttd_crwns %>%
     ) +
     ggplot2::facet_grid(cols = dplyr::vars(name)) +
     ggplot2::scale_color_viridis_d(begin=0.3,end=0.7) +
-    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6), labels = scales::percent) +
     ggplot2::labs(
       x = "", y = "", color = ""
       , subtitle = "NEON site-level validation against image annotated crowns ground truth"
@@ -3101,7 +3111,7 @@ evaluation_img_annttd_crwns %>%
   ) %>% 
   dplyr::select(-name) %>% 
   dplyr::mutate(
-    value = scales::comma(value,accuracy=0.01)
+    value = scales::percent(value,accuracy=0.1)
   ) %>% 
   tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
   dplyr::mutate(
@@ -3170,7 +3180,7 @@ lidar_df %>%
 distribution of plot-level scores
 
 ```{r}
-evaluation_fld_cllctd_stems %>% 
+p_temp <- evaluation_fld_cllctd_stems %>% 
   dplyr::select(-siteID) %>% 
   dplyr::inner_join(
     lidar_df %>% sf::st_drop_geometry() %>% dplyr::distinct(plot_name,siteID),by="plot_name"
@@ -3193,7 +3203,7 @@ evaluation_fld_cllctd_stems %>%
     ) +
     ggplot2::facet_grid(cols = dplyr::vars(name)) +
     ggplot2::scale_color_manual(values=c(viridis::viridis(n=3,begin=0.3,end=0.7)[1],"gray")) +
-    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6)) +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_extended(6), labels = scales::percent) +
     ggplot2::labs(
       x = "", y = "", color = ""
       , subtitle = "NEON site-level validation against field-collected stems ground truth"
@@ -3205,6 +3215,22 @@ evaluation_fld_cllctd_stems %>%
       , panel.grid.major.y = ggplot2::element_line(color="gray22")
       , strip.text = ggplot2::element_text(color = "black", size = 10)
     )
+p_temp
+```
+
+```{r, include=FALSE, eval=TRUE}
+ggplot2::ggsave(
+  "../data/neon_plots_evaluate_field_stems.jpg"
+  , plot = p_temp +
+    ggplot2::labs(subtitle = "", x = "recall") +
+    ggplot2::theme(
+      strip.text = ggplot2::element_blank()
+      , plot.title =  ggplot2::element_blank()
+      , plot.subtitle =  ggplot2::element_blank()
+    )
+  , dpi = "print"
+  , height = 7, width = 10.5
+)
 ```
 
 summary statistics
@@ -3223,40 +3249,30 @@ evaluation_fld_cllctd_stems %>%
     )
     , n = dplyr::n()
   ) %>% 
-  tidyr::pivot_longer(cols = -c(siteID,n)) %>% 
+  dplyr::rename_with(.fn = ~stringr::str_remove_all(.x,"recall_")) %>% 
+  dplyr::mutate(dplyr::across(
+    .cols = -c(n,siteID)
+    , .fns = ~ scales::percent(.x, accuracy = 0.1)
+  )) %>% 
   dplyr::mutate(
-    agg = stringr::word(name,-1,sep = "_")
-    , metric = stringr::str_remove_all(name, paste0("_",agg))
+    range = paste0(min, "—", max)
   ) %>% 
-  dplyr::select(-name) %>% 
-  dplyr::mutate(
-    value = scales::comma(value,accuracy=0.01)
-  ) %>% 
-  tidyr::pivot_wider(names_from = agg, values_from = value) %>% 
-  dplyr::mutate(
-    unit_lab = paste0(
-      siteID
-      , "<br>("
-      , scales::comma(n,accuracy=1)
-      ," plots)"
-    )
-    , range = paste0(min, "—", max)
-  ) %>% 
-  dplyr::relocate(unit_lab) %>% 
-  dplyr::select(-c(siteID,n,min,max)) %>% 
-  dplyr::arrange(unit_lab,metric) %>% 
+  dplyr::relocate(siteID,n) %>% 
+  dplyr::select(-c(min,max)) %>% 
   kableExtra::kbl(
-    caption = "NEON site-level validation against field collected-stems ground truth"
+    caption = "Overall validation against field-collected stems ground truth"
     , col.names = c(
-      "site", "Metric"
-      , "Mean", "Median"
-      , "Std Dev", "Range"
+      "Site", "Plots"
+      , "Recall<br>Mean", "Recall<br>Median"
+      , "Recall<br>Std Dev", "Recall<br>Range"
     )
     , escape = F
     # , digits = 2
   ) %>% 
   kableExtra::kable_styling(font_size = 13) %>% 
   kableExtra::collapse_rows(columns = 1, valign = "top")
+  
+  
 ```
 
 the recall values for our lidar-based tree list are much better using the field collected stems for validation than using the image annotated crowns...this might this suggest that our "canopy" filter is aligned for field stems (which we based the filter on) but not for crowns visible from aerial photography
@@ -3279,7 +3295,7 @@ lidar_df %>%
   )
 ```
 
-#### Summary of evaluation lidar data{#neon_lidar}
+### Summary of evaluation lidar data{#neon_lidar}
 
 Let's get a quick summary of the lidar data we used for evaluation. We expect the evaluation data sets to be sized around 40m x 40m.
 
