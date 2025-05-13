@@ -52,6 +52,8 @@ if(!dir.exists(outdir)){dir.create(outdir, showWarnings = F)}
 
 ## Load data
 
+### Study area
+
 first, we'll load our stand data and the boundary data of the point cloud that we processed
 
 ```{r}
@@ -106,8 +108,151 @@ mapview::mapview(
 
 we processed point cloud data well outside these stand bounds (it is not necessary to process data *this* far outside of our stands, a one tile buffer in this situation would have sufficed)
 
+let's make a pretty image for use in the journal article. we'll use the `ggmap` package to get a nice background map and do some transformation to actually work with the map.
+
+```{r, warning=F, message=FALSE, results=F}
+library(ggmap)
+#########################################################################
+#########################################################################
+# Make each plot individually by landscape as solution to small multiples
+# this block defines function
+#########################################################################
+##################hack to align plots for ggmap
+ggmap_bbox_fn <- function(map, my_crs=3857) {
+    if (!inherits(map, "ggmap")) stop("map must be a ggmap object")
+    # Extract the bounding box (in lat/lon) from the ggmap to a numeric vector, 
+    # and set the names to what sf::st_bbox expects:
+    map_bbox <- setNames(unlist(attr(map, "bb")), c("ymin", "xmin", "ymax", "xmax"))
+    # Convert the bbox to an sf polygon, transform it to 3857, 
+    # and convert back to a bbox (convoluted, but it works)
+    bbox_3857 <- st_bbox(st_transform(st_as_sfc(st_bbox(map_bbox, crs = 4326)), my_crs))
+    # Overwrite the bbox of the ggmap object with the transformed coordinates 
+    attr(map, "bb")$ll.lat <- bbox_3857["ymin"]
+    attr(map, "bb")$ll.lon <- bbox_3857["xmin"]
+    attr(map, "bb")$ur.lat <- bbox_3857["ymax"]
+    attr(map, "bb")$ur.lon <- bbox_3857["xmax"]
+    map
+}
+plt_crs <- 3857
+#########################################################################
+#########################################################################
+#########################################################################
+  # should zoom in?
+  zoom_level <- 14 # 11
+  # should buffer extend?
+  buffer_box <- 2600 # 20000
+  # bounding box
+  bb_temp <-
+    las_ctg_sf$geom %>%
+    dplyr::as_tibble() %>% 
+    dplyr::mutate(rn = dplyr::row_number()) %>% 
+    sf::st_as_sf(sf_column_name = "geometry") %>% 
+    sf::st_bbox() %>% 
+    sf::st_as_sfc() %>% 
+    sf::st_transform(crs=5070) %>% 
+    sf::st_buffer(as.numeric(buffer_box)) %>% 
+    sf::st_transform(crs=4326) %>% # same as get_map return
+    sf::st_bbox()
+  # set bbox for get call
+  bbox_temp <- c(
+    bottom = bb_temp[[2]]
+    , top = bb_temp[[4]]
+    , right = bb_temp[[3]]
+    , left = bb_temp[[1]]
+  )
+  hey_ggmap <- ggmap::get_stadiamap(
+    bbox = bbox_temp
+    , zoom = zoom_level
+    , maptype = "stamen_terrain" #"stamen_toner_lite"
+    , crop = T
+  )
+
+  # ggmap::ggmap(hey_ggmap)
+  # apply align function
+  hey_ggmap_aligned <- ggmap_bbox_fn(hey_ggmap, plt_crs) # Use the function
+  # plot
+  plt_basemap <- ggmap::ggmap(hey_ggmap_aligned) + 
+    ggplot2::coord_sf(
+      expand = FALSE
+    ) +
+    ggplot2::theme_light() +
+    ggplot2::theme(
+      legend.position = "none"
+      , plot.title = ggplot2::element_blank()
+      , strip.text = ggplot2::element_blank()
+      , axis.title = ggplot2::element_blank()
+      , axis.text = ggplot2::element_blank()
+      , axis.ticks = ggplot2::element_blank()
+      , panel.grid = ggplot2::element_blank()
+      , plot.margin = ggplot2::margin(0, 0, 0, 0, "cm")
+    )
+  # return
+  # plt_basemap
+```
+
+plot it with the second unit
+
+```{r}
+# plot
+  plt_basemap + 
+      ggplot2::geom_sf(
+        data = 
+          las_ctg_sf$geom %>%
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, lwd = 0.7, color = "gray8"
+        , inherit.aes = F
+      ) +
+      ggplot2::geom_sf(
+        data = stand_sf %>% 
+          dplyr::filter(unit_id==2) %>% 
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, color = my_pal[2], lwd = 1.4
+        , inherit.aes = F
+      )
+```
+
+```{r, include=FALSE, eval=TRUE}
+ggplot2::ggsave(
+  "../data/mogollin_rim_study_area_unit2.jpg"
+  , dpi = "print"
+  , height = 7, width = 7
+)
+```
+
+plot it with the first unit
+
+```{r}
+# plot
+  plt_basemap + 
+      ggplot2::geom_sf(
+        data = 
+          las_ctg_sf$geom %>%
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, lwd = 0.7, color = "gray8"
+        , inherit.aes = F
+      ) +
+      ggplot2::geom_sf(
+        data = stand_sf %>% 
+          dplyr::filter(unit_id==1) %>% 
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, color = my_pal[1], lwd = 1.4
+        , inherit.aes = F
+      )
+```
+
+```{r, include=FALSE, eval=TRUE}
+ggplot2::ggsave(
+  "../data/mogollin_rim_study_area_unit1.jpg"
+  , dpi = "print"
+  , height = 7, width = 7
+)
+```
+
+### `cloud2trees` outputs
+
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
+remove(buffer_box, hey_ggmap, hey_ggmap_aligned, zoom_level, zoom_level)
 gc()
 ```
 
@@ -1285,6 +1430,32 @@ check out our plots
 
 ```{r}
 plt_stands
+```
+
+```{r, include=FALSE, eval=TRUE}
+plt_temp <- c(2) %>% 
+  purrr::map(function(x,my_stand_sf=stand_sf,my_plt_list=plt_list){
+    # get just this stand plots
+    plts <- my_plt_list %>%
+      purrr::transpose() %>% 
+      purrr::pluck(x)
+    # patchwork them
+    patchwork::wrap_plots(plts) +
+      patchwork::plot_annotation(
+        theme = ggplot2::theme(plot.title = ggplot2::element_blank())
+      ) &
+      ggplot2::theme(
+        plot.subtitle = ggplot2::element_blank()
+        , legend.text = ggplot2::element_text(size=6.5)
+        # , plot.background = ggplot2::element_rect(colour = "gray77", fill=NA, linewidth=1)
+      )
+  })
+ggplot2::ggsave(
+  "../data/silv_summary_unit2.jpg"
+  , plot = plt_temp[[1]]
+  , dpi = "print"
+  , height = 7, width = 9
+)
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
