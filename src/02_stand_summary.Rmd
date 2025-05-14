@@ -108,10 +108,11 @@ mapview::mapview(
 
 we processed point cloud data well outside these stand bounds (it is not necessary to process data *this* far outside of our stands, a one tile buffer in this situation would have sufficed)
 
-let's make a pretty image for use in the journal article. we'll use the `ggmap` package to get a nice background map and do some transformation to actually work with the map.
+let's make a pretty image for use in the journal article. we'll use the `ggmap` package to get a nice background map and do some transformation to actually work with the map. We'll add a map scale using `ggspatial`
 
 ```{r, warning=F, message=FALSE, results=F}
 library(ggmap)
+library(ggspatial)
 #########################################################################
 #########################################################################
 # Make each plot individually by landscape as solution to small multiples
@@ -137,16 +138,15 @@ plt_crs <- 3857
 #########################################################################
 #########################################################################
 #########################################################################
-  # should zoom in?
-  zoom_level <- 14 # 11
-  # should buffer extend?
-  buffer_box <- 2600 # 20000
+my_ggmap_basemap <- function(sf_data, zoom_level = 14, buffer_box = 2600, my_crs = plt_crs, scale_location = "bl", my_maptype = "stamen_terrain") {
+  
+  # # should zoom in?
+  # zoom_level <- 14 # 11
+  # # should buffer extend?
+  # buffer_box <- 2600 # 20000
   # bounding box
   bb_temp <-
-    las_ctg_sf$geom %>%
-    dplyr::as_tibble() %>% 
-    dplyr::mutate(rn = dplyr::row_number()) %>% 
-    sf::st_as_sf(sf_column_name = "geometry") %>% 
+    sf_data %>% 
     sf::st_bbox() %>% 
     sf::st_as_sfc() %>% 
     sf::st_transform(crs=5070) %>% 
@@ -163,15 +163,16 @@ plt_crs <- 3857
   hey_ggmap <- ggmap::get_stadiamap(
     bbox = bbox_temp
     , zoom = zoom_level
-    , maptype = "stamen_terrain" #"stamen_toner_lite"
+    , maptype = my_maptype #"stamen_terrain" #"stamen_toner_lite"
     , crop = T
   )
 
   # ggmap::ggmap(hey_ggmap)
   # apply align function
-  hey_ggmap_aligned <- ggmap_bbox_fn(hey_ggmap, plt_crs) # Use the function
+  hey_ggmap_aligned <- ggmap_bbox_fn(hey_ggmap, my_crs) # Use the function
   # plot
-  plt_basemap <- ggmap::ggmap(hey_ggmap_aligned) + 
+  plt_basemap <-
+    ggmap::ggmap(hey_ggmap_aligned) + 
     ggplot2::coord_sf(
       expand = FALSE
     ) +
@@ -186,14 +187,31 @@ plt_crs <- 3857
       , panel.grid = ggplot2::element_blank()
       , plot.margin = ggplot2::margin(0, 0, 0, 0, "cm")
     )
-  # return
-  # plt_basemap
+  if(scale_location %in% c("bl", "br", "tr", "tl")){
+    plt_basemap <- plt_basemap + 
+      ggspatial::annotation_scale(
+        location = scale_location
+        , style = "ticks"
+        , pad_x = unit(0.1, "cm")
+        , pad_y = unit(0.1, "cm")
+      )
+  }
+  return(plt_basemap)
+}
+plt_basemap <- my_ggmap_basemap(
+  sf_data = las_ctg_sf$geom %>%
+    dplyr::as_tibble() %>% 
+    dplyr::mutate(rn = dplyr::row_number()) %>% 
+    sf::st_as_sf(sf_column_name = "geometry")
+  , buffer_box = 3500
+)
 ```
 
 plot it with the second unit
 
 ```{r}
 # plot
+plt2_temp <- 
   plt_basemap + 
       ggplot2::geom_sf(
         data = 
@@ -209,6 +227,7 @@ plot it with the second unit
         , fill = NA, color = my_pal[2], lwd = 1.4
         , inherit.aes = F
       )
+plt2_temp
 ```
 
 ```{r, include=FALSE, eval=TRUE}
@@ -223,6 +242,7 @@ plot it with the first unit
 
 ```{r}
 # plot
+plt1_temp <- 
   plt_basemap + 
       ggplot2::geom_sf(
         data = 
@@ -238,6 +258,7 @@ plot it with the first unit
         , fill = NA, color = my_pal[1], lwd = 1.4
         , inherit.aes = F
       )
+plt1_temp
 ```
 
 ```{r, include=FALSE, eval=TRUE}
@@ -248,11 +269,60 @@ ggplot2::ggsave(
 )
 ```
 
+can we add an inset map?
+
+```{r}
+# get big map
+plt_basemap_inset <-
+  my_ggmap_basemap(
+    sf_data = las_ctg_sf$geom %>%
+      dplyr::as_tibble() %>% 
+      dplyr::mutate(rn = dplyr::row_number()) %>% 
+      sf::st_as_sf(sf_column_name = "geometry") %>% 
+      dplyr::filter(rn==max(rn))
+    , zoom_level = 6
+    , buffer_box = 565000
+    , my_maptype = "stamen_toner_lite"
+    , scale_location = NA
+  ) 
+# plt_basemap_inset
+# add point
+plt_inset <- plt_basemap_inset + 
+  ggplot2::geom_sf(
+        data = stand_sf %>% 
+          dplyr::filter(unit_id==2) %>% 
+          sf::st_geometry() %>%
+          sf::st_centroid() %>% 
+          `+`(c(0,12000)) %>% # moves the point up so not blocking text label
+          sf::st_set_crs(sf::st_crs(stand_sf)) %>% 
+          sf::st_transform(crs=plt_crs)
+        , fill = NA, color = my_pal[2]
+        , size = 1.8, shape = 18
+        , inherit.aes = F
+      )
+# combine
+plt2_temp + 
+  patchwork::inset_element(
+    plt_inset
+    , left = 0.733, bottom = 0.753
+    , right = 1, top = 1
+    , align_to = "full"
+  )
+```
+
+```{r, include=FALSE, eval=TRUE}
+ggplot2::ggsave(
+  "../data/mogollin_rim_study_area_inset_unit2.jpg"
+  , dpi = "print"
+  , height = 8, width = 8
+)
+```
+
+
 ### `cloud2trees` outputs
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
-remove(buffer_box, hey_ggmap, hey_ggmap_aligned, zoom_level, zoom_level)
 gc()
 ```
 
