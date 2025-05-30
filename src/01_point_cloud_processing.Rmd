@@ -1215,8 +1215,6 @@ table_temp %>%
 
 plot it
 
-
-
 ## Data Export
 
 Now that we have our point cloud-extracted tree list with all of the tree component measurements attached, let's save the data for use in our analysis

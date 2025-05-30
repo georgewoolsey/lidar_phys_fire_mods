@@ -1651,8 +1651,8 @@ gc()
 if we want to extend the buffer on our stand polygons to include trees outside of the unit for exporting data, then we will need to read in the tree list again since we filtered it above for only trees within unit boundaries to quantify the stand structure properly
 
 ```{r, eval=FALSE, include=TRUE}
-use_bbox_temp <- F # use a bbox of the stand polygon or not?
-buffer_temp <- 0 # buffer either the polygon or the bbox by this much
+use_bbox_temp <- T # use a bbox of the stand polygon or not?
+buffer_temp <- 100 # buffer either the polygon or the bbox by this much
 
 # quick function to ingest a sf data.frame with geometry features for each row
 # and return a bbox for each row-level geometry
@@ -1828,7 +1828,22 @@ write_fn <- function(x, data, fprefix = "final_detected", new_crs = proj_crs, my
 # write crowns and tree tops
 write_temp <- crowns_sf$unit_id %>%
   unique() %>%
-  purrr::map(\(x) write_fn(x=x, data = crowns_sf, fprefix = "final_detected"))
+  purrr::map(\(x) write_fn(x=x, data = crowns_sf, fprefix = paste0("buffered_epsg",5070,"_final_detected"), new_crs = 5070))
+```
+
+```{r, include = F, eval=FALSE}
+crowns_sf %>%
+  dplyr::filter(unit_id == 2) %>% 
+  sf::st_transform(5070) %>% 
+  nrow()
+
+treetops_sf %>% 
+  dplyr::filter(unit_id==1) %>% 
+  sf::st_bbox() %>% 
+  sf::st_as_sfc() %>% 
+  ggplot() + 
+  geom_sf(col = "blue") +
+  geom_sf(data = stand_sf %>% dplyr::filter(unit_id==1), col = "red")
 ```
 
 we now need to attach the `treeID` to the point cloud for use in performing tree species classification based on the three-dimensional data based on the methods developed within our study area by [Blackburn (2022)](https://scholar.google.com/scholar?cluster=12483518836038968271&hl=en&as_sdt=0,6)
