@@ -684,7 +684,7 @@ lidar_df %>%
   ) %>% 
   mapview::mapview(
     zcol = "is_conifer_site", legend = T
-    , layer.name = "conifer site?"
+    , layer.name = "conifer site"
     , col.regions = viridis::viridis(n=2,begin = 0.1,end = 0.9)
   )
 ```
@@ -3197,7 +3197,7 @@ p_temp <- evaluation_fld_cllctd_stems %>%
   ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = name)) +
     ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
     ggplot2::geom_boxplot(
-      width=0.3,staplewidth=0.4,lwd=0.7
+      width=0.25,staplewidth=0.4,lwd=0.7
       ,fill=NA,color = "gray9"
       , outliers = F
     ) +
@@ -3212,6 +3212,7 @@ p_temp <- evaluation_fld_cllctd_stems %>%
     ggplot2::theme(
       legend.position = "none"
       , axis.text.x = ggplot2::element_text(size=7)
+      , axis.text.y = ggplot2::element_text(size=11)
       , panel.grid.major.y = ggplot2::element_line(color="gray22")
       , strip.text = ggplot2::element_text(color = "black", size = 10)
     )
@@ -3229,7 +3230,7 @@ ggplot2::ggsave(
       , plot.subtitle =  ggplot2::element_blank()
     )
   , dpi = "print"
-  , height = 7, width = 10.5
+  , height = 5.5, width = 9
 )
 ```
 

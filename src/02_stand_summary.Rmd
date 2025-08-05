@@ -1473,6 +1473,60 @@ put all desired plots into a list to combine by stand unit
 plt_list <- list(plt_ftype, plt_ba, plt_qmd, plt_height, plt_tph, plt_cfl_landfire)
 ```
 
+```{r, include=F,eval=TRUE,results='hide',message=FALSE}
+# save images to align in powerpoint :\
+# remove
+list.files(
+  "../data/"
+  , pattern = "raster_panel_.*\\jpg$"
+  , recursive = T, full.names = T
+) %>% 
+purrr::map(file.remove)
+# write
+purrr::transpose(plt_list) %>% 
+  purrr::pluck(2) %>% 
+  # .[1:3] %>%
+  purrr::map(function(x){
+    plt <- x +
+      ggplot2::theme(
+        legend.position = c(0, 1) # Place legend at top-left
+        , legend.justification = c(0, 1) # Justify content to top-left
+        , legend.box.margin = ggplot2::margin(5, 2, 2, 2, unit = "mm") # Add margin around the legend box
+        , plot.subtitle = ggplot2::element_blank()
+        , plot.title = ggplot2::element_blank()
+        , legend.text = ggplot2::element_text(size=7)
+        , legend.title = ggplot2::element_text(size=9)
+      ) +
+      ggspatial::annotation_scale(
+        location = "bl"
+        , style = "ticks"
+        , pad_x = unit(0.1, "cm")
+        , pad_y = unit(0.1, "cm")
+      ) + 
+      ggspatial::annotation_north_arrow(
+        location = "bl"
+        # , style = "ticks"
+        , height = unit(0.7, "cm")
+        , width = unit(0.7, "cm")
+        , pad_x = unit(0.1, "cm")
+        , pad_y = unit(0.65, "cm")
+      )
+    ggplot2::ggsave(
+      filename = file.path(
+        "../data/"
+        , paste0(
+          "raster_panel_"
+          , format(Sys.time(), "%Y-%m-%d_%H.%M.%OS3")
+          , ".jpg"
+        )
+      )
+      , plot = plt
+      , dpi = "print"
+      , height = 8, width = 4.8
+    )
+  })
+```
+
 combine the plots by stand unit
 
 ```{r}
