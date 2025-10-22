@@ -295,14 +295,14 @@ ws_fn_df %>% dplyr::glimpse()
 plot of all ITD variable window functions for testing
 
 ```{r}
-ws_fn_df %>% 
+p_temp <- ws_fn_df %>% 
   ggplot2::ggplot(mapping = ggplot2::aes(x = height, y = ws, color = ws_fn_nm)) +
   ggplot2::geom_line(lwd=1) +
   ggplot2::scale_color_manual(values = pal_ws) +
   ggplot2::xlim(-3,NA) +
   ggplot2::ylim(-0.1,NA) +
   ggplot2::labs(
-    x = "heights", y = "ws"
+    x = "heights", y = "window size"
     , color = "variable\nwindow\nfunction"
     , subtitle = "ITD variable window functions for testing"
   ) +
@@ -310,6 +310,21 @@ ws_fn_df %>%
   ggplot2::guides(
     color = ggplot2::guide_legend(override.aes = list(lwd = 6))
   )
+p_temp
+```
+
+```{r, include=FALSE, eval=TRUE}
+ggplot2::ggsave(
+  "../data/ws_functions_testing.jpg"
+  , plot = p_temp +
+    ggplot2::theme(
+      strip.text = ggplot2::element_blank()
+      , plot.title =  ggplot2::element_blank()
+      , plot.subtitle =  ggplot2::element_blank()
+    )
+  , dpi = "print"
+  , height = 6, width = 9
+)
 ```
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
@@ -3195,7 +3210,7 @@ p_temp <- evaluation_fld_cllctd_stems %>%
     , siteID = forcats::fct_rev(siteID)
   ) %>% 
   ggplot2::ggplot(ggplot2::aes(x = value, y = siteID, color = name)) +
-    ggplot2::geom_jitter(height = 0.12, width = 0, size = 4) +
+    ggplot2::geom_jitter(height = 0.12, width = 0, size = 3, alpha = 0.9) +
     ggplot2::geom_boxplot(
       width=0.25,staplewidth=0.4,lwd=0.7
       ,fill=NA,color = "gray9"
@@ -3211,7 +3226,8 @@ p_temp <- evaluation_fld_cllctd_stems %>%
     ggplot2::theme_light() +
     ggplot2::theme(
       legend.position = "none"
-      , axis.text.x = ggplot2::element_text(size=7)
+      , axis.text.x = ggplot2::element_text(size=8)
+      , axis.title.x = ggplot2::element_text(size=9)
       , axis.text.y = ggplot2::element_text(size=11)
       , panel.grid.major.y = ggplot2::element_line(color="gray22")
       , strip.text = ggplot2::element_text(color = "black", size = 10)
@@ -3231,6 +3247,21 @@ ggplot2::ggsave(
     )
   , dpi = "print"
   , height = 5.5, width = 9
+)
+# plos one requirements
+ggplot2::ggsave(
+  "../data/Fig2.tiff"
+  , plot = p_temp +
+    ggplot2::labs(subtitle = "", x = "recall") +
+    ggplot2::theme(
+      strip.text = ggplot2::element_blank()
+      , plot.title =  ggplot2::element_blank()
+      , plot.subtitle =  ggplot2::element_blank()
+    )
+  , device = "tiff"
+  , dpi = 300
+  , units = "in"
+  , height = 4.4, width = 7.2
 )
 ```
 
@@ -5302,8 +5333,19 @@ plt_fn <- function(
           scales::percent(accuracy=0.1)
       )
     ) +
+    ggspatial::annotation_scale(
+      location = "br"
+      , style = "ticks" # "bar"
+      , text_cex = 0.6
+      , pad_x = unit(0.15, "cm")
+      , pad_y = unit(0.1, "cm")
+      , height = unit(0.15, "cm")
+    ) +
     ggplot2::theme_void() +
-    ggplot2::theme(plot.subtitle = ggplot2::element_text(hjust=0.5)) +
+    ggplot2::theme(
+      plot.subtitle = ggplot2::element_text(size = 8, hjust=0.5)
+      # , plot.background = element_rect(color = "gray88", fill = NA, linewidth = 0.5)
+    ) +
     ggplot2::guides(
       fill = ggplot2::guide_legend(
         override.aes = list(
@@ -5318,13 +5360,29 @@ plt_fn <- function(
 # map over plots
 plt_list <- 1:nrow(plt_nms_temp) %>% 
   purrr::map(plt_fn)
+# plt_list[length(plt_list)]
 ```
 
 combine the figures as tiles
 
 ```{r, fig.height=9.5,fig.width=8.5}
-patchwork::wrap_plots(plt_list, ncol = 3, guides = "collect") &
+p_temp <- patchwork::wrap_plots(plt_list, ncol = 3, guides = "collect") &
   ggplot2::theme(legend.position = "bottom")
+p_temp
+```
+
+```{r, include=FALSE, eval=TRUE}
+ggplot2::ggsave(
+  "../data/forinstance_validation_plots.jpg"
+  , plot = p_temp +
+    ggplot2::theme(
+      strip.text = ggplot2::element_blank()
+      # , plot.title =  ggplot2::element_blank()
+      # , plot.subtitle =  ggplot2::element_blank()
+    )
+  , dpi = "print"
+  , height = 9.5, width = 8
+)
 ```
 
 The ground truth trees are shown as filled polygons while our predicted crowns are shown as unfilled polygon outlines. Note the predicted crowns classified as commission errors that enclose multiple ground truth tree crowns which are counted as omission errors. Even though the predicted crowns overlap the ground truth crowns, these instances are classified as such due to the criteria that "if the IoU is <0.5: the predicted tree is considered an error" and thus no ground truth instance is matched.

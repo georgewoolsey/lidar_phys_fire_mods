@@ -612,7 +612,10 @@ lab_list_temp <- treetops_sf %>%
   sf::st_drop_geometry() %>% 
   dplyr::filter(!is.na(forest_type_group)) %>% 
   dplyr::distinct(forest_type_group) %>% 
-  dplyr::mutate(forest_type_group = stringr::str_remove(forest_type_group, " group")) %>% 
+  dplyr::mutate(
+    forest_type_group = stringr::str_remove(forest_type_group, " group") %>% 
+      stringr::str_wrap(width = 17)
+  ) %>% 
   dplyr::pull(forest_type_group)
 # set our colors for the units
 if(length(lab_list_temp)<=length(harrypotter::hp_palettes$lunalovegood)){
@@ -629,7 +632,10 @@ plot
 ```{r}
 treetops_sf %>% 
   sf::st_drop_geometry() %>% 
-  dplyr::mutate(forest_type_group = stringr::str_remove(forest_type_group, " group")) %>% 
+  dplyr::mutate(
+    forest_type_group = stringr::str_remove(forest_type_group, " group") %>% 
+      stringr::str_wrap(width = 17)
+  ) %>% 
   dplyr::count(unit_name, forest_type_group) %>% 
   dplyr::arrange(unit_name, desc(n)) %>% 
   dplyr::group_by(unit_name) %>% 
@@ -1419,7 +1425,10 @@ foresttype_rast <- terra::rast("../data/point_cloud_processing_delivery/type_ras
 foresttype_lookup <- file.path(cloud2trees::find_ext_data()[["foresttype_dir"]], "foresttype_lookup.csv") %>% 
   readr::read_csv(progress = F, show_col_types = F) %>% 
   dplyr::distinct(forest_type_group_code, forest_type_group, hardwood_softwood) %>% 
-  dplyr::mutate(forest_type_group = stringr::str_remove(forest_type_group, " group"))
+  dplyr::mutate(
+    forest_type_group = stringr::str_remove(forest_type_group, " group") %>% 
+      stringr::str_wrap(width = 17)
+  )
 # what?
 foresttype_lookup %>% dplyr::glimpse()
 ```
@@ -1459,6 +1468,24 @@ check out our plots
 plt_ftype
 ```
 
+
+```{r, include=FALSE, eval=FALSE}
+plt_ftype[[2]]
+plot_raster_stand_fn(
+  foresttype_rast
+  , stand = stand_sf[2,]
+  , buffer = 10
+  , des_res = 30
+  , stand_color = "black"
+  , my_title = ""
+  , scale_name = ""
+  , agg_fun = "modal"
+  , lookup = foresttype_lookup
+  , lookup_code = "forest_type_group_code"
+  , lookup_lab = "forest_type_group"
+)
+```
+
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, include=FALSE}
 remove(list = ls()[grep("_temp",ls())])
 remove(foresttype_lookup, foresttype_rast)
@@ -1482,34 +1509,93 @@ list.files(
   , recursive = T, full.names = T
 ) %>% 
 purrr::map(file.remove)
+
+# the forest type plt is special
+plt_list[[1]][[2]] +
+      ggplot2::theme(
+        # legend
+        legend.position = c(-0.2, 0.97) # Place legend at top-left
+        , legend.justification = c("left", "top") # c(0, 1) # Justify content to top-left
+        , legend.box.margin = ggplot2::margin(0, 0, 0, 0, unit = "mm") # Add margin around the legend box
+        , legend.key.height = unit(1.3, "cm")
+        , legend.key.width = unit(1, "cm")
+        , legend.text = ggplot2::element_text(size=17.5)
+        , legend.title = ggplot2::element_text(size=17.5)
+        # plot
+        , plot.subtitle = ggplot2::element_blank()
+        , plot.title = ggplot2::element_blank()
+        , plot.margin = ggplot2::margin(0, 2, 2, 10, unit = "mm")
+      ) +
+      # ggplot2::guides(
+      #   fill = ggplot2::guide_colorbar(barheight = unit(10, "cm"))
+      # )
+      ggspatial::annotation_scale(
+        location = "bl"
+        , style = "bar" #"ticks"
+        , text_cex = 1.4
+        , pad_x = unit(0.1, "cm")
+        , pad_y = unit(0.1, "cm")
+        , height = unit(0.5, "cm")
+      ) + 
+      ggspatial::annotation_north_arrow(
+        location = "tr"
+        # , style = "ticks"
+        , height = unit(1, "cm")
+        , width = unit(1, "cm")
+        , pad_x = unit(1, "cm")
+        , pad_y = unit(2, "cm")
+      )
+    ggplot2::ggsave(
+      filename = file.path(
+        "../data/"
+        , paste0(
+          "raster_panel_"
+          , format(Sys.time(), "%Y-%m-%d_%H.%M.%OS3")
+          , ".jpg"
+        )
+      )
+      , dpi = "print"
+      , height = 8, width = 5.5
+    )
+
 # write
 purrr::transpose(plt_list) %>% 
   purrr::pluck(2) %>% 
-  # .[1:3] %>%
+  .[2:6] %>%
   purrr::map(function(x){
     plt <- x +
       ggplot2::theme(
-        legend.position = c(0, 1) # Place legend at top-left
-        , legend.justification = c(0, 1) # Justify content to top-left
-        , legend.box.margin = ggplot2::margin(5, 2, 2, 2, unit = "mm") # Add margin around the legend box
+        # legend
+        legend.position = c(-0.2, 0.97) # Place legend at top-left
+        , legend.justification = c("left", "top") # c(0, 1) # Justify content to top-left
+        , legend.box.margin = ggplot2::margin(0, 0, 0, 0, unit = "mm") # Add margin around the legend box
+        , legend.key.height = unit(1.5, "cm")
+        , legend.key.width = unit(1, "cm")
+        , legend.text = ggplot2::element_text(size=19)
+        , legend.title = ggplot2::element_text(size=17)
+        # plot
         , plot.subtitle = ggplot2::element_blank()
         , plot.title = ggplot2::element_blank()
-        , legend.text = ggplot2::element_text(size=7)
-        , legend.title = ggplot2::element_text(size=9)
+        , plot.margin = ggplot2::margin(0, 2, 2, 10, unit = "mm")
       ) +
+      # ggplot2::guides(
+      #   fill = ggplot2::guide_colorbar(barheight = unit(10, "cm"))
+      # )
       ggspatial::annotation_scale(
         location = "bl"
-        , style = "ticks"
+        , style = "bar" #"ticks"
+        , text_cex = 1.4
         , pad_x = unit(0.1, "cm")
         , pad_y = unit(0.1, "cm")
+        , height = unit(0.5, "cm")
       ) + 
       ggspatial::annotation_north_arrow(
-        location = "bl"
+        location = "tr"
         # , style = "ticks"
-        , height = unit(0.7, "cm")
-        , width = unit(0.7, "cm")
-        , pad_x = unit(0.1, "cm")
-        , pad_y = unit(0.65, "cm")
+        , height = unit(1, "cm")
+        , width = unit(1, "cm")
+        , pad_x = unit(1, "cm")
+        , pad_y = unit(2, "cm")
       )
     ggplot2::ggsave(
       filename = file.path(
@@ -1522,7 +1608,7 @@ purrr::transpose(plt_list) %>%
       )
       , plot = plt
       , dpi = "print"
-      , height = 8, width = 4.8
+      , height = 8, width = 5.5
     )
   })
 ```
